@@ -1,27 +1,16 @@
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
 
-/**
- * AI可読性・先祖返り防止コメント:
- * 【空路ネットワークと接続上限の管理】
- * Major(8), Local(5), Fictional(3) の接続上限を管理するクラスです。
- * 接続が成立すると、地球の曲面に沿った「光のアーチ線（QuadraticBezierCurve3）」を生成し、
- * PlaneManagerの飛行機が利用するネットワークグラフ（隣接リスト）を構築します。
- */
 export class RouteManager {
     constructor(scene, globeGroup) {
         this.scene = scene;
         this.globeGroup = globeGroup;
         
-        // ルートの3Dメッシュを格納するグループ
         this.routeGroup = new THREE.Group();
         this.globeGroup.add(this.routeGroup);
 
-        // ネットワークグラフ (Adjacency List)
-        // 例: { 'HND': [{ id: 'JFK', curve: CurveObj, length: number }, ...] }
         this.network = {}; 
         
-        // 接続上限
         this.MAX_CONNECTIONS = {
             'major': 8,
             'local': 5,
@@ -29,12 +18,10 @@ export class RouteManager {
         };
     }
 
-    // 特定の空港の現在の接続数を取得
     getConnectionCount(airportId) {
         return this.network[airportId] ? this.network[airportId].length : 0;
     }
 
-    // 接続可能か（上限未満かつ、まだ繋がっていないか）をチェック
     canConnect(fromData, toData) {
         if (fromData.id === toData.id) return false;
 
@@ -45,7 +32,6 @@ export class RouteManager {
 
         if (fromCount >= fromMax || toCount >= toMax) return false;
 
-        // 既に接続済みかチェック
         if (this.network[fromData.id]) {
             const alreadyConnected = this.network[fromData.id].some(dest => dest.id === toData.id);
             if (alreadyConnected) return false;
@@ -54,48 +40,40 @@ export class RouteManager {
         return true;
     }
 
-    // ルートを作成し、3Dアーチを描画する
     addRoute(fromData, toData) {
         if (!this.canConnect(fromData, toData)) return false;
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02);
         const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.02);
 
-        // --- 地球の曲面に沿ったアーチ状の曲線を作成 ---
-        // 中間点を求め、地球の中心から離す（膨らませる）
         const midPoint = posA.clone().lerp(posB, 0.5);
         const distance = posA.distanceTo(posB);
-        // 距離が遠いほど高く膨らむように計算
         midPoint.normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.02 + distance * 0.3);
 
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
-        // 線の描画（サイバーな細い青線）
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const material = new THREE.LineBasicMaterial({ 
-            color: 0x3b82f6, // Blue-500
+            color: 0x3b82f6, 
             transparent: true, 
             opacity: 0.6 
         });
         const line = new THREE.Line(geometry, material);
         this.routeGroup.add(line);
 
-        // ネットワークグラフへの登録（双方向）
         if (!this.network[fromData.id]) this.network[fromData.id] = [];
         if (!this.network[toData.id]) this.network[toData.id] = [];
 
         this.network[fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData });
         
-        // 逆方向のルートは、曲線の向きを逆にした新しいCurveオブジェクトを作成する
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
 
         return true;
     }
 
-    // 指定した空港からランダムな次の目的地ルートを取得（自動飛行用）
     getRandomRouteFrom(airportId) {
         const routes = this.network[airportId];
         if (!routes || routes.length === 0) return null;
@@ -104,11 +82,11 @@ export class RouteManager {
         return routes[randomIndex];
     }
 
-    // 飛行機をスポーンさせるための、最低1本以上のルートを持つランダムな空港を取得
     getRandomConnectedAirport() {
         const connectedIds = Object.keys(this.network).filter(id => this.network[id].length > 0);
         if (connectedIds.length === 0) return null;
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 }
+
 

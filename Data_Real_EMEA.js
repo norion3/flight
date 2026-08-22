@@ -1,9 +1,4 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * 欧州、中東、アフリカの実在空港データ。
- */
 export const AIRPORTS_EMEA = [
-    // --- Major Hubs ---
     { id: 'LHR', name: 'London Heathrow', lat: 51.4700, lon: -0.4543, country: 'UK', type: 'major' },
     { id: 'CDG', name: 'Paris Charles de Gaulle', lat: 49.0097, lon: 2.5479, country: 'France', type: 'major' },
     { id: 'FRA', name: 'Frankfurt', lat: 50.0379, lon: 8.5622, country: 'Germany', type: 'major' },
@@ -21,7 +16,6 @@ export const AIRPORTS_EMEA = [
     { id: 'ADD', name: 'Addis Ababa Bole', lat: 8.9778, lon: 38.7993, country: 'Ethiopia', type: 'major' },
     { id: 'CMN', name: 'Casablanca', lat: 33.3675, lon: -7.5899, country: 'Morocco', type: 'major' },
 
-    // --- Local Airports ---
     { id: 'LGW', name: 'London Gatwick', lat: 51.1537, lon: -0.1821, country: 'UK', type: 'local' },
     { id: 'MAN', name: 'Manchester', lat: 53.3537, lon: -2.2750, country: 'UK', type: 'local' },
     { id: 'EDI', name: 'Edinburgh', lat: 55.9500, lon: -3.3725, country: 'UK', type: 'local' },
@@ -35,7 +29,7 @@ export const AIRPORTS_EMEA = [
     { id: 'ZRH', name: 'Zurich', lat: 47.4582, lon: 8.5555, country: 'Switzerland', type: 'local' },
     { id: 'GVA', name: 'Geneva', lat: 46.2381, lon: 6.1089, country: 'Switzerland', type: 'local' },
     { id: 'VIE', name: 'Vienna', lat: 48.1103, lon: 16.5697, country: 'Austria', type: 'local' },
-    { id: 'WAW', name: 'Vienna', lat: 52.1657, lon: 20.9671, country: 'Poland', type: 'local' },
+    { id: 'WAW', name: 'Warsaw', lat: 52.1657, lon: 20.9671, country: 'Poland', type: 'local' },
     { id: 'ATH', name: 'Athens', lat: 37.9364, lon: 23.9445, country: 'Greece', type: 'local' },
     { id: 'CPH', name: 'Copenhagen', lat: 55.6180, lon: 12.6508, country: 'Denmark', type: 'local' },
     { id: 'ARN', name: 'Stockholm Arlanda', lat: 59.6498, lon: 17.9238, country: 'Sweden', type: 'local' },

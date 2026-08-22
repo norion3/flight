@@ -1,10 +1,4 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * 南北アメリカ、カナダ、カリブ海の実在空港データ。
- * 密集地（ニューヨーク周辺等）は自動間引きによりバランスが調整されます。
- */
 export const AIRPORTS_AMERICAS = [
-    // --- Major Hubs ---
     { id: 'LAX', name: 'Los Angeles', lat: 33.9416, lon: -118.4085, country: 'USA', type: 'major' },
     { id: 'SFO', name: 'San Francisco', lat: 37.6213, lon: -122.3790, country: 'USA', type: 'major' },
     { id: 'JFK', name: 'New York JFK', lat: 40.6413, lon: -73.7781, country: 'USA', type: 'major' },
@@ -22,9 +16,8 @@ export const AIRPORTS_AMERICAS = [
     { id: 'SCL', name: 'Santiago', lat: -33.3930, lon: -70.7858, country: 'Chile', type: 'major' },
     { id: 'BOG', name: 'Bogota El Dorado', lat: 4.7016, lon: -74.1469, country: 'Colombia', type: 'major' },
     { id: 'LIM', name: 'Lima Jorge Chavez', lat: -12.0219, lon: -77.1143, country: 'Peru', type: 'major' },
-    { id: 'HNL', name: 'Honolulu', lat: 21.3187, lon: -157.9225, country: 'USA (Hawaii)', type: 'major' },
+    { id: 'HNL', name: 'Honolulu', lat: 21.3187, lon: -157.9225, country: 'USA', type: 'major' },
 
-    // --- Local Airports ---
     { id: 'LAS', name: 'Las Vegas McCarran', lat: 36.0840, lon: -115.1537, country: 'USA', type: 'local' },
     { id: 'BOS', name: 'Boston Logan', lat: 42.3656, lon: -71.0096, country: 'USA', type: 'local' },
     { id: 'PHX', name: 'Phoenix Sky Harbor', lat: 33.4342, lon: -112.0080, country: 'USA', type: 'local' },

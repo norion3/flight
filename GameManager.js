@@ -6,15 +6,6 @@ import { UIManager } from './UIManager.js';
 import { RouteManager } from './RouteManager.js';
 import { PlaneManager } from './PlaneManager.js';
 
-/**
- * AI可読性・先祖返り防止コメント:
- * 【初期スターターパックとエラー通知】
- * 履歴61に基づき、ゲーム開始直後に initStarterPack() を実行し、
- * 国内ルート（羽田〜新千歳、羽田〜福岡）と小型機2機を初期配置します。
- * また、ルートがない状態で飛行機を購入しようとした際などに、
- * uiManager.showToast() を用いてプレイヤーに明確な理由（エラー通知）を伝えます。
- */
-
 const STATE_IDLE = 0;
 const STATE_CONNECTING = 1;
 
@@ -34,7 +25,6 @@ export class GameManager {
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.routeManager);
         this.uiManager = new UIManager();
 
-        // --- UIイベントのバインド ---
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
             this.airportManager.highlightMarker(this.selectedHitMesh);
@@ -55,7 +45,6 @@ export class GameManager {
         this.uiManager.onBuyPlane = (type) => {
             const success = this.planeManager.addPlane(type);
             if (!success) {
-                // ルートがない場合は購入できず、Toastで理由を伝える
                 this.uiManager.showToast("先にルートを開通してください");
             }
         };
@@ -135,7 +124,6 @@ export class GameManager {
             this.globe.buildCoastlines(this.mapData.coastlinePoints);
             this.airportManager.buildAirportMarkers();
             
-            // 地形・空港の構築完了後に、初期空路と飛行機を配置する
             this.initStarterPack();
             
             this.hideLoader();
@@ -146,17 +134,14 @@ export class GameManager {
         this.animate();
     }
 
-    // ゲーム開始時から飛んでいる様子を見せるための初期配置
     initStarterPack() {
-        const hnd = this.airportManager.getAirportById('HND'); // 羽田
-        const cts = this.airportManager.getAirportById('CTS'); // 新千歳
-        const fuk = this.airportManager.getAirportById('FUK'); // 福岡
+        const hnd = this.airportManager.getAirportById('HND'); 
+        const cts = this.airportManager.getAirportById('CTS'); 
+        const fuk = this.airportManager.getAirportById('FUK'); 
 
-        // 国内2本のルートを強制開通
         if (hnd && cts) this.routeManager.addRoute(hnd, cts);
         if (hnd && fuk) this.routeManager.addRoute(hnd, fuk);
 
-        // 小型の飛行機を2機スポーン
         this.planeManager.addPlane('small');
         this.planeManager.addPlane('small');
     }
@@ -225,7 +210,6 @@ export class GameManager {
                     this.airportManager.highlightMarker(this.selectedDestination);
                     this.uiManager.showRouteConfirm(originData, destData);
                 } else {
-                    // エラー通知を出して状態をリセット
                     this.uiManager.showToast("接続上限、または既に接続済みです");
                     this.resetState();
                 }

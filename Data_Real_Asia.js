@@ -1,13 +1,4 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * アジア・オセアニアの実在空港データ。
- * 【座標デフォルメの適用】
- * HND(羽田)とNRT(成田)など、近すぎる空港はゲーム上のタップ判定の重なりを防ぐため、
- * 意図的に現実の座標から少し引き離して配置しています。
- */
 export const AIRPORTS_ASIA = [
-    // --- Major Hubs ---
-    // 羽田と成田を意図的に少し離す（HNDを南西へ、NRTを北東へ）
     { id: 'HND', name: 'Tokyo Haneda', lat: 35.1, lon: 139.2, country: 'Japan', type: 'major' },
     { id: 'NRT', name: 'Tokyo Narita', lat: 36.2, lon: 140.9, country: 'Japan', type: 'major' },
     { id: 'KIX', name: 'Kansai Intl', lat: 34.4320, lon: 135.2304, country: 'Japan', type: 'major' },
@@ -27,7 +18,6 @@ export const AIRPORTS_ASIA = [
     { id: 'MEL', name: 'Melbourne', lat: -37.6690, lon: 144.8410, country: 'Australia', type: 'major' },
     { id: 'AKL', name: 'Auckland', lat: -37.0082, lon: 174.7850, country: 'New Zealand', type: 'major' },
     
-    // --- Local Airports (日本大幅増設含む) ---
     { id: 'CTS', name: 'New Chitose', lat: 42.7752, lon: 141.6923, country: 'Japan', type: 'local' },
     { id: 'HKD', name: 'Hakodate', lat: 41.7700, lon: 140.8222, country: 'Japan', type: 'local' },
     { id: 'AOJ', name: 'Aomori', lat: 40.7386, lon: 140.6900, country: 'Japan', type: 'local' },
@@ -43,7 +33,6 @@ export const AIRPORTS_ASIA = [
     { id: 'OKA', name: 'Naha Okinawa', lat: 26.1958, lon: 127.6458, country: 'Japan', type: 'local' },
     { id: 'ISG', name: 'New Ishigaki', lat: 24.3964, lon: 124.2450, country: 'Japan', type: 'local' },
     
-    // 東アジア・東南アジア
     { id: 'PUS', name: 'Busan Gimhae', lat: 35.1795, lon: 128.9382, country: 'South Korea', type: 'local' },
     { id: 'CJU', name: 'Jeju Intl', lat: 33.5113, lon: 126.4930, country: 'South Korea', type: 'local' },
     { id: 'KHH', name: 'Kaohsiung', lat: 22.5771, lon: 120.3500, country: 'Taiwan', type: 'local' },
@@ -63,7 +52,6 @@ export const AIRPORTS_ASIA = [
     { id: 'DPS', name: 'Bali Ngurah Rai', lat: -8.7482, lon: 115.1675, country: 'Indonesia', type: 'local' },
     { id: 'UPG', name: 'Hasanuddin', lat: -5.0616, lon: 119.5540, country: 'Indonesia', type: 'local' },
     
-    // インド・オセアニア
     { id: 'BLR', name: 'Bengaluru', lat: 13.1986, lon: 77.7066, country: 'India', type: 'local' },
     { id: 'MAA', name: 'Chennai', lat: 12.9941, lon: 80.1709, country: 'India', type: 'local' },
     { id: 'CCU', name: 'Kolkata', lat: 22.6520, lon: 88.4467, country: 'India', type: 'local' },

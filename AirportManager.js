@@ -37,7 +37,6 @@ export class AirportManager {
         });
     }
 
-    // 特定の空港データをIDで取得する（初期スターターパック用）
     getAirportById(id) {
         return this.allAirports.find(a => a.id === id);
     }

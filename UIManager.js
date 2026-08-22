@@ -1,10 +1,3 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * 【日本語UIとエラー通知（Toast）の管理】
- * テキストをわかりやすい日本語に変更しました。
- * プレイヤーの操作が無効化された場合（ルートがない、上限到達など）、
- * 単に無視するのではなく showToast() を用いて理由を画面上部にフィードバックします。
- */
 export class UIManager {
     constructor() {
         this.infoCard = document.getElementById('airport-info-card');
@@ -58,7 +51,6 @@ export class UIManager {
         });
     }
 
-    // --- エラー通知（Toast）表示 ---
     showToast(message) {
         this.toast.innerText = message;
         this.toast.classList.add('toast-show');
@@ -66,7 +58,7 @@ export class UIManager {
         if (this.toastTimeout) clearTimeout(this.toastTimeout);
         this.toastTimeout = setTimeout(() => {
             this.toast.classList.remove('toast-show');
-        }, 2000); // 2秒で消える
+        }, 2000); 
     }
 
     showAirportInfo(data, currentConnections, maxConnections) {
