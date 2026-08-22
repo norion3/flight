@@ -6,9 +6,7 @@ import { Utils } from './Utils.js';
  * 【一筆書きシルエットへの昇華とノイズ除去】
  * リアス式海岸の細かすぎるギザギザはゲームの背景としてノイズになるため、
  * 「頂点と頂点の距離が近すぎる場合は描画をスキップする」適応型の距離ベース間引きを採用。
- * 残った主要な角だけを Lerp（球面補間）で結ぶことで、カクカクにならない、
- * 滑らかでミニマルな一筆書きのような美しいシルエットが完成します。
- * * ※ AirportDataの統合は AirportManager に委譲し、ここでは純粋な地形生成に集中します。
+ * 空港が大幅に増設されたため、空港のない孤島の消去閾値を微調整しています。
  */
 export class MapData {
     constructor() {
@@ -33,7 +31,7 @@ export class MapData {
         
         const resolution = 0.005; // 連続線に見せる高密度Lerp補間ピッチ
         const MIN_VERTEX_DISTANCE = 0.035; // 一筆書き化: これより近いノイズ頂点はスキップ
-        const MIN_ISLAND_LENGTH = 0.15; // ノイズとなる極小の無人島を足切りする長さ閾値
+        const MIN_ISLAND_LENGTH = 0.18; // ノイズとなる極小の無人島を足切りする長さ閾値（少し厳しめに設定）
 
         coastlines.coordinates.forEach(line => {
             let lineLength = 0;
@@ -47,14 +45,13 @@ export class MapData {
                 points3D.push(p);
             }
 
-            // 極小の島は描画しない（空港保護フィルタは AirportManager 側で間引き優先度として処理するため、ここでは地形の美しさのみを追求）
+            // 極小の島は描画しない
             if (lineLength < MIN_ISLAND_LENGTH) return;
 
             // --- 一筆書きシルエット化（適応型間引き） ---
             const simplifiedPoints = [points3D[0]];
             for (let i = 1; i < points3D.length; i++) {
                 const lastP = simplifiedPoints[simplifiedPoints.length - 1];
-                // 距離が十分に離れているか、最後の頂点であれば採用
                 if (points3D[i].distanceTo(lastP) > MIN_VERTEX_DISTANCE || i === points3D.length - 1) {
                     simplifiedPoints.push(points3D[i]);
                 }

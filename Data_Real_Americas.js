@@ -1,7 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【アーキテクチャ刷新: 実在空港の南北アメリカ地域分割】
- * 北米、中米、南米、カリブ海、ハワイなどの実在空港データを管理します。
+ * 南北アメリカ、カナダ、カリブ海の実在空港データ。
+ * 密集地（ニューヨーク周辺等）は自動間引きによりバランスが調整されます。
  */
 export const AIRPORTS_AMERICAS = [
     // --- Major Hubs ---
@@ -12,6 +12,8 @@ export const AIRPORTS_AMERICAS = [
     { id: 'ATL', name: 'Atlanta Hartsfield', lat: 33.6407, lon: -84.4277, country: 'USA', type: 'major' },
     { id: 'MIA', name: 'Miami Intl', lat: 25.7959, lon: -80.2870, country: 'USA', type: 'major' },
     { id: 'DFW', name: 'Dallas Fort Worth', lat: 32.8998, lon: -97.0403, country: 'USA', type: 'major' },
+    { id: 'DEN', name: 'Denver', lat: 39.8561, lon: -104.6737, country: 'USA', type: 'major' },
+    { id: 'SEA', name: 'Seattle Tacoma', lat: 47.4502, lon: -122.3088, country: 'USA', type: 'major' },
     { id: 'YVR', name: 'Vancouver', lat: 49.1967, lon: -123.1815, country: 'Canada', type: 'major' },
     { id: 'YYZ', name: 'Toronto Pearson', lat: 43.6777, lon: -79.6248, country: 'Canada', type: 'major' },
     { id: 'MEX', name: 'Mexico City', lat: 19.4363, lon: -99.0721, country: 'Mexico', type: 'major' },
@@ -19,20 +21,35 @@ export const AIRPORTS_AMERICAS = [
     { id: 'EZE', name: 'Buenos Aires Ezeiza', lat: -34.8222, lon: -58.5358, country: 'Argentina', type: 'major' },
     { id: 'SCL', name: 'Santiago', lat: -33.3930, lon: -70.7858, country: 'Chile', type: 'major' },
     { id: 'BOG', name: 'Bogota El Dorado', lat: 4.7016, lon: -74.1469, country: 'Colombia', type: 'major' },
+    { id: 'LIM', name: 'Lima Jorge Chavez', lat: -12.0219, lon: -77.1143, country: 'Peru', type: 'major' },
     { id: 'HNL', name: 'Honolulu', lat: 21.3187, lon: -157.9225, country: 'USA (Hawaii)', type: 'major' },
 
     // --- Local Airports ---
-    { id: 'SEA', name: 'Seattle Tacoma', lat: 47.4502, lon: -122.3088, country: 'USA', type: 'local' },
     { id: 'LAS', name: 'Las Vegas McCarran', lat: 36.0840, lon: -115.1537, country: 'USA', type: 'local' },
-    { id: 'DEN', name: 'Denver', lat: 39.8561, lon: -104.6737, country: 'USA', type: 'local' },
     { id: 'BOS', name: 'Boston Logan', lat: 42.3656, lon: -71.0096, country: 'USA', type: 'local' },
-    { id: 'ANC', name: 'Anchorage', lat: 61.1743, lon: -149.9962, country: 'USA', type: 'local' },
+    { id: 'PHX', name: 'Phoenix Sky Harbor', lat: 33.4342, lon: -112.0080, country: 'USA', type: 'local' },
+    { id: 'IAH', name: 'Dallas Houston', lat: 29.9805, lon: -95.3397, country: 'USA', type: 'local' },
     { id: 'MCO', name: 'Orlando Intl', lat: 28.4294, lon: -81.3090, country: 'USA', type: 'local' },
+    { id: 'SLC', name: 'Salt Lake City', lat: 40.7884, lon: -111.9772, country: 'USA', type: 'local' },
+    { id: 'SAN', name: 'San Diego', lat: 32.7336, lon: -117.1831, country: 'USA', type: 'local' },
+    { id: 'PDX', name: 'Portland', lat: 45.5898, lon: -122.5951, country: 'USA', type: 'local' },
+    { id: 'DTW', name: 'Dallas Fort Worth', lat: 32.8998, lon: -97.0403, country: 'USA', type: 'local' },
+    { id: 'HOU', name: 'Houston Hobby', lat: 29.6454, lon: -95.2789, country: 'USA', type: 'local' },
+    { id: 'ANC', name: 'Anchorage', lat: 61.1743, lon: -149.9962, country: 'USA', type: 'local' },
+    { id: 'YUL', name: 'Montreal Trudeau', lat: 45.4706, lon: -73.7408, country: 'Canada', type: 'local' },
+    { id: 'YYC', name: 'Calgary', lat: 51.1139, lon: -114.0203, country: 'Canada', type: 'local' },
     { id: 'CUN', name: 'Cancun', lat: 21.0365, lon: -86.8771, country: 'Mexico', type: 'local' },
+    { id: 'GDL', name: 'Guadalajara', lat: 20.5218, lon: -103.3112, country: 'Mexico', type: 'local' },
+    { id: 'MTY', name: 'Monterrey', lat: 25.7785, lon: -100.1069, country: 'Mexico', type: 'local' },
     { id: 'PTY', name: 'Panama Tocumen', lat: 9.0714, lon: -79.3834, country: 'Panama', type: 'local' },
+    { id: 'SJO', name: 'San Jose', lat: 9.9939, lon: -84.2088, country: 'Costa Rica', type: 'local' },
     { id: 'HAV', name: 'Havana Jose Marti', lat: 22.9892, lon: -82.4091, country: 'Cuba', type: 'local' },
-    { id: 'SJU', name: 'San Juan Luis Munoz', lat: 18.4394, lon: -66.0018, country: 'Puerto Rico', type: 'local' },
-    { id: 'LIM', name: 'Lima Jorge Chavez', lat: -12.0219, lon: -77.1143, country: 'Peru', type: 'local' },
-    { id: 'GIG', name: 'Rio de Janeiro Galeao', lat: -22.8100, lon: -43.2506, country: 'Brazil', type: 'local' }
+    { id: 'PUJ', name: 'Punta Cana', lat: 18.5674, lon: -68.3634, country: 'Dominican Rep.', type: 'local' },
+    { id: 'SJU', name: 'San Juan', lat: 18.4394, lon: -66.0018, country: 'Puerto Rico', type: 'local' },
+    { id: 'GIG', name: 'Rio de Janeiro Galeao', lat: -22.8100, lon: -43.2506, country: 'Brazil', type: 'local' },
+    { id: 'BSB', name: 'Brasilia', lat: -15.8692, lon: -47.9208, country: 'Brazil', type: 'local' },
+    { id: 'AEP', name: 'Buenos Aires Jorge Newbery', lat: -34.5580, lon: -58.4156, country: 'Argentina', type: 'local' },
+    { id: 'UIO', name: 'Quito Mariscal Sucre', lat: -0.1292, lon: -78.3575, country: 'Ecuador', type: 'local' }
 ];
+
 

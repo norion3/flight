@@ -1,17 +1,20 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【アーキテクチャ刷新: 実在空港のアジア・オセアニア地域分割】
- * バグ防止とメンテナンス性向上のため、実在空港データを地域ごとに分割しています。
- * このファイルには日本をはじめとするアジア、オセアニア、太平洋地域の実在空港を定義します。
+ * アジア・オセアニアの実在空港データ。
+ * 【座標デフォルメの適用】
+ * HND(羽田)とNRT(成田)など、近すぎる空港はゲーム上のタップ判定の重なりを防ぐため、
+ * 意図的に現実の座標から少し引き離して配置しています。
  */
 export const AIRPORTS_ASIA = [
     // --- Major Hubs ---
-    { id: 'HND', name: 'Tokyo Haneda', lat: 35.5494, lon: 139.7798, country: 'Japan', type: 'major' },
-    { id: 'NRT', name: 'Tokyo Narita', lat: 35.7720, lon: 140.3929, country: 'Japan', type: 'major' },
+    // 羽田と成田を意図的に少し離す（HNDを南西へ、NRTを北東へ）
+    { id: 'HND', name: 'Tokyo Haneda', lat: 35.1, lon: 139.2, country: 'Japan', type: 'major' },
+    { id: 'NRT', name: 'Tokyo Narita', lat: 36.2, lon: 140.9, country: 'Japan', type: 'major' },
     { id: 'KIX', name: 'Kansai Intl', lat: 34.4320, lon: 135.2304, country: 'Japan', type: 'major' },
     { id: 'ICN', name: 'Seoul Incheon', lat: 37.4602, lon: 126.4407, country: 'South Korea', type: 'major' },
     { id: 'PEK', name: 'Beijing Capital', lat: 40.0799, lon: 116.6031, country: 'China', type: 'major' },
     { id: 'PVG', name: 'Shanghai Pudong', lat: 31.1443, lon: 121.8083, country: 'China', type: 'major' },
+    { id: 'CAN', name: 'Guangzhou Baiyun', lat: 23.3924, lon: 113.2988, country: 'China', type: 'major' },
     { id: 'HKG', name: 'Hong Kong', lat: 22.3080, lon: 113.9185, country: 'Hong Kong', type: 'major' },
     { id: 'TPE', name: 'Taiwan Taoyuan', lat: 25.0797, lon: 121.2342, country: 'Taiwan', type: 'major' },
     { id: 'SIN', name: 'Singapore Changi', lat: 1.3644, lon: 103.9915, country: 'Singapore', type: 'major' },
@@ -23,32 +26,61 @@ export const AIRPORTS_ASIA = [
     { id: 'SYD', name: 'Sydney Kingsford Smith', lat: -33.9399, lon: 151.1753, country: 'Australia', type: 'major' },
     { id: 'MEL', name: 'Melbourne', lat: -37.6690, lon: 144.8410, country: 'Australia', type: 'major' },
     { id: 'AKL', name: 'Auckland', lat: -37.0082, lon: 174.7850, country: 'New Zealand', type: 'major' },
-
+    
     // --- Local Airports (日本大幅増設含む) ---
     { id: 'CTS', name: 'New Chitose', lat: 42.7752, lon: 141.6923, country: 'Japan', type: 'local' },
-    { id: 'FUK', name: 'Fukuoka', lat: 33.5859, lon: 130.4507, country: 'Japan', type: 'local' },
-    { id: 'OKA', name: 'Naha Okinawa', lat: 26.1958, lon: 127.6458, country: 'Japan', type: 'local' },
-    { id: 'NGO', name: 'Chubu Centrair', lat: 34.8583, lon: 136.8054, country: 'Japan', type: 'local' },
-    { id: 'KOJ', name: 'Kagoshima', lat: 31.8034, lon: 130.7194, country: 'Japan', type: 'local' },
-    { id: 'HIJ', name: 'Hiroshima', lat: 34.4361, lon: 132.9194, country: 'Japan', type: 'local' },
+    { id: 'HKD', name: 'Hakodate', lat: 41.7700, lon: 140.8222, country: 'Japan', type: 'local' },
+    { id: 'AOJ', name: 'Aomori', lat: 40.7386, lon: 140.6900, country: 'Japan', type: 'local' },
     { id: 'SDJ', name: 'Sendai', lat: 38.1397, lon: 140.9170, country: 'Japan', type: 'local' },
     { id: 'KIJ', name: 'Niigata', lat: 37.9558, lon: 139.1133, country: 'Japan', type: 'local' },
     { id: 'KMQ', name: 'Komatsu', lat: 36.3958, lon: 136.4075, country: 'Japan', type: 'local' },
+    { id: 'NGO', name: 'Chubu Centrair', lat: 34.8583, lon: 136.8054, country: 'Japan', type: 'local' },
+    { id: 'HIJ', name: 'Hiroshima', lat: 34.4361, lon: 132.9194, country: 'Japan', type: 'local' },
     { id: 'MYJ', name: 'Matsuyama', lat: 33.8272, lon: 132.6997, country: 'Japan', type: 'local' },
+    { id: 'FUK', name: 'Fukuoka', lat: 33.5859, lon: 130.4507, country: 'Japan', type: 'local' },
+    { id: 'NGS', name: 'Nagasaki', lat: 32.9169, lon: 129.9136, country: 'Japan', type: 'local' },
+    { id: 'KOJ', name: 'Kagoshima', lat: 31.8034, lon: 130.7194, country: 'Japan', type: 'local' },
+    { id: 'OKA', name: 'Naha Okinawa', lat: 26.1958, lon: 127.6458, country: 'Japan', type: 'local' },
     { id: 'ISG', name: 'New Ishigaki', lat: 24.3964, lon: 124.2450, country: 'Japan', type: 'local' },
+    
+    // 東アジア・東南アジア
     { id: 'PUS', name: 'Busan Gimhae', lat: 35.1795, lon: 128.9382, country: 'South Korea', type: 'local' },
     { id: 'CJU', name: 'Jeju Intl', lat: 33.5113, lon: 126.4930, country: 'South Korea', type: 'local' },
     { id: 'KHH', name: 'Kaohsiung', lat: 22.5771, lon: 120.3500, country: 'Taiwan', type: 'local' },
-    { id: 'DPS', name: 'Bali Ngurah Rai', lat: -8.7482, lon: 115.1675, country: 'Indonesia', type: 'local' },
-    { id: 'CEB', name: 'Cebu Mactan', lat: 10.3075, lon: 123.9794, country: 'Philippines', type: 'local' },
+    { id: 'SZX', name: 'Shenzhen', lat: 22.6393, lon: 113.8107, country: 'China', type: 'local' },
+    { id: 'CTU', name: 'Chengdu', lat: 30.5785, lon: 103.9471, country: 'China', type: 'local' },
+    { id: 'XIY', name: 'Xi\'an', lat: 34.4471, lon: 108.7516, country: 'China', type: 'local' },
     { id: 'HAN', name: 'Hanoi Noi Bai', lat: 21.2212, lon: 105.8072, country: 'Vietnam', type: 'local' },
+    { id: 'DAD', name: 'Da Nang', lat: 16.0439, lon: 108.1994, country: 'Vietnam', type: 'local' },
     { id: 'SGN', name: 'Ho Chi Minh', lat: 10.8188, lon: 106.6519, country: 'Vietnam', type: 'local' },
+    { id: 'CNX', name: 'Chiang Mai', lat: 18.7668, lon: 98.9626, country: 'Thailand', type: 'local' },
+    { id: 'HKT', name: 'Phuket', lat: 8.1132, lon: 98.3169, country: 'Thailand', type: 'local' },
     { id: 'KUL', name: 'Kuala Lumpur', lat: 2.7456, lon: 101.7099, country: 'Malaysia', type: 'local' },
+    { id: 'PEN', name: 'Penang', lat: 5.2971, lon: 100.2769, country: 'Malaysia', type: 'local' },
+    { id: 'CEB', name: 'Cebu Mactan', lat: 10.3075, lon: 123.9794, country: 'Philippines', type: 'local' },
+    { id: 'DVO', name: 'Davao', lat: 7.1264, lon: 125.6456, country: 'Philippines', type: 'local' },
+    { id: 'SUB', name: 'Surabaya Juanda', lat: -7.3798, lon: 112.7871, country: 'Indonesia', type: 'local' },
+    { id: 'DPS', name: 'Bali Ngurah Rai', lat: -8.7482, lon: 115.1675, country: 'Indonesia', type: 'local' },
+    { id: 'UPG', name: 'Hasanuddin', lat: -5.0616, lon: 119.5540, country: 'Indonesia', type: 'local' },
+    
+    // インド・オセアニア
+    { id: 'BLR', name: 'Bengaluru', lat: 13.1986, lon: 77.7066, country: 'India', type: 'local' },
+    { id: 'MAA', name: 'Chennai', lat: 12.9941, lon: 80.1709, country: 'India', type: 'local' },
+    { id: 'CCU', name: 'Kolkata', lat: 22.6520, lon: 88.4467, country: 'India', type: 'local' },
+    { id: 'HYD', name: 'Hyderabad', lat: 17.2313, lon: 78.4299, country: 'India', type: 'local' },
+    { id: 'DAC', name: 'Dhaka', lat: 23.8433, lon: 90.4014, country: 'Bangladesh', type: 'local' },
     { id: 'BNE', name: 'Brisbane', lat: -27.3842, lon: 153.1175, country: 'Australia', type: 'local' },
     { id: 'PER', name: 'Perth', lat: -31.9403, lon: 115.9668, country: 'Australia', type: 'local' },
+    { id: 'ADL', name: 'Adelaide', lat: -34.9450, lon: 138.5306, country: 'Australia', type: 'local' },
+    { id: 'CNS', name: 'Cairns', lat: -16.8858, lon: 145.7553, country: 'Australia', type: 'local' },
     { id: 'CHC', name: 'Christchurch', lat: -43.4894, lon: 172.5322, country: 'New Zealand', type: 'local' },
+    { id: 'WLG', name: 'Wellington', lat: -41.3272, lon: 174.8053, country: 'New Zealand', type: 'local' },
+    { id: 'POM', name: 'Port Moresby', lat: -9.4434, lon: 147.2200, country: 'Papua New Guinea', type: 'local' },
     { id: 'NAN', name: 'Nadi Intl', lat: -17.7554, lon: 177.4432, country: 'Fiji', type: 'local' },
+    { id: 'PPT', name: 'Tahiti Faa\'a', lat: -17.5539, lon: -149.6074, country: 'French Polynesia', type: 'local' },
     { id: 'GUM', name: 'Guam', lat: 13.4834, lon: 144.7960, country: 'Guam', type: 'local' },
-    { id: 'SPN', name: 'Saipan', lat: 15.1188, lon: 145.7292, country: 'Northern Mariana', type: 'local' }
+    { id: 'SPN', name: 'Saipan', lat: 15.1188, lon: 145.7292, country: 'Northern Mariana', type: 'local' },
+    { id: 'NOU', name: 'Noumea', lat: -22.0145, lon: 166.2128, country: 'New Caledonia', type: 'local' }
 ];
+
 

@@ -6,7 +6,7 @@ import { AirportManager } from './AirportManager.js';
 /**
  * AI可読性・先祖返り防止コメント:
  * 【人間工学的な操作感の最適化】
- * カスタム回転による天地逆転（方向喪失）を防ぐため、OrbitControls に回帰しました。
+ * OrbitControls に回帰しました。
  * 完全に極点で止まる不快感をなくすため、min/max PolarAngle に 0.1 の遊びを持たせています。
  * また、ズーム時の暴走を防ぎ「重厚な地球儀」の触り心地にするため、
  * dampingFactor を強め、rotateSpeed と zoomSpeed を低めにチューニングしています。
@@ -24,13 +24,10 @@ export class GameManager {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         
-        // タップとスワイプの判別用
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
 
         window.addEventListener('resize', this.onWindowResize.bind(this));
-        
-        // OrbitControlsが有効な環境下でのタップ検出用イベント
         this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
         window.addEventListener('pointerup', this.onPointerUp.bind(this));
     }
@@ -59,7 +56,7 @@ export class GameManager {
         this.controls.minDistance = 5.5;
         this.controls.maxDistance = 25.0;
 
-        // 極点ロックの緩和（完全に止まらず、少し遊びを持たせる）
+        // 極点ロックの緩和（ソフトロック）
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
@@ -95,7 +92,6 @@ export class GameManager {
     onPointerUp(event) {
         const dx = event.clientX - this.dragStartPos.x;
         const dy = event.clientY - this.dragStartPos.y;
-        // 指の移動距離が極めて小さい場合はタップとみなす
         if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
             this.handleTap(event);
         }
@@ -134,7 +130,7 @@ export class GameManager {
             typeEl.className = 'text-xs font-semibold text-yellow-400 uppercase tracking-wider';
         } else if (data.type === 'local') {
             typeEl.innerText = 'Local Airport';
-            typeEl.className = 'text-xs font-semibold text-cyan-400 uppercase tracking-wider';
+            typeEl.className = 'text-xs font-semibold text-orange-400 uppercase tracking-wider';
         } else {
             typeEl.innerText = 'Fictional Node';
             typeEl.className = 'text-xs font-semibold text-emerald-400 uppercase tracking-wider';
@@ -161,7 +157,7 @@ export class GameManager {
         requestAnimationFrame(this.animate.bind(this));
         
         this.airportManager.updateMarkerScale(this.camera);
-        this.controls.update(); // 慣性(ダンピング)と回転・ズーム制御
+        this.controls.update(); 
         this.renderer.render(this.scene, this.camera);
     }
 
