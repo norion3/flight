@@ -9,16 +9,13 @@
     <style>
         #osd-console {
             position: fixed; top: 0; left: 0; width: 100%; height: 35%;
-            background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace;
-            font-size: 11px; z-index: 99999; overflow-y: auto; padding: 45px 10px 10px 10px; /* ノッチ回避 */
+            background: rgba(0,0,0,0.85); color: #0f0; font-family: monospace;
+            font-size: 11px; z-index: 99999; overflow-y: auto; padding: 45px 10px 10px 10px;
             pointer-events: none; border-bottom: 2px solid #0f0; word-wrap: break-word;
         }
     </style>
     <script>
-        // DOM構築前でもエラーを記録するためのキュー
         window._osdQueue = [];
-        
-        // 画面にログを追記する関数
         function logToOSD(msg, color) {
             var c = color || '#0f0';
             var osd = document.getElementById('osd-console');
@@ -30,26 +27,18 @@
             }
             console.log(msg);
         }
-
-        // 1. 構文エラー(SyntaxError)等のグローバルエラーを捕捉
         window.onerror = function(msg, url, line, col, error) {
             logToOSD('[Syntax/Global Error] ' + msg + '<br> &nbsp;&nbsp;at Line ' + line + ':' + col, '#f33');
             return false;
         };
-
-        // 2. モジュールの読み込み失敗(404エラー等)を捕捉
         window.addEventListener('error', function(e) {
             if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
                 logToOSD('[Load Error] Failed to load file: ' + e.target.src, '#f33');
             }
         }, true);
-
-        // 3. 非同期処理(Promise)のエラーを捕捉
         window.addEventListener('unhandledrejection', function(e) {
             logToOSD('[Promise Error] ' + (e.reason ? e.reason.message : 'Unknown'), '#f33');
         });
-
-        // DOMが読み込まれたらデバッガーUIを作成し、溜まっていたログを吐き出す
         window.addEventListener('DOMContentLoaded', function() {
             var div = document.createElement('div');
             div.id = 'osd-console';
@@ -58,11 +47,23 @@
             window._osdQueue.forEach(function(i) { logToOSD(i.m, i.c); });
             logToOSD('Step 0: HTML DOM Loaded.');
         });
-
-        // 他のファイルからも呼べるようにグローバル化
         window.logToOSD = logToOSD;
     </script>
     <!-- デバッガーここまで -->
+
+    <!-- ★文字コード非依存化のための日本語辞書（Dictionary）★ -->
+    <script>
+        window.APP_LANG = {
+            toastNoRoute: "先にルートを開通してください",
+            toastLimit: "接続上限、または既に接続済みです",
+            errMapLoad: "地図データの取得に失敗しました。",
+            hubMajor: "拠点ハブ",
+            hubLocal: "地方空港",
+            hubFictional: "架空ノード",
+            btnLimit: "接続上限です",
+            btnConnect: "ルートを繋ぐ"
+        };
+    </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -93,7 +94,6 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <!-- 省略せずにUIは維持 -->
     <div id="toast-notification" class="fixed top-12 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 bg-red-600/90 text-white text-sm font-bold rounded-full shadow-lg shadow-red-900/50 opacity-0 pointer-events-none transition-all duration-300 z-50">
         メッセージ
     </div>
@@ -163,7 +163,6 @@
         </div>
     </div>
 
-    <!-- メインスクリプト -->
     <script type="module" src="./main.js"></script>
 </body>
 </html>

@@ -1,3 +1,10 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 【日本語ハードコードの完全排除】
+ * 履歴66に基づき、このJSファイル内に日本語（全角文字）を直接記述しません。
+ * すべて index.html 内に定義した window.APP_LANG 辞書からテキストを取得することで、
+ * 文字コード不一致による SyntaxError (Load Error) を完全に防ぎます。
+ */
 export class UIManager {
     constructor() {
         this.infoCard = document.getElementById('airport-info-card');
@@ -70,13 +77,13 @@ export class UIManager {
         
         const typeEl = document.getElementById('airport-type');
         if (data.type === 'major') {
-            typeEl.innerText = '拠点ハブ';
+            typeEl.innerText = window.APP_LANG.hubMajor;
             typeEl.className = 'text-xs font-semibold text-yellow-400 uppercase tracking-wider';
         } else if (data.type === 'local') {
-            typeEl.innerText = '地方空港';
+            typeEl.innerText = window.APP_LANG.hubLocal;
             typeEl.className = 'text-xs font-semibold text-orange-400 uppercase tracking-wider';
         } else {
-            typeEl.innerText = '架空ノード';
+            typeEl.innerText = window.APP_LANG.hubFictional;
             typeEl.className = 'text-xs font-semibold text-emerald-400 uppercase tracking-wider';
         }
 
@@ -88,10 +95,10 @@ export class UIManager {
         
         if(currentConnections >= maxConnections) {
             btnConnect.classList.add('opacity-50', 'pointer-events-none');
-            btnConnect.innerText = '接続上限です';
+            btnConnect.innerText = window.APP_LANG.btnLimit;
         } else {
             btnConnect.classList.remove('opacity-50', 'pointer-events-none');
-            btnConnect.innerText = 'ルートを繋ぐ';
+            btnConnect.innerText = window.APP_LANG.btnConnect;
         }
 
         this.infoCard.classList.add('show');
