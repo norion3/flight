@@ -1,14 +1,16 @@
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
-import { REAL_AIRPORTS } from './Data_RealAirports.js';
-import { FICTIONAL_AIRPORTS } from './Data_FictionalAirports.js';
+import { AIRPORTS_ASIA } from './Data_Real_Asia.js';
+import { AIRPORTS_AMERICAS } from './Data_Real_Americas.js';
+import { AIRPORTS_EMEA } from './Data_Real_EMEA.js';
+import { FICTIONAL_CSV_DATA } from './Data_Fictional.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【3階層デザインとズーム視認性確保】
- * Major(三重円), Local(二重円), Fictional(単円) のデザイン階層を構築します。
- * また、縮小(引き)時にマーカーが潰れて見えなくなる問題を防ぐため、
- * updateMarkerScale(camera) メソッドでカメラ距離に応じたスケール動的補正を行います。
+ * 分割された実在空港データと圧縮された架空空港データを統合し、3階層デザインで配置します。
+ * 【ゲームバランスの要: スマート間引き】
+ * 実在・架空を含めると数百件になるため、Major優先、次にLocal、最後にFictionalという
+ * 優先順位で近接チェックを行い、綺麗に散らばった黄金比のノード配置を実現します。
  */
 export class AirportManager {
     constructor(scene, globeGroup) {
@@ -17,51 +19,77 @@ export class AirportManager {
         this.airportGroup = new THREE.Group();
         this.globeGroup.add(this.airportGroup);
 
-        this.markers = []; // Raycaster判定用の不可視メッシュ配列
+        this.markers = []; // Raycaster判定用
+        this.allAirports = this._compileAllAirports();
+    }
+
+    _compileAllAirports() {
+        const reals = [...AIRPORTS_ASIA, ...AIRPORTS_AMERICAS, ...AIRPORTS_EMEA];
+        
+        // 圧縮CSV文字列をオブジェクト配列にパース
+        const fictionals = FICTIONAL_CSV_DATA.split('|').map((row, index) => {
+            const [latStr, lonStr, name, country] = row.split(',');
+            return {
+                id: `F${index.toString().padStart(3, '0')}`,
+                name: name,
+                lat: parseFloat(latStr),
+                lon: parseFloat(lonStr),
+                country: country,
+                type: 'fictional'
+            };
+        });
+
+        // 優先度順（Major -> Local -> Fictional）にソートして間引き処理を確実にする
+        return [...reals, ...fictionals].sort((a, b) => {
+            const rank = { 'major': 1, 'local': 2, 'fictional': 3 };
+            return rank[a.type] - rank[b.type];
+        });
     }
 
     buildAirportMarkers() {
-        const allAirports = [...REAL_AIRPORTS, ...FICTIONAL_AIRPORTS];
-
-        // --- Major Hub 用デザイン（目立つ三重円） ---
+        // --- 3階層デザイン定義 ---
+        // 1. Major (三重円)
         const majorCoreGeo = new THREE.SphereGeometry(0.02, 16, 16);
         const majorCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const majorInnerRingGeo = new THREE.RingGeometry(0.035, 0.045, 32);
-        const majorOuterRingGeo = new THREE.RingGeometry(0.06, 0.065, 32);
-        const majorRingMat = new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }); // ゴールド系
+        const majorRingGeo1 = new THREE.RingGeometry(0.035, 0.045, 32);
+        const majorRingGeo2 = new THREE.RingGeometry(0.06, 0.065, 32);
+        const majorRingMat = new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
 
-        // --- Local Airport 用デザイン（標準の二重円） ---
+        // 2. Local (二重円)
         const localCoreGeo = new THREE.SphereGeometry(0.015, 8, 8);
         const localCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const localRingGeo = new THREE.RingGeometry(0.035, 0.045, 24);
-        const localRingMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }); // シアン系
+        const localRingMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
 
-        // --- Fictional Airport 用デザイン（背景に溶け込む単円） ---
-        const fictionalRingGeo = new THREE.RingGeometry(0.02, 0.025, 16);
-        const fictionalRingMat = new THREE.MeshBasicMaterial({ color: 0x34d399, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }); // エメラルド系
+        // 3. Fictional (単円 - 控えめで見失わないエメラルド色)
+        const fictionalRingGeo = new THREE.RingGeometry(0.02, 0.028, 16);
+        const fictionalRingMat = new THREE.MeshBasicMaterial({ color: 0x34d399, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
 
-        const hitGeo = new THREE.SphereGeometry(0.12, 8, 8);
+        // タッチ判定用（広く取る）
+        const hitGeo = new THREE.SphereGeometry(0.15, 8, 8);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
 
         const placedMajors = [];
         const placedLocals = [];
-        const MAJOR_EXCLUDE_DIST = 0.20;
-        const LOCAL_EXCLUDE_DIST = 0.12;
+        const placedFictionals = [];
+        
+        // 【重要】間引き距離の最適化。Fictionalが消えすぎないよう距離を微調整
+        const EXCLUDE_DIST_MAJOR = 0.18; 
+        const EXCLUDE_DIST_LOCAL = 0.12;
+        const EXCLUDE_DIST_FICTIONAL = 0.10;
 
-        allAirports.forEach(airport => {
+        this.allAirports.forEach(airport => {
             const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS + 0.02);
 
-            // --- 重複・近接間引きロジック ---
+            // --- 優先度順のスマート間引き ---
             if (airport.type === 'fictional') {
-                const nearMajor = placedMajors.some(p => p.distanceTo(pos) < MAJOR_EXCLUDE_DIST);
-                if (nearMajor) return;
-                const nearLocal = placedLocals.some(p => p.distanceTo(pos) < LOCAL_EXCLUDE_DIST);
-                if (nearLocal) return;
+                if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
+                if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
+                if (placedFictionals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_FICTIONAL)) return;
+                placedFictionals.push(pos);
             } else if (airport.type === 'local') {
-                const nearMajor = placedMajors.some(p => p.distanceTo(pos) < MAJOR_EXCLUDE_DIST);
-                if (nearMajor) return;
-                const nearLocal = placedLocals.some(p => p.distanceTo(pos) < LOCAL_EXCLUDE_DIST);
-                if (nearLocal) return;
+                if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
+                if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
                 placedLocals.push(pos);
             } else {
                 placedMajors.push(pos);
@@ -71,24 +99,21 @@ export class AirportManager {
             markerGroup.position.copy(pos);
             markerGroup.lookAt(pos.clone().multiplyScalar(2));
 
-            // デザイン階層の構築
-            let highlightTarget; // タップ時に光らせる対象
+            let highlightTarget;
             if (airport.type === 'major') {
                 markerGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
-                markerGroup.add(new THREE.Mesh(majorInnerRingGeo, majorRingMat.clone()));
-                highlightTarget = new THREE.Mesh(majorOuterRingGeo, majorRingMat.clone());
+                markerGroup.add(new THREE.Mesh(majorRingGeo1, majorRingMat.clone()));
+                highlightTarget = new THREE.Mesh(majorRingGeo2, majorRingMat.clone());
                 markerGroup.add(highlightTarget);
             } else if (airport.type === 'local') {
                 markerGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
                 highlightTarget = new THREE.Mesh(localRingGeo, localRingMat.clone());
                 markerGroup.add(highlightTarget);
             } else {
-                // Fictional はコアを持たず、リングのみ
                 highlightTarget = new THREE.Mesh(fictionalRingGeo, fictionalRingMat.clone());
                 markerGroup.add(highlightTarget);
             }
 
-            // 当たり判定
             const hitMesh = new THREE.Mesh(hitGeo, hitMat);
             hitMesh.userData = { 
                 airportData: airport, 
@@ -112,23 +137,21 @@ export class AirportManager {
         });
 
         if (hitMesh && hitMesh.userData.ringMesh) {
-            hitMesh.userData.ringMesh.material.color.setHex(0xffffff); // 白く発光
+            hitMesh.userData.ringMesh.material.color.setHex(0xffffff);
             hitMesh.userData.isHighlighted = true;
         }
     }
 
-    // --- カメラ距離に応じたスケールの動的補正（ズーム縮小時の視認性確保） ---
+    // カメラ距離に応じたスケールの動的補正
     updateMarkerScale(camera) {
         this.airportGroup.children.forEach(markerGroup => {
             const markerWorldPos = new THREE.Vector3();
             markerGroup.getWorldPosition(markerWorldPos);
-            
             const distance = camera.position.distanceTo(markerWorldPos);
             
-            // カメラが離れるほど倍率を上げる（minDistance=5.5 のときは約1倍）
+            // 遠ざかるほどマーカーを拡大し、視認性を維持する
             const baseScale = Math.max(1, distance / 12); 
             
-            // ヒットメッシュ(子供)を検索してハイライト状態を確認
             let isHighlight = false;
             markerGroup.children.forEach(child => {
                 if (child.userData && child.userData.isHighlighted) isHighlight = true;

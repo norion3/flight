@@ -5,10 +5,11 @@ import { AirportManager } from './AirportManager.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【極点ロックのない完全な無限回転】
- * OrbitControls のカメラ回転機能は極付近でジンバルロックを起こすため、enableRotate = false に設定。
- * 代わりに、ユーザーのスワイプ量から「地球儀グループ自体のクォータニオン」を直接回転させる
- * カスタムロジック（慣性ダンピング付き）を実装し、上下左右シームレスな操作感を実現しています。
+ * 【人間工学的な操作感の最適化】
+ * カスタム回転による天地逆転（方向喪失）を防ぐため、OrbitControls に回帰しました。
+ * 完全に極点で止まる不快感をなくすため、min/max PolarAngle に 0.1 の遊びを持たせています。
+ * また、ズーム時の暴走を防ぎ「重厚な地球儀」の触り心地にするため、
+ * dampingFactor を強め、rotateSpeed と zoomSpeed を低めにチューニングしています。
  */
 export class GameManager {
     constructor() {
@@ -22,19 +23,16 @@ export class GameManager {
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-
-        // 無限回転（クォータニオン制御）用変数
+        
+        // タップとスワイプの判別用
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
-        this.previousMousePosition = { x: 0, y: 0 };
-        this.angularVelocity = { x: 0, y: 0 };
 
         window.addEventListener('resize', this.onWindowResize.bind(this));
         
-        // スワイプとタップを分離するためのイベントバインド
+        // OrbitControlsが有効な環境下でのタップ検出用イベント
         this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
-        this.container.addEventListener('pointermove', this.onPointerMove.bind(this));
-        window.addEventListener('pointerup', this.onPointerUp.bind(this)); // 画面外離しも検知
+        window.addEventListener('pointerup', this.onPointerUp.bind(this));
     }
 
     initThree() {
@@ -51,14 +49,19 @@ export class GameManager {
         this.container.appendChild(this.renderer.domElement);
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enablePan = false;
+        
+        // --- 人間工学チューニング ---
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.zoomSpeed = 1.2;
+        this.controls.dampingFactor = 0.04; // 滑りを重厚に
+        this.controls.rotateSpeed = 0.5;    // スワイプ速度を落ち着かせる
+        this.controls.zoomSpeed = 0.8;      // ズーム暴走を防ぐ
         this.controls.minDistance = 5.5;
         this.controls.maxDistance = 25.0;
-        this.controls.enablePan = false;
-        // OrbitControls による回転をオフにし、ズーム専用にする
-        this.controls.enableRotate = false; 
+
+        // 極点ロックの緩和（完全に止まらず、少し遊びを持たせる）
+        this.controls.minPolarAngle = 0.1;
+        this.controls.maxPolarAngle = Math.PI - 0.1;
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.scene.add(ambientLight);
@@ -84,34 +87,15 @@ export class GameManager {
         this.animate();
     }
 
-    // --- カスタム無限回転 & タップ分離ロジック ---
     onPointerDown(event) {
-        this.isDragging = true;
+        this.isDragging = false;
         this.dragStartPos = { x: event.clientX, y: event.clientY };
-        this.previousMousePosition = { x: event.clientX, y: event.clientY };
-        this.angularVelocity = { x: 0, y: 0 };
-    }
-
-    onPointerMove(event) {
-        if (!this.isDragging) return;
-        
-        const deltaX = event.clientX - this.previousMousePosition.x;
-        const deltaY = event.clientY - this.previousMousePosition.y;
-        
-        // 回転速度の更新（スワイプ感度の調整）
-        this.angularVelocity.x = deltaY * 0.005; // 縦スワイプ
-        this.angularVelocity.y = deltaX * 0.005; // 横スワイプ
-        
-        this.previousMousePosition = { x: event.clientX, y: event.clientY };
     }
 
     onPointerUp(event) {
-        if (!this.isDragging) return;
-        this.isDragging = false;
-
-        // タップ判定（指の移動距離が極めて小さい場合は「回転」ではなく「タップ」とみなす）
         const dx = event.clientX - this.dragStartPos.x;
         const dy = event.clientY - this.dragStartPos.y;
+        // 指の移動距離が極めて小さい場合はタップとみなす
         if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
             this.handleTap(event);
         }
@@ -176,28 +160,8 @@ export class GameManager {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        // --- カスタムクォータニオン回転（慣性ダンピング処理） ---
-        if (!this.isDragging) {
-            this.angularVelocity.x *= 0.95; // 慣性の減衰率
-            this.angularVelocity.y *= 0.95;
-        }
-
-        if (Math.abs(this.angularVelocity.x) > 0.0001 || Math.abs(this.angularVelocity.y) > 0.0001) {
-            // カメラの向きを基準にした回転軸の計算（Arcball風）
-            const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
-            const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
-            
-            const qY = new THREE.Quaternion().setFromAxisAngle(up, this.angularVelocity.y);
-            const qX = new THREE.Quaternion().setFromAxisAngle(right, this.angularVelocity.x);
-            
-            const q = new THREE.Quaternion().multiplyQuaternions(qY, qX);
-            this.globe.group.quaternion.premultiply(q);
-        }
-
-        // カメラ距離に応じたマーカースケールの補正
         this.airportManager.updateMarkerScale(this.camera);
-
-        this.controls.update(); // ズーム処理のため呼び出し維持
+        this.controls.update(); // 慣性(ダンピング)と回転・ズーム制御
         this.renderer.render(this.scene, this.camera);
     }
 

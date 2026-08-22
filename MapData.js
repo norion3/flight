@@ -1,15 +1,14 @@
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
-import { REAL_AIRPORTS } from './Data_RealAirports.js';
-import { FICTIONAL_AIRPORTS } from './Data_FictionalAirports.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【一筆書き地形デフォルメ ＆ スマートフィルタリング】
- * 履歴33のぐにゃぐにゃ化の失敗を反省し、地形を歪ませるスプライン補間は使わず、
- * 「10mデータの細かすぎる頂点（近すぎる頂点）をスキップする」適応型間引きと、
- * 「残った頂点間をLerp補間する」手法を採用。
- * これにより、正確な位置を保ちながら「一筆書きのミニマルライン」を描画します。
+ * 【一筆書きシルエットへの昇華とノイズ除去】
+ * リアス式海岸の細かすぎるギザギザはゲームの背景としてノイズになるため、
+ * 「頂点と頂点の距離が近すぎる場合は描画をスキップする」適応型の距離ベース間引きを採用。
+ * 残った主要な角だけを Lerp（球面補間）で結ぶことで、カクカクにならない、
+ * 滑らかでミニマルな一筆書きのような美しいシルエットが完成します。
+ * * ※ AirportDataの統合は AirportManager に委譲し、ここでは純粋な地形生成に集中します。
  */
 export class MapData {
     constructor() {
@@ -32,13 +31,9 @@ export class MapData {
     _parseTopology(topology) {
         const coastlines = topojson.mesh(topology, topology.objects.countries, (a, b) => a === b);
         
-        const resolution = 0.005; // 1本の線に見える超高密度補間ピッチ
-        const MAIN_LAND_THRESHOLD = 0.6; // 大陸の判定閾値
-        const AIRPORT_NEARBY_THRESHOLD = 0.85; // 空港からの許容距離
-        const MIN_VERTEX_DISTANCE = 0.05; // 【一筆書き用】これより近いリアス式海岸の頂点はスキップする
-
-        const allAirports = [...REAL_AIRPORTS, ...FICTIONAL_AIRPORTS];
-        const airportPositions = allAirports.map(ap => Utils.latLonToVector3(ap.lat, ap.lon, CONFIG.GLOBE_RADIUS));
+        const resolution = 0.005; // 連続線に見せる高密度Lerp補間ピッチ
+        const MIN_VERTEX_DISTANCE = 0.035; // 一筆書き化: これより近いノイズ頂点はスキップ
+        const MIN_ISLAND_LENGTH = 0.15; // ノイズとなる極小の無人島を足切りする長さ閾値
 
         coastlines.coordinates.forEach(line => {
             let lineLength = 0;
@@ -52,23 +47,14 @@ export class MapData {
                 points3D.push(p);
             }
 
-            // --- 孤島の除去 ---
-            const isMainland = lineLength >= MAIN_LAND_THRESHOLD;
-            let hasAirport = false;
-            
-            if (!isMainland) {
-                hasAirport = points3D.some(p => 
-                    airportPositions.some(apPos => p.distanceTo(apPos) < AIRPORT_NEARBY_THRESHOLD)
-                );
-            }
-            if (!isMainland && !hasAirport) return;
+            // 極小の島は描画しない（空港保護フィルタは AirportManager 側で間引き優先度として処理するため、ここでは地形の美しさのみを追求）
+            if (lineLength < MIN_ISLAND_LENGTH) return;
 
             // --- 一筆書きシルエット化（適応型間引き） ---
-            // リアルすぎる細かなギザギザを削ぎ落とし、主要な角だけを残す
             const simplifiedPoints = [points3D[0]];
             for (let i = 1; i < points3D.length; i++) {
                 const lastP = simplifiedPoints[simplifiedPoints.length - 1];
-                // 距離が離れているか、最後の頂点であれば追加
+                // 距離が十分に離れているか、最後の頂点であれば採用
                 if (points3D[i].distanceTo(lastP) > MIN_VERTEX_DISTANCE || i === points3D.length - 1) {
                     simplifiedPoints.push(points3D[i]);
                 }
