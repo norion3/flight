@@ -5,11 +5,10 @@ import { AirportManager } from './AirportManager.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【人間工学的な操作感の最適化】
- * OrbitControls に回帰しました。
- * 完全に極点で止まる不快感をなくすため、min/max PolarAngle に 0.1 の遊びを持たせています。
- * また、ズーム時の暴走を防ぎ「重厚な地球儀」の触り心地にするため、
- * dampingFactor を強め、rotateSpeed と zoomSpeed を低めにチューニングしています。
+ * 【スマート・レイキャスト（優先順位付きタップ判定）】
+ * 単純に intersects[0] を取得すると、巨大なFictionalのヒットボックスがMajorを隠してしまいます。
+ * 貫通したすべての交差判定を調べ、「Major(1) > Local(2) > Fictional(3)」というランク付けで
+ * 優先度の高い空港を能動的に拾い上げることで、密集地でも確実に狙った空港に吸い付くようにしています。
  */
 export class GameManager {
     constructor() {
@@ -48,15 +47,13 @@ export class GameManager {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enablePan = false;
         
-        // --- 人間工学チューニング ---
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.04; // 滑りを重厚に
-        this.controls.rotateSpeed = 0.5;    // スワイプ速度を落ち着かせる
-        this.controls.zoomSpeed = 0.8;      // ズーム暴走を防ぐ
+        this.controls.dampingFactor = 0.04;
+        this.controls.rotateSpeed = 0.5;
+        this.controls.zoomSpeed = 0.8;
         this.controls.minDistance = 5.5;
         this.controls.maxDistance = 25.0;
 
-        // 極点ロックの緩和（ソフトロック）
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
@@ -97,6 +94,7 @@ export class GameManager {
         }
     }
 
+    // --- スマート・レイキャスト実装 ---
     handleTap(event) {
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -105,11 +103,33 @@ export class GameManager {
         const intersects = this.raycaster.intersectObjects(this.airportManager.markers);
 
         if (intersects.length > 0) {
-            const hitMesh = intersects[0].object;
-            const airportData = hitMesh.userData.airportData;
-            this.airportManager.highlightMarker(hitMesh);
-            this.showAirportInfo(airportData);
+            let bestHit = null;
+            let bestRank = 999;
+            const rankMap = { 'major': 1, 'local': 2, 'fictional': 3 };
+
+            // 貫通した全てのヒットボックスから、最も優先度が高いものを探す
+            // (intersects はカメラから近い順に並んでいるため、同ランクなら自然に手前が選ばれます)
+            for (let i = 0; i < intersects.length; i++) {
+                const hit = intersects[i];
+                const data = hit.object.userData.airportData;
+                const rank = rankMap[data.type] || 999;
+
+                if (rank < bestRank) {
+                    bestRank = rank;
+                    bestHit = hit.object;
+                }
+                
+                // ランク1(major)が見つかれば、これ以上高い優先度はないので即時決定
+                if (bestRank === 1) break;
+            }
+
+            if (bestHit) {
+                const airportData = bestHit.userData.airportData;
+                this.airportManager.highlightMarker(bestHit);
+                this.showAirportInfo(airportData);
+            }
         } else {
+            // 空や海をタップした場合はキャンセル
             this.airportManager.highlightMarker(null);
             this.hideAirportInfo();
         }

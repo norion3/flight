@@ -7,12 +7,10 @@ import { FICTIONAL_CSV_DATA } from './Data_Fictional.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【色彩工学と形状の記号化、およびタップ適正化】
- * Major: ゴールド/三重円 (最も目立つ)
- * Local: コーラルオレンジ/二重円 (海岸線と同化しない暖色系)
- * Fictional: ミントグリーン/極小の菱形(Octahedron) (リングによるウザさを排除)
- * 【ゴーストヒットボックス】: 
- * 見た目が極小でも絶対にタップミスしないよう、半径0.08の不可視球体を被せています。
+ * 【ヒットボックス適正化と非線形スケーリング】
+ * 巨大すぎたヒットボックスを適正サイズ(0.06)に戻し、密集地(羽田・成田等)での判定被りを防ぎます。
+ * 同時に updateMarkerScale() にてスケール倍率に上限・下限を設ける非線形スケーリングを導入し、
+ * 寄り(ズームイン)では実寸に近く、引き(ズームアウト)では適度に大きくなるよう調整しました。
  */
 export class AirportManager {
     constructor(scene, globeGroup) {
@@ -21,7 +19,7 @@ export class AirportManager {
         this.airportGroup = new THREE.Group();
         this.globeGroup.add(this.airportGroup);
 
-        this.markers = []; // Raycaster判定用
+        this.markers = []; 
         this.allAirports = this._compileAllAirports();
     }
 
@@ -54,19 +52,19 @@ export class AirportManager {
         const majorRingGeo2 = new THREE.RingGeometry(0.06, 0.065, 32);
         const majorRingMat = new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
 
-        // --- 2. Local (コーラルオレンジ / 二重円) ※海岸線と同化しない暖色 ---
+        // --- 2. Local (コーラルオレンジ / 二重円) ---
         const localCoreGeo = new THREE.SphereGeometry(0.015, 8, 8);
         const localCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const localRingGeo = new THREE.RingGeometry(0.035, 0.045, 24);
         const localRingMat = new THREE.MeshBasicMaterial({ color: 0xfb923c, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
 
-        // --- 3. Fictional (ミントグリーン / 極小の菱形(Octahedron)) ※リングのウザさを排除 ---
-        const fictionalGeo = new THREE.OctahedronGeometry(0.015, 0); // 8面体で3Dの菱形（ダイヤモンド）を作る
+        // --- 3. Fictional (ミントグリーン / 菱形(Octahedron)) ---
+        const fictionalGeo = new THREE.OctahedronGeometry(0.025, 0);
         const fictionalMat = new THREE.MeshBasicMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0.9 });
 
-        // --- ゴースト・ヒットボックス (不可視のタップ専用巨大球体) ---
-        // 半径を0.08に適正化。近接する羽田/成田でも判定が吸い込まれない絶妙なサイズ。
-        const hitGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        // --- ゴースト・ヒットボックス (適正化) ---
+        // 0.2では大きすぎて密集地で手前が全吸収してしまうため、0.06に縮小して分離させます。
+        const hitGeo = new THREE.SphereGeometry(0.06, 8, 8);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
 
         const placedMajors = [];
@@ -80,7 +78,6 @@ export class AirportManager {
         this.allAirports.forEach(airport => {
             const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS + 0.02);
 
-            // --- 優先度順のスマート間引き ---
             if (airport.type === 'fictional') {
                 if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
                 if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
@@ -113,7 +110,6 @@ export class AirportManager {
                 markerGroup.add(highlightTarget);
             }
 
-            // ヒットボックス
             const hitMesh = new THREE.Mesh(hitGeo, hitMat);
             hitMesh.userData = { 
                 airportData: airport, 
@@ -142,13 +138,18 @@ export class AirportManager {
         }
     }
 
+    // --- 非線形スケーリング ---
     updateMarkerScale(camera) {
         this.airportGroup.children.forEach(markerGroup => {
             const markerWorldPos = new THREE.Vector3();
             markerGroup.getWorldPosition(markerWorldPos);
             const distance = camera.position.distanceTo(markerWorldPos);
             
-            const baseScale = Math.max(1, distance / 12); 
+            // 距離に応じたベース倍率を計算 (distanceが10の時およそ等倍)
+            let baseScale = distance / 10;
+            
+            // 寄りすぎた時に小さくなりすぎず、引きすぎた時に巨大になりすぎないよう制限 (Clamp)
+            baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
             
             let isHighlight = false;
             markerGroup.children.forEach(child => {

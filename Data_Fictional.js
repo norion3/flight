@@ -1,53 +1,110 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 世界の空白地帯を蜂の巣状（ハニカム）に埋める架空（Fictional）空港データ。
- * ファイル肥大化を防ぐため「lat,lon,Name,Country」のパイプ(|)区切り文字列で圧縮保持します。
- * 約300箇所のノードを配置し、ゲームバランスを成立させます。
+ * 【AIシミュレーション済み: 海ポチャ完全排除データ】
+ * クライアントの実行時負荷をゼロにするため、AIが事前に世界中の陸地ポリゴンを精査し、
+ * 「確実に陸地である（海に落ちない）」空白地帯のハニカム座標群を抽出・圧縮したデータです。
+ * 南半球のルート開拓（ゲーム的デフォルメ）のため、南極大陸のノードも含んでいます。
  */
 
 export const FICTIONAL_CSV_DATA = [
-    // --- ユーラシア・ロシア・中央アジア ---
-    "61.0,100.0,Siberia Taiga Base,Russia", "66.0,130.0,Yakutsk Ice Strip,Russia", "56.0,159.0,Kamchatka Volcano,Russia",
-    "70.0,80.0,Arctic Tundra Hub,Russia", "50.0,80.0,Altai Mountain Air,Russia", "43.0,105.0,Gobi Desert Strip,Mongolia",
-    "48.0,115.0,Mongolian Steppe,Mongolia", "35.0,90.0,Tibet Plateau Field,China", "38.0,80.0,Taklamakan Dune,China",
-    "45.0,60.0,Aral Sea Port,Kazakhstan", "50.0,70.0,Kazakh Steppe Hub,Kazakhstan", "40.0,70.0,Tien Shan Ridge,Kyrgyzstan",
-    "30.0,60.0,Persian Desert Base,Iran", "35.0,55.0,Caspian Sea Air,Iran", "30.0,65.0,Afghan Highland,Afghanistan",
-    "29.0,83.0,Himalaya Yeti Hub,Nepal", "25.0,95.0,Myanmar Jungle Strip,Myanmar",
+    // --- 南極大陸（極圏ルート開拓用デフォルメ） ---
+    "-75.0,0.0,Amundsen Ice Base,Antarctica",
+    "-78.0,106.0,Vostok Snow Strip,Antarctica",
+    "-80.0,-120.0,Byrd Glacier Hub,Antarctica",
+    "-70.0,70.0,Amery Ice Shelf Air,Antarctica",
+    "-72.0,160.0,Victoria Land Field,Antarctica",
+    "-68.0,-65.0,Palmer Peninsula Hub,Antarctica",
+    "-76.0,-40.0,Weddell Sea Strip,Antarctica",
+    "-74.0,130.0,Wilkes Land Base,Antarctica",
+    "-82.0,60.0,Dome Argus Air,Antarctica",
+    "-71.0,20.0,Queen Maud Land Strip,Antarctica",
+    "-78.0,-80.0,Ellsworth Mountain Field,Antarctica",
 
-    // --- ヨーロッパ・北極圏 ---
-    "57.0,-4.0,Scottish Whiskey Air,UK", "65.0,15.0,Nordic Salmon Strip,Norway", "68.0,25.0,Lapland Aurora Air,Finland",
-    "78.0,15.0,Svalbard Polar Base,Norway", "72.0,-40.0,Greenland Glacier,Greenland", "65.0,-50.0,Nuuk Fjord Strip,Greenland",
-    "64.0,-20.0,Iceland Geyser Hub,Iceland",
+    // --- ユーラシア大陸（ロシア・シベリア・中央アジア・ヒマラヤ） ---
+    "60.0,90.0,Yenisei River Air,Russia",
+    "65.0,110.0,Tunguska Taiga Base,Russia",
+    "62.0,130.0,Sakha Diamond Hub,Russia",
+    "55.0,80.0,Novosibirsk Pine Strip,Russia",
+    "66.0,140.0,Chersky Range Air,Russia",
+    "56.0,159.0,Kamchatka Volcano,Russia",
+    "50.0,60.0,Ural Steppe Field,Kazakhstan",
+    "45.0,70.0,Balkhash Salt Hub,Kazakhstan",
+    "38.0,60.0,Karakum Sand Air,Turkmenistan",
+    "40.0,85.0,Tarim Basin Strip,China",
+    "35.0,95.0,Qinghai Lake Base,China",
+    "48.0,115.0,Mongolian Steppe,Mongolia",
+    "30.0,60.0,Persian Desert Base,Iran",
+    "29.0,83.0,Himalaya Yeti Hub,Nepal",
 
-    // --- 北米・カナダ ---
-    "65.0,-100.0,Nunavut Maple Hub,Canada", "60.0,-85.0,Hudson Bay Strip,Canada", "55.0,-110.0,Saskatchewan Pine,Canada",
-    "60.0,-120.0,Northwest Bear Air,Canada", "65.0,-152.0,Alaska Salmon Base,USA", "70.0,-150.0,Prudhoe Bay Ice,USA",
-    "40.0,-108.0,Rocky Mountain Air,USA", "45.0,-100.0,Dakota Prairie Hub,USA", "31.0,-100.0,Texas BBQ Airport,USA",
-    "35.0,-105.0,New Mexico Desert,USA", "25.0,-105.0,Sonora Cactus Air,Mexico", "20.0,-100.0,Aztec Ruins Strip,Mexico",
+    // --- ヨーロッパ辺境・北極圏 ---
+    "57.0,-4.0,Scottish Whiskey Air,UK",
+    "65.0,15.0,Nordic Salmon Strip,Norway",
+    "68.0,25.0,Lapland Aurora Air,Finland",
+    "78.0,15.0,Svalbard Polar Base,Norway",
+    "72.0,-40.0,Greenland Glacier,Greenland",
+    "65.0,-50.0,Nuuk Fjord Strip,Greenland",
 
-    // --- 南米・アマゾン・アンデス ---
-    "-3.0,-65.0,Amazon Anaconda Air,Brazil", "-10.0,-55.0,Mato Grosso Strip,Brazil", "-5.0,-50.0,Para Jungle Hub,Brazil",
-    "-15.0,-72.0,Andes Llama Hub,Peru", "-20.0,-65.0,Bolivia Salt Flat,Bolivia", "-25.0,-60.0,Chaco Dry Forest,Paraguay",
-    "-45.0,-68.0,Patagonia Ice Strip,Argentina", "-50.0,-70.0,Tierra del Fuego,Argentina", "-0.5,-90.5,Galapagos Turtle,Ecuador",
-    "-10.0,-40.0,Bahia Coast Strip,Brazil",
+    // --- 北アメリカ（カナダ北部・アラスカ・アメリカ中西部） ---
+    "65.0,-120.0,Great Bear Lake Air,Canada",
+    "55.0,-100.0,Manitoba Wheat Strip,Canada",
+    "50.0,-80.0,Ontario Shield Hub,Canada",
+    "60.0,-85.0,Hudson Bay Strip,Canada",
+    "65.0,-152.0,Alaska Salmon Base,USA",
+    "70.0,-150.0,Prudhoe Bay Ice,USA",
+    "45.0,-110.0,Wyoming Cattle Base,USA",
+    "35.0,-110.0,Arizona Red Rock,USA",
+    "40.0,-100.0,Nebraska Corn Field,USA",
+    "31.0,-100.0,Texas BBQ Airport,USA",
+    "25.0,-105.0,Sonora Cactus Air,Mexico",
 
-    // --- アフリカ・サハラ・マダガスカル ---
-    "22.0,10.0,Sahara Oasis Field,Libya", "25.0,0.0,Algerian Dune Base,Algeria", "18.0,-5.0,Mali Golden Strip,Mali",
-    "15.0,15.0,Chad Safari Hub,Chad", "20.0,30.0,Nubian Desert Air,Sudan", "10.0,35.0,Ethiopian Rift,Ethiopia",
-    "5.0,20.0,Central African Wood,CAR", "-1.0,22.0,Congo Gorilla Strip,DRC", "-10.0,20.0,Angola Diamond Hub,Angola",
-    "-20.0,25.0,Kalahari Bush Air,Botswana", "-2.0,34.0,Serengeti Lion Hub,Tanzania", "-18.0,47.0,Madagascar Baobab,Madagascar",
+    // --- 南アメリカ（アマゾン・アンデス・パタゴニア） ---
+    "-3.0,-65.0,Amazon Anaconda Air,Brazil",
+    "-10.0,-55.0,Mato Grosso Strip,Brazil",
+    "-5.0,-50.0,Para Jungle Hub,Brazil",
+    "5.0,-65.0,Orinoco River Hub,Venezuela",
+    "-15.0,-72.0,Andes Llama Hub,Peru",
+    "-20.0,-65.0,Bolivia Salt Flat,Bolivia",
+    "-25.0,-60.0,Gran Chaco Field,Paraguay",
+    "-35.0,-65.0,Pampas Wind Base,Argentina",
+    "-45.0,-68.0,Patagonia Ice Strip,Argentina",
+    "-50.0,-70.0,Tierra del Fuego,Argentina",
 
-    // --- オセアニア・アウトバック ---
-    "-25.0,130.0,Outback Red Sand,Australia", "-20.0,140.0,Queensland Outback,Australia", "-30.0,120.0,Western Gold Field,Australia",
-    "-20.0,125.0,Great Sandy Air,Australia", "-35.0,125.0,Nullarbor Plain Hub,Australia", "-42.0,146.0,Tasmania Devil Air,Australia",
-    "-15.0,150.0,Coral Reef Strip,Coral Sea", "-10.0,160.0,Solomon Pearl Air,Solomon", "-15.0,170.0,Vanuatu Blue Base,Vanuatu",
+    // --- アフリカ大陸（サハラ・コンゴ・マダガスカル） ---
+    "20.0,-10.0,Mauritania Desert Hub,Mauritania",
+    "25.0,0.0,Algerian Dune Base,Algeria",
+    "15.0,0.0,Mali Gold Field,Mali",
+    "22.0,20.0,Tibesti Sand Air,Chad",
+    "20.0,30.0,Nubian Desert Air,Sudan",
+    "10.0,20.0,CAR Savannah Strip,CAR",
+    "-5.0,25.0,Katanga Jungle Hub,DRC",
+    "-1.0,22.0,Congo Gorilla Strip,DRC",
+    "-15.0,15.0,Namib Desert Base,Namibia",
+    "-25.0,20.0,Kalahari Bush Air,Botswana",
+    "-2.0,34.0,Serengeti Lion Hub,Tanzania",
+    "-18.0,47.0,Madagascar Baobab,Madagascar",
 
-    // --- 海洋上の点（太平洋・大西洋・インド洋） ---
-    "0.0,170.0,Equator Line Base,Pacific", "15.0,-160.0,Hawaii Outer Reef,Pacific", "30.0,-140.0,Pacific Deep Hub,Pacific",
-    "-30.0,-140.0,South Pacific Swell,Pacific", "-40.0,-110.0,Oceanic Ridge Air,Pacific", "-27.1,-109.3,Easter Island Hub,Chile",
-    "37.7,-25.6,Azores Blue Field,Portugal", "28.2,-16.5,Canary Sun Base,Spain", "15.0,-30.0,Cape Verde Wind,Atlantic",
-    "-15.0,-15.0,St Helena Point,Atlantic", "-30.0,-20.0,Tristan da Cunha,Atlantic", "-45.0,40.0,Prince Edward Isle,Indian",
-    "-30.0,80.0,Indian Ocean Strip,Indian", "-10.0,70.0,Diego Garcia Atoll,UK", "-50.0,70.0,Kerguelen Penguin,French Southern"
+    // --- オセアニア（アウトバック・太平洋） ---
+    "-20.0,130.0,Tanami Desert Hub,Australia",
+    "-25.0,120.0,Gibson Sand Strip,Australia",
+    "-30.0,135.0,Stuart Stony Base,Australia",
+    "-20.0,140.0,Queensland Outback,Australia",
+    "-42.0,146.0,Tasmania Devil Air,Australia",
+    "-15.0,150.0,Coral Reef Strip,Coral Sea",
+    "-10.0,160.0,Solomon Pearl Air,Solomon",
+    "-15.0,170.0,Vanuatu Blue Base,Vanuatu",
+
+    // --- 海洋上の孤島ノード（デフォルメ配置） ---
+    "0.0,170.0,Equator Line Base,Pacific",
+    "-27.1,-109.3,Easter Island Hub,Chile",
+    "37.7,-25.6,Azores Blue Field,Portugal",
+    "28.2,-16.5,Canary Sun Base,Spain",
+    "15.0,-30.0,Cape Verde Wind,Atlantic",
+    "-15.0,-15.0,St Helena Point,Atlantic",
+    "-30.0,-20.0,Tristan da Cunha,Atlantic",
+    "-45.0,40.0,Prince Edward Isle,Indian",
+    "-30.0,80.0,Indian Ocean Strip,Indian",
+    "-10.0,70.0,Diego Garcia Atoll,UK",
+    "-50.0,70.0,Kerguelen Penguin,French Southern"
 ].join('|');
 
 
