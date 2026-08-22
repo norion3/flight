@@ -1,8 +1,13 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 履歴74に基づき、RouteManager への参照をすべて NetworkManager へ書き換えました。
+ */
+
 export class PlaneManager {
-    constructor(scene, globeGroup, routeManager) {
+    constructor(scene, globeGroup, networkManager) {
         this.scene = scene;
         this.globeGroup = globeGroup;
-        this.routeManager = routeManager;
+        this.networkManager = networkManager;
         
         this.planes = [];
         this.planeGroup = new THREE.Group();
@@ -34,10 +39,10 @@ export class PlaneManager {
     }
 
     addPlane(sizeType) {
-        const spawnAirportId = this.routeManager.getRandomConnectedAirport();
+        const spawnAirportId = this.networkManager.getRandomConnectedAirport();
         if (!spawnAirportId) return false; 
 
-        const routeData = this.routeManager.getRandomRouteFrom(spawnAirportId);
+        const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
         if (!routeData) return false;
 
         const mesh = new THREE.Mesh(this.baseGeometry, this.planeMaterial);
@@ -78,7 +83,7 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
-                const nextRoute = this.routeManager.getRandomRouteFrom(nextAirportId);
+                const nextRoute = this.networkManager.getRandomRouteFrom(nextAirportId);
                 
                 if (nextRoute) {
                     plane.currentAirportId = nextAirportId;

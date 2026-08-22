@@ -1,9 +1,14 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 履歴74に基づき、RouteManager のインポートおよび変数をすべて NetworkManager へ書き換えました。
+ */
+
 import { CONFIG } from './Config.js';
 import { Globe } from './Globe.js';
 import { MapData } from './MapData.js';
 import { AirportManager } from './AirportManager.js';
 import { UIManager } from './UIManager.js';
-import { RouteManager } from './RouteManager.js';
+import { NetworkManager } from './NetworkManager.js';
 import { PlaneManager } from './PlaneManager.js';
 
 const STATE_IDLE = 0;
@@ -21,8 +26,8 @@ export class GameManager {
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
         this.airportManager = new AirportManager(this.scene, this.globe.group);
-        this.routeManager = new RouteManager(this.scene, this.globe.group);
-        this.planeManager = new PlaneManager(this.scene, this.globe.group, this.routeManager);
+        this.networkManager = new NetworkManager(this.scene, this.globe.group);
+        this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.uiManager = new UIManager();
 
         this.uiManager.onConnectRequested = () => {
@@ -37,7 +42,7 @@ export class GameManager {
 
         this.uiManager.onRouteConfirmed = () => {
             if (this.selectedOrigin && this.selectedDestination) {
-                this.routeManager.addRoute(this.selectedOrigin.userData.airportData, this.selectedDestination.userData.airportData);
+                this.networkManager.addRoute(this.selectedOrigin.userData.airportData, this.selectedDestination.userData.airportData);
             }
             this.resetState();
         };
@@ -139,8 +144,8 @@ export class GameManager {
         const cts = this.airportManager.getAirportById('CTS'); 
         const fuk = this.airportManager.getAirportById('FUK'); 
 
-        if (hnd && cts) this.routeManager.addRoute(hnd, cts);
-        if (hnd && fuk) this.routeManager.addRoute(hnd, fuk);
+        if (hnd && cts) this.networkManager.addRoute(hnd, cts);
+        if (hnd && fuk) this.networkManager.addRoute(hnd, fuk);
 
         this.planeManager.addPlane('small');
         this.planeManager.addPlane('small');
@@ -191,8 +196,8 @@ export class GameManager {
                 const data = bestHit.userData.airportData;
                 this.airportManager.highlightMarker(bestHit);
                 
-                const currConns = this.routeManager.getConnectionCount(data.id);
-                const maxConns = this.routeManager.MAX_CONNECTIONS[data.type];
+                const currConns = this.networkManager.getConnectionCount(data.id);
+                const maxConns = this.networkManager.MAX_CONNECTIONS[data.type];
                 
                 this.uiManager.showAirportInfo(data, currConns, maxConns);
             } else {
@@ -206,7 +211,7 @@ export class GameManager {
                 const originData = this.selectedOrigin.userData.airportData;
                 const destData = this.selectedDestination.userData.airportData;
 
-                if (this.routeManager.canConnect(originData, destData)) {
+                if (this.networkManager.canConnect(originData, destData)) {
                     this.airportManager.highlightMarker(this.selectedDestination);
                     this.uiManager.showRouteConfirm(originData, destData);
                 } else {
