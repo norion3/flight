@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <!-- viewport-fit=cover と user-scalable=no により、ネイティブアプリの挙動を再現 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,70 +10,104 @@
     <script src="https://unpkg.com/topojson-client@3"></script>
     <style>
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            /* モダンな dvh を使用し、ブラウザのURLバー伸縮によるレイアウト崩れを完全に防ぐ */
-            height: 100dvh; 
-            overflow: hidden;
+            margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
             background-color: #020617;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            
-            /* --- スマホ特有のブラウザ挙動を完全にマスク（封印）する設定群 --- */
-            touch-action: none; /* ブラウザ標準のパン・ズーム操作を無効化 */
-            user-select: none; /* テキストの選択を無効化 */
-            -webkit-user-select: none; /* iOS Safariのテキスト選択無効化 */
-            -webkit-touch-callout: none; /* iOS Safariでの長押しによる画像保存等のメニューを無効化 */
-            -webkit-tap-highlight-color: transparent; /* タップした際のグレーのハイライトを無効化 */
-            overscroll-behavior: none; /* 画面端でのスワイプリロード(バウンス)を無効化 */
+            touch-action: none; user-select: none; -webkit-user-select: none;
+            -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
         }
-        #webgl-container {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
+        #webgl-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* Thumb Zone UI Layer */
+        #ui-layer {
+            position: absolute; inset: 0; z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: flex-end;
         }
-        .ui-overlay {
-            position: absolute;
-            z-index: 10;
-            pointer-events: none;
+        .interactive-ui { pointer-events: auto; }
+        
+        /* Bottom Sheet Animation */
+        .bottom-sheet {
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .pointer-events-auto {
-            pointer-events: auto;
-        }
+        .bottom-sheet.show { transform: translateY(0); }
     </style>
 </head>
 <body class="text-slate-100">
 
     <div id="webgl-container"></div>
 
-    <!-- Loading Screen -->
     <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm transition-opacity duration-500">
         <div class="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-4"></div>
-        <h2 class="text-sm font-bold text-cyan-300 tracking-widest uppercase">Initializing Globe Core...</h2>
-        <p class="text-xs text-slate-500 mt-2">Loading authentic high-resolution map data</p>
+        <h2 class="text-sm font-bold text-cyan-300 tracking-widest uppercase">Initializing Simulation...</h2>
     </div>
 
-    <!-- Airport Info Card (GRAVITYのセーフエリアを回避した下部配置) -->
-    <div id="airport-info-card" class="ui-overlay bottom-12 left-1/2 transform -translate-x-1/2 translate-y-12 opacity-0 transition-all duration-300 w-80 pointer-events-auto">
-        <div class="bg-slate-900/90 border border-cyan-500/50 rounded-xl p-4 backdrop-blur-md shadow-lg shadow-cyan-900/40">
-            <div class="flex justify-between items-start mb-2">
+    <!-- UI Layer (Thumb Zone Optimized) -->
+    <div id="ui-layer" class="pb-8 px-4 relative overflow-hidden">
+        
+        <!-- Route Confirm Dialog -->
+        <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-5 mb-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 mx-auto w-full max-w-sm absolute bottom-32 left-0 right-0">
+            <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">OPEN ROUTE</h3>
+            <div class="flex justify-between items-center text-lg font-bold mb-4">
+                <span id="route-from" class="text-white">---</span>
+                <span class="text-slate-500">➔</span>
+                <span id="route-to" class="text-white">---</span>
+            </div>
+            <div class="flex space-x-3">
+                <button id="btn-cancel-route" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold active:bg-slate-700">Cancel</button>
+                <button id="btn-open-route" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50">Open Route</button>
+            </div>
+        </div>
+
+        <!-- Airport Info Card -->
+        <div id="airport-info-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-2xl p-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 w-full max-w-sm mx-auto absolute bottom-8 left-0 right-0">
+            <div class="flex justify-between items-start mb-3">
                 <div>
-                    <h3 id="airport-name" class="text-lg font-bold text-white leading-tight">Airport Name</h3>
+                    <h3 id="airport-name" class="text-xl font-bold text-white leading-tight">Airport Name</h3>
                     <p id="airport-country" class="text-sm text-slate-400">Country</p>
                 </div>
                 <div class="bg-cyan-950 border border-cyan-500 text-cyan-300 px-2 py-1 rounded text-sm font-mono font-bold">
                     <span id="airport-code">XXX</span>
                 </div>
             </div>
-            <div class="flex items-center space-x-2">
-                <span class="relative flex h-3 w-3">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
-                </span>
-                <span id="airport-type" class="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Major Hub</span>
+            <div class="flex items-center space-x-2 mb-4">
+                <span id="airport-type" class="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Type</span>
+                <span class="text-slate-600">|</span>
+                <span class="text-xs text-slate-400">Connections: <span id="airport-conn" class="text-white font-bold">0/0</span></span>
+            </div>
+            <button id="btn-connect" class="w-full py-3 rounded-xl bg-cyan-600 text-white font-bold active:bg-cyan-500 shadow-lg shadow-cyan-900/50 transition-colors">
+                Connect Route
+            </button>
+            <p id="connect-hint" class="hidden text-center text-xs text-yellow-400 mt-2 font-bold animate-pulse">Select destination airport...</p>
+        </div>
+
+        <!-- FAB (Buy Plane) -->
+        <button id="fab-buy-plane" class="interactive-ui absolute bottom-8 right-6 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 transition-transform z-20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+        </button>
+
+        <!-- Buy Plane Menu -->
+        <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bottom-0 left-0 w-full bg-slate-900/95 border-t border-emerald-500/50 rounded-t-3xl p-6 backdrop-blur-md pb-12 z-30">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-white">Fleet Market</h2>
+                <button id="btn-close-buy" class="text-slate-400 active:text-white p-2 text-xl font-bold">✕</button>
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-3 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="small">
+                    <span class="text-emerald-400 mb-1"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    <span class="text-xs font-bold text-white">Small</span>
+                </button>
+                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-3 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="medium">
+                    <span class="text-emerald-400 mb-1"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    <span class="text-xs font-bold text-white">Medium</span>
+                </button>
+                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-3 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="large">
+                    <span class="text-emerald-400 mb-1"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    <span class="text-xs font-bold text-white">Large</span>
+                </button>
+                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-3 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="super">
+                    <span class="text-emerald-400 mb-1"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    <span class="text-xs font-bold text-white">Super</span>
+                </button>
             </div>
         </div>
     </div>
