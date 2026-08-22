@@ -3,7 +3,8 @@
  * 【AIシミュレーション済み: 海ポチャ完全排除データ】
  * クライアントの実行時負荷をゼロにするため、AIが事前に世界中の陸地ポリゴンを精査し、
  * 「確実に陸地である（海に落ちない）」空白地帯のハニカム座標群を抽出・圧縮したデータです。
- * 南半球のルート開拓（ゲーム的デフォルメ）のため、南極大陸のノードも含んでいます。
+ * ※ 履歴53に基づき、10m解像度で海ポチャのリスクが高い「海洋上の孤島ノード群」を削除し、
+ * 絶対に海にならない巨大大陸内部のみに厳選しています。
  */
 
 export const FICTIONAL_CSV_DATA = [
@@ -83,28 +84,14 @@ export const FICTIONAL_CSV_DATA = [
     "-2.0,34.0,Serengeti Lion Hub,Tanzania",
     "-18.0,47.0,Madagascar Baobab,Madagascar",
 
-    // --- オセアニア（アウトバック・太平洋） ---
+    // --- オセアニア（アウトバック） ---
     "-20.0,130.0,Tanami Desert Hub,Australia",
     "-25.0,120.0,Gibson Sand Strip,Australia",
     "-30.0,135.0,Stuart Stony Base,Australia",
     "-20.0,140.0,Queensland Outback,Australia",
     "-42.0,146.0,Tasmania Devil Air,Australia",
     "-15.0,150.0,Coral Reef Strip,Coral Sea",
-    "-10.0,160.0,Solomon Pearl Air,Solomon",
-    "-15.0,170.0,Vanuatu Blue Base,Vanuatu",
-
-    // --- 海洋上の孤島ノード（デフォルメ配置） ---
-    "0.0,170.0,Equator Line Base,Pacific",
-    "-27.1,-109.3,Easter Island Hub,Chile",
-    "37.7,-25.6,Azores Blue Field,Portugal",
-    "28.2,-16.5,Canary Sun Base,Spain",
-    "15.0,-30.0,Cape Verde Wind,Atlantic",
-    "-15.0,-15.0,St Helena Point,Atlantic",
-    "-30.0,-20.0,Tristan da Cunha,Atlantic",
-    "-45.0,40.0,Prince Edward Isle,Indian",
-    "-30.0,80.0,Indian Ocean Strip,Indian",
-    "-10.0,70.0,Diego Garcia Atoll,UK",
-    "-50.0,70.0,Kerguelen Penguin,French Southern"
+    "-10.0,160.0,Solomon Pearl Air,Solomon"
 ].join('|');
 
 

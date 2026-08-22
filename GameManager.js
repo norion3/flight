@@ -5,10 +5,10 @@ import { AirportManager } from './AirportManager.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【スマート・レイキャスト（優先順位付きタップ判定）】
- * 単純に intersects[0] を取得すると、巨大なFictionalのヒットボックスがMajorを隠してしまいます。
- * 貫通したすべての交差判定を調べ、「Major(1) > Local(2) > Fictional(3)」というランク付けで
- * 優先度の高い空港を能動的に拾い上げることで、密集地でも確実に狙った空港に吸い付くようにしています。
+ * 【スマート・レイキャスト（優先順位付きタップ判定）とUIの洗練化】
+ * 光線が貫通したすべてのヒットボックスから、「Major(1) > Local(2) > Fictional(3)」の
+ * 優先度で最も高いものを選択します。
+ * また、没入感を高めるため、画面下部のヒントテキストUIに対する操作ロジックを削除しています。
  */
 export class GameManager {
     constructor() {
@@ -94,7 +94,6 @@ export class GameManager {
         }
     }
 
-    // --- スマート・レイキャスト実装 ---
     handleTap(event) {
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -107,8 +106,6 @@ export class GameManager {
             let bestRank = 999;
             const rankMap = { 'major': 1, 'local': 2, 'fictional': 3 };
 
-            // 貫通した全てのヒットボックスから、最も優先度が高いものを探す
-            // (intersects はカメラから近い順に並んでいるため、同ランクなら自然に手前が選ばれます)
             for (let i = 0; i < intersects.length; i++) {
                 const hit = intersects[i];
                 const data = hit.object.userData.airportData;
@@ -119,7 +116,6 @@ export class GameManager {
                     bestHit = hit.object;
                 }
                 
-                // ランク1(major)が見つかれば、これ以上高い優先度はないので即時決定
                 if (bestRank === 1) break;
             }
 
@@ -129,7 +125,6 @@ export class GameManager {
                 this.showAirportInfo(airportData);
             }
         } else {
-            // 空や海をタップした場合はキャンセル
             this.airportManager.highlightMarker(null);
             this.hideAirportInfo();
         }
@@ -137,7 +132,6 @@ export class GameManager {
 
     showAirportInfo(data) {
         const card = document.getElementById('airport-info-card');
-        const hint = document.getElementById('hint-text');
         if (!card) return;
 
         document.getElementById('airport-name').innerText = data.name;
@@ -156,15 +150,12 @@ export class GameManager {
             typeEl.className = 'text-xs font-semibold text-emerald-400 uppercase tracking-wider';
         }
 
-        if (hint) hint.classList.add('opacity-0');
         card.classList.remove('translate-y-12', 'opacity-0');
     }
 
     hideAirportInfo() {
         const card = document.getElementById('airport-info-card');
-        const hint = document.getElementById('hint-text');
         if (card) card.classList.add('translate-y-12', 'opacity-0');
-        if (hint) hint.classList.remove('opacity-0');
     }
 
     onWindowResize() {
