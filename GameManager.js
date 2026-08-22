@@ -1,11 +1,14 @@
 import { CONFIG } from './Config.js';
 import { Globe } from './Globe.js';
 import { MapData } from './MapData.js';
+import { AirportManager } from './AirportManager.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * ゲームシミュレーションの統合マネージャークラス。
- * 「地球は勝手に回転しないで」の指示に基づき、animate() 内での自動回転（rotation.y += ...）は停止しています。
+ * シミュレーション管理クラス。
+ * 【変更点】
+ * 1. OrbitControls の上下仰角制限（Polar Angle）を完全に撤去し、上下左右斜め360度際限なく自由回転できるように改修。
+ * 2. `AirportManager` を読み込み、3Dネオンリング空港マーカーを起動・描画。
  */
 export class GameManager {
     constructor() {
@@ -15,6 +18,7 @@ export class GameManager {
         this.initThree();
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
+        this.airportManager = new AirportManager(this.scene, this.globe.group);
 
         window.addEventListener('resize', this.onWindowResize.bind(this));
     }
@@ -41,6 +45,11 @@ export class GameManager {
         this.controls.maxDistance = 25.0;
         this.controls.enablePan = false;
 
+        // 【360度無限全方向回転の解放】
+        // 極付近でのカメラ引っかかり・回転ブロックをなくすため、角度制限を完全削除
+        this.controls.minPolarAngle = 0;
+        this.controls.maxPolarAngle = Math.PI;
+
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.scene.add(ambientLight);
 
@@ -56,6 +65,8 @@ export class GameManager {
         const success = await this.mapData.loadData();
         if (success) {
             this.globe.buildCoastlines(this.mapData.coastlinePoints);
+            // 世界主要空港の3Dネオンリングマーカーを生成
+            this.airportManager.buildAirportMarkers();
             this.hideLoader();
         } else {
             this.showError("Network Error", "地図データの取得に失敗しました。再読み込みしてください。");
@@ -73,12 +84,7 @@ export class GameManager {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
 
-        // 【自動回転禁止】ユーザー操作のみで回転させるため、回転ロジックは配置しないこと
-        
-        // --- 将来のシミュレーション拡張ポイント ---
-        // if (this.airplaneManager) this.airplaneManager.update();
-        // if (this.airportManager) this.airportManager.update();
-        
+        // 自動回転は停止（ユーザーの自由スワイプ操作のみ）
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }

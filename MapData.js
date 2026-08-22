@@ -1,16 +1,17 @@
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
+import { AIRPORTS } from './AirportData.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【美的デフォルメ・流線型化の要】
- * リアルすぎるリアス式海岸や微小な島は、将来の空港・航路シミュレーションにおいて視覚的ノイズになります。
- * そのため、このクラス内で取得したデータに対して「微小島の除外」「頂点の間引き」「スプライン曲線による平滑化」
- * という数学的デフォルメを施し、洗練された滑らかな流線型のシルエットを構築しています。
+ * 【空港連動型スマートフィルタリング】
+ * 単なる線の長さ判定だけでなく、`AirportData.js` の主要空港の位置座標を参照し、
+ * 「主要空港が存在しない海上の孤島」を自動的に間引き（消去）します。
+ * 空港が存在する小島（ハワイ、グアム、モルディブ、セーシェル等）や巨大大陸は確実に保持します。
  */
 export class MapData {
     constructor() {
-        this.coastlinePoints = []; // 抽出・デフォルメされた3D海岸線ドット群
+        this.coastlinePoints = [];
     }
 
     async loadData() {
@@ -27,20 +28,16 @@ export class MapData {
     }
 
     _parseTopology(topology) {
-        // topojson-client で海岸線（外部境界）のみを抽出
         const coastlines = topojson.mesh(topology, topology.objects.countries, (a, b) => a === b);
         
-        // 描画の滑らかさ（線としての密度）
-        const resolution = 0.005;
+        const resolution = 0.005; // 1本の線に見える超高密度補間ピッチ
+        const MAIN_LAND_THRESHOLD = 0.6; // 巨大大陸（日本本州、ユーラシア、南北アメリカ等）の判定閾値
+        const AIRPORT_NEARBY_THRESHOLD = 0.85; // 主要空港からの許容距離（この範囲内に空港があれば小島でも残す）
 
-        // デフォルメ用パラメータ
-        // 微小島を除外するための閾値（3D空間での物理的な長さ。約150km未満の島・湖をスキップ）
-        const MIN_LENGTH_THRESHOLD = 0.12; 
-        // ギザギザを消すための間引き率（N個に1個の頂点だけを採用）
-        const SKIP_STEP = 3; 
+        // 空港の3D位置を事前計算
+        const airportPositions = AIRPORTS.map(ap => Utils.latLonToVector3(ap.lat, ap.lon, CONFIG.GLOBE_RADIUS));
 
         coastlines.coordinates.forEach(line => {
-            // --- ステップ1: 3D座標化と物理的な長さの計算（ノイズ足切り） ---
             let lineLength = 0;
             const points3D = [];
 
@@ -52,20 +49,27 @@ export class MapData {
                 points3D.push(p);
             }
 
-            // 極端に短い線分（微小な無人島や内陸の小さな湖など）はゲームのノイズになるため除外
-            if (lineLength < MIN_LENGTH_THRESHOLD) return;
+            // --- スマートフィルタリング判定 ---
+            const isMainland = lineLength >= MAIN_LAND_THRESHOLD;
+            
+            // 線上のいずれかの頂点が主要空港の近くにあるか判定
+            let hasAirport = false;
+            if (!isMainland) {
+                hasAirport = points3D.some(p => 
+                    airportPositions.some(apPos => p.distanceTo(apPos) < AIRPORT_NEARBY_THRESHOLD)
+                );
+            }
 
-            // --- ステップ2: ダウンサンプリング（ギザギザの間引き） ---
-            // リアス式海岸などの過剰なディテールを間引き、骨格だけにする
+            // 大陸でもなく、主要空港も近くに存在しない島々はゲームのUIノイズとして除外（消去）
+            if (!isMainland && !hasAirport) return;
+
+            // ダウンサンプリング ＆ スプライン曲線スムージング（流線型化）
+            const SKIP_STEP = 3;
             const simplifiedPoints = points3D.filter((_, index) => index % SKIP_STEP === 0 || index === points3D.length - 1);
 
             if (simplifiedPoints.length < 2) return;
 
-            // --- ステップ3: スプライン曲線によるスムージング（流線型化） ---
-            // 間引かれた頂点間を滑らかな曲線（centripetal）で繋ぎ直し、美しい流線型のシルエットを生成
             const curve = new THREE.CatmullRomCurve3(simplifiedPoints, false, 'centripetal', 0.5);
-
-            // 生成された美しい曲線上に、高密度（0.005間隔）でドットを敷き詰める
             const curveLength = curve.getLength();
             const divisions = Math.max(Math.ceil(curveLength / resolution), 2);
             const spacedPoints = curve.getSpacedPoints(divisions);
@@ -76,5 +80,4 @@ export class MapData {
         });
     }
 }
-
 
