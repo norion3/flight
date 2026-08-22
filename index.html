@@ -4,6 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
+
+    <!-- ★絶対不可避のインライン・デバッガー★ -->
+    <style>
+        #osd-console {
+            position: fixed; top: 0; left: 0; width: 100%; height: 35%;
+            background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace;
+            font-size: 11px; z-index: 99999; overflow-y: auto; padding: 45px 10px 10px 10px; /* ノッチ回避 */
+            pointer-events: none; border-bottom: 2px solid #0f0; word-wrap: break-word;
+        }
+    </style>
+    <script>
+        // DOM構築前でもエラーを記録するためのキュー
+        window._osdQueue = [];
+        
+        // 画面にログを追記する関数
+        function logToOSD(msg, color) {
+            var c = color || '#0f0';
+            var osd = document.getElementById('osd-console');
+            if (osd) {
+                osd.innerHTML += '<span style="color:'+c+'">' + msg + '</span><br>';
+                osd.scrollTop = osd.scrollHeight;
+            } else {
+                window._osdQueue.push({m: msg, c: c});
+            }
+            console.log(msg);
+        }
+
+        // 1. 構文エラー(SyntaxError)等のグローバルエラーを捕捉
+        window.onerror = function(msg, url, line, col, error) {
+            logToOSD('[Syntax/Global Error] ' + msg + '<br> &nbsp;&nbsp;at Line ' + line + ':' + col, '#f33');
+            return false;
+        };
+
+        // 2. モジュールの読み込み失敗(404エラー等)を捕捉
+        window.addEventListener('error', function(e) {
+            if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+                logToOSD('[Load Error] Failed to load file: ' + e.target.src, '#f33');
+            }
+        }, true);
+
+        // 3. 非同期処理(Promise)のエラーを捕捉
+        window.addEventListener('unhandledrejection', function(e) {
+            logToOSD('[Promise Error] ' + (e.reason ? e.reason.message : 'Unknown'), '#f33');
+        });
+
+        // DOMが読み込まれたらデバッガーUIを作成し、溜まっていたログを吐き出す
+        window.addEventListener('DOMContentLoaded', function() {
+            var div = document.createElement('div');
+            div.id = 'osd-console';
+            div.innerHTML = '[SYSTEM BOOT LOG]<br>';
+            document.body.appendChild(div);
+            window._osdQueue.forEach(function(i) { logToOSD(i.m, i.c); });
+            logToOSD('Step 0: HTML DOM Loaded.');
+        });
+
+        // 他のファイルからも呼べるようにグローバル化
+        window.logToOSD = logToOSD;
+    </script>
+    <!-- デバッガーここまで -->
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -11,43 +71,19 @@
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
-            background-color: #020617;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #020617; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             touch-action: none; user-select: none; -webkit-user-select: none;
             -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
         }
         #webgl-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-        
-        #ui-layer {
-            position: absolute; inset: 0; z-index: 10; pointer-events: none;
-            display: flex; flex-direction: column; justify-content: flex-end;
-        }
-        .interactive-ui { 
-            pointer-events: auto; 
-            touch-action: manipulation; 
-        }
-        
-        .bottom-sheet {
-            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
+        .interactive-ui { pointer-events: auto; touch-action: manipulation; }
+        .bottom-sheet { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .bottom-sheet.show { transform: translateY(0); }
         .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
-
-        /* オンスクリーン・デバッガー (ノッチ回避のためtop:40px) */
-        #osd-console {
-            position: fixed; top: 40px; left: 0; width: 100%; height: 30%; 
-            background: rgba(0, 0, 0, 0.85); color: #0f0; font-family: monospace; 
-            font-size: 11px; z-index: 9999; overflow-y: auto; padding: 8px; 
-            pointer-events: none; border-bottom: 1px solid #0f0; word-wrap: break-word;
-        }
     </style>
 </head>
 <body class="text-slate-100">
-
-    <!-- オンスクリーン・デバッガーUI -->
-    <div id="osd-console">
-        [DEBUG MODE ENABLED]<br>
-    </div>
 
     <div id="webgl-container"></div>
 
@@ -57,12 +93,12 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
+    <!-- 省略せずにUIは維持 -->
     <div id="toast-notification" class="fixed top-12 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 bg-red-600/90 text-white text-sm font-bold rounded-full shadow-lg shadow-red-900/50 opacity-0 pointer-events-none transition-all duration-300 z-50">
         メッセージ
     </div>
 
     <div id="ui-layer" class="pb-8 px-4 relative overflow-hidden">
-        
         <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-5 mb-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 mx-auto w-full max-w-sm absolute bottom-32 left-0 right-0">
             <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">ルート開通</h3>
             <div class="flex justify-between items-center text-lg font-bold mb-4">
@@ -127,6 +163,7 @@
         </div>
     </div>
 
+    <!-- メインスクリプト -->
     <script type="module" src="./main.js"></script>
 </body>
 </html>
