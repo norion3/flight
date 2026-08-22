@@ -3,13 +3,14 @@ import { Utils } from './Utils.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【超高密度化の要】
- * maxInterpolationDistance を 0.005 に設定することで、頂点間に極めて高密度なドットを連続配置します。
- * これにより、拡大して見ても「点」ではなく「1本の滑らかな美しいライン」として視認できるようになります。
+ * 【美的デフォルメ・流線型化の要】
+ * リアルすぎるリアス式海岸や微小な島は、将来の空港・航路シミュレーションにおいて視覚的ノイズになります。
+ * そのため、このクラス内で取得したデータに対して「微小島の除外」「頂点の間引き」「スプライン曲線による平滑化」
+ * という数学的デフォルメを施し、洗練された滑らかな流線型のシルエットを構築しています。
  */
 export class MapData {
     constructor() {
-        this.coastlinePoints = []; // 抽出された3D海岸線ドット群
+        this.coastlinePoints = []; // 抽出・デフォルメされた3D海岸線ドット群
     }
 
     async loadData() {
@@ -26,32 +27,54 @@ export class MapData {
     }
 
     _parseTopology(topology) {
-        // topojson-client で国境線ではなく「海岸線（外部境界）」のみを正確に抽出
+        // topojson-client で海岸線（外部境界）のみを抽出
         const coastlines = topojson.mesh(topology, topology.objects.countries, (a, b) => a === b);
         
-        // 【線に見えるレベルの精度調整】
-        // 補間間隔を 0.005 まで極小化。隙間を完全に埋めて連続した光のラインを構築する
-        const maxInterpolationDistance = 0.005;
+        // 描画の滑らかさ（線としての密度）
+        const resolution = 0.005;
+
+        // デフォルメ用パラメータ
+        // 微小島を除外するための閾値（3D空間での物理的な長さ。約150km未満の島・湖をスキップ）
+        const MIN_LENGTH_THRESHOLD = 0.12; 
+        // ギザギザを消すための間引き率（N個に1個の頂点だけを採用）
+        const SKIP_STEP = 3; 
 
         coastlines.coordinates.forEach(line => {
-            for (let i = 0; i < line.length - 1; i++) {
-                const lon1 = line[i][0], lat1 = line[i][1];
-                const lon2 = line[i + 1][0], lat2 = line[i + 1][1];
+            // --- ステップ1: 3D座標化と物理的な長さの計算（ノイズ足切り） ---
+            let lineLength = 0;
+            const points3D = [];
 
-                const v1 = Utils.latLonToVector3(lat1, lon1, CONFIG.GLOBE_RADIUS + 0.01);
-                const v2 = Utils.latLonToVector3(lat2, lon2, CONFIG.GLOBE_RADIUS + 0.01);
-
-                const dist = v1.distanceTo(v2);
-                const steps = Math.max(Math.ceil(dist / maxInterpolationDistance), 1);
-
-                // 球面上での lerp 補間により、高密度の粒をギッシリと並べる
-                for (let s = 0; s < steps; s++) {
-                    const t = s / steps;
-                    const p = new THREE.Vector3().copy(v1).lerp(v2, t).normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.01);
-                    this.coastlinePoints.push(p.x, p.y, p.z);
+            for (let i = 0; i < line.length; i++) {
+                const p = Utils.latLonToVector3(line[i][1], line[i][0], CONFIG.GLOBE_RADIUS + 0.01);
+                if (i > 0) {
+                    lineLength += p.distanceTo(points3D[points3D.length - 1]);
                 }
+                points3D.push(p);
             }
+
+            // 極端に短い線分（微小な無人島や内陸の小さな湖など）はゲームのノイズになるため除外
+            if (lineLength < MIN_LENGTH_THRESHOLD) return;
+
+            // --- ステップ2: ダウンサンプリング（ギザギザの間引き） ---
+            // リアス式海岸などの過剰なディテールを間引き、骨格だけにする
+            const simplifiedPoints = points3D.filter((_, index) => index % SKIP_STEP === 0 || index === points3D.length - 1);
+
+            if (simplifiedPoints.length < 2) return;
+
+            // --- ステップ3: スプライン曲線によるスムージング（流線型化） ---
+            // 間引かれた頂点間を滑らかな曲線（centripetal）で繋ぎ直し、美しい流線型のシルエットを生成
+            const curve = new THREE.CatmullRomCurve3(simplifiedPoints, false, 'centripetal', 0.5);
+
+            // 生成された美しい曲線上に、高密度（0.005間隔）でドットを敷き詰める
+            const curveLength = curve.getLength();
+            const divisions = Math.max(Math.ceil(curveLength / resolution), 2);
+            const spacedPoints = curve.getSpacedPoints(divisions);
+
+            spacedPoints.forEach(p => {
+                this.coastlinePoints.push(p.x, p.y, p.z);
+            });
         });
     }
 }
+
 
