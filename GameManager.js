@@ -8,10 +8,11 @@ import { PlaneManager } from './PlaneManager.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【State Machineの導入とManager統括】
- * UIManager, RouteManager, PlaneManager を統合し、タップ操作の「状態（State）」を管理します。
- * STATE_IDLE: 通常時（空港をタップすると情報表示）。
- * STATE_CONNECTING: 「Connect Route」ボタンを押した後、目的地空港のタップを待っている状態。
+ * 【初期スターターパックとエラー通知】
+ * 履歴61に基づき、ゲーム開始直後に initStarterPack() を実行し、
+ * 国内ルート（羽田〜新千歳、羽田〜福岡）と小型機2機を初期配置します。
+ * また、ルートがない状態で飛行機を購入しようとした際などに、
+ * uiManager.showToast() を用いてプレイヤーに明確な理由（エラー通知）を伝えます。
  */
 
 const STATE_IDLE = 0;
@@ -22,11 +23,9 @@ export class GameManager {
         this.container = document.getElementById('webgl-container');
         this.loaderUI = document.getElementById('loading-screen');
         
-        // --- 状態管理 ---
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
 
-        // --- Manager群の初期化 ---
         this.initThree();
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
@@ -38,8 +37,8 @@ export class GameManager {
         // --- UIイベントのバインド ---
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
-            // 選択中の空港を始点とする
             this.airportManager.highlightMarker(this.selectedHitMesh);
+            this.uiManager.setConnectingMode();
         };
 
         this.uiManager.onRouteCanceled = () => {
@@ -56,8 +55,8 @@ export class GameManager {
         this.uiManager.onBuyPlane = (type) => {
             const success = this.planeManager.addPlane(type);
             if (!success) {
-                // ルートがない場合は購入できないフィードバックを出すことも可能
-                console.log("No connected route available to spawn a plane.");
+                // ルートがない場合は購入できず、Toastで理由を伝える
+                this.uiManager.showToast("先にルートを開通してください");
             }
         };
 
@@ -68,7 +67,6 @@ export class GameManager {
         this.selectedHitMesh = null;
         this.selectedDestination = null;
 
-        // THREE.Clock for Animations
         this.clock = new THREE.Clock();
 
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -92,7 +90,6 @@ export class GameManager {
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         
-        // 初期位置: 日本(35.6, 139.7)正面
         const jpLat = 35.6; 
         const jpLon = 139.7; 
         const distance = 22.0; 
@@ -137,12 +134,31 @@ export class GameManager {
         if (success) {
             this.globe.buildCoastlines(this.mapData.coastlinePoints);
             this.airportManager.buildAirportMarkers();
+            
+            // 地形・空港の構築完了後に、初期空路と飛行機を配置する
+            this.initStarterPack();
+            
             this.hideLoader();
         } else {
             this.showError("Network Error", "地図データの取得に失敗しました。");
         }
 
         this.animate();
+    }
+
+    // ゲーム開始時から飛んでいる様子を見せるための初期配置
+    initStarterPack() {
+        const hnd = this.airportManager.getAirportById('HND'); // 羽田
+        const cts = this.airportManager.getAirportById('CTS'); // 新千歳
+        const fuk = this.airportManager.getAirportById('FUK'); // 福岡
+
+        // 国内2本のルートを強制開通
+        if (hnd && cts) this.routeManager.addRoute(hnd, cts);
+        if (hnd && fuk) this.routeManager.addRoute(hnd, fuk);
+
+        // 小型の飛行機を2機スポーン
+        this.planeManager.addPlane('small');
+        this.planeManager.addPlane('small');
     }
 
     onPointerDown(event) {
@@ -159,7 +175,6 @@ export class GameManager {
     }
 
     handleTap(event) {
-        // UI（HTML要素）上でのタップは無視する（Three.js側に光線を飛ばさない）
         if (event.target !== this.renderer.domElement) return;
 
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -191,7 +206,6 @@ export class GameManager {
                 const data = bestHit.userData.airportData;
                 this.airportManager.highlightMarker(bestHit);
                 
-                // 接続上限情報の取得
                 const currConns = this.routeManager.getConnectionCount(data.id);
                 const maxConns = this.routeManager.MAX_CONNECTIONS[data.type];
                 
@@ -211,11 +225,11 @@ export class GameManager {
                     this.airportManager.highlightMarker(this.selectedDestination);
                     this.uiManager.showRouteConfirm(originData, destData);
                 } else {
-                    // 接続不可（上限到達、または接続済み）の場合はリセット
+                    // エラー通知を出して状態をリセット
+                    this.uiManager.showToast("接続上限、または既に接続済みです");
                     this.resetState();
                 }
             } else {
-                // 空をタップしたらキャンセル
                 this.resetState();
             }
         }
@@ -233,7 +247,6 @@ export class GameManager {
         const delta = this.clock.getDelta();
 
         this.airportManager.updateMarkerScale(this.camera);
-        // 飛行機のアニメーション更新
         this.planeManager.update(delta);
         
         this.controls.update(); 

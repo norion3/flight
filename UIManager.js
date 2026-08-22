@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Thumb Zone UIマネージャー】
- * スマホの片手操作を前提とし、すべてのUI（ボトムシート、FAB）の開閉とイベントを管理します。
- * HTML側の Tailwind CSS のクラス（.bottom-sheet.show）を付け外しすることで、滑らかなアニメーションを実現します。
+ * 【日本語UIとエラー通知（Toast）の管理】
+ * テキストをわかりやすい日本語に変更しました。
+ * プレイヤーの操作が無効化された場合（ルートがない、上限到達など）、
+ * 単に無視するのではなく showToast() を用いて理由を画面上部にフィードバックします。
  */
 export class UIManager {
     constructor() {
@@ -10,8 +11,9 @@ export class UIManager {
         this.routeCard = document.getElementById('route-confirm-card');
         this.fabBuy = document.getElementById('fab-buy-plane');
         this.buyMenu = document.getElementById('buy-plane-menu');
+        this.toast = document.getElementById('toast-notification');
+        this.toastTimeout = null;
 
-        // コールバック関数（GameManagerからセットされる）
         this.onConnectRequested = null;
         this.onRouteConfirmed = null;
         this.onRouteCanceled = null;
@@ -23,8 +25,6 @@ export class UIManager {
     _bindEvents() {
         document.getElementById('btn-connect').addEventListener('click', () => {
             if (this.onConnectRequested) this.onConnectRequested();
-            document.getElementById('btn-connect').classList.add('hidden');
-            document.getElementById('connect-hint').classList.remove('hidden');
         });
 
         document.getElementById('btn-cancel-route').addEventListener('click', () => {
@@ -40,7 +40,7 @@ export class UIManager {
         this.fabBuy.addEventListener('click', () => {
             this.hideAll();
             this.buyMenu.classList.add('show');
-            this.fabBuy.style.transform = 'scale(0)'; // FABを隠す
+            this.fabBuy.style.transform = 'scale(0)'; 
         });
 
         document.getElementById('btn-close-buy').addEventListener('click', () => {
@@ -58,6 +58,17 @@ export class UIManager {
         });
     }
 
+    // --- エラー通知（Toast）表示 ---
+    showToast(message) {
+        this.toast.innerText = message;
+        this.toast.classList.add('toast-show');
+        
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        this.toastTimeout = setTimeout(() => {
+            this.toast.classList.remove('toast-show');
+        }, 2000); // 2秒で消える
+    }
+
     showAirportInfo(data, currentConnections, maxConnections) {
         this.hideAll();
         document.getElementById('airport-name').innerText = data.name;
@@ -67,31 +78,37 @@ export class UIManager {
         
         const typeEl = document.getElementById('airport-type');
         if (data.type === 'major') {
-            typeEl.innerText = 'Major Hub';
+            typeEl.innerText = '拠点ハブ';
             typeEl.className = 'text-xs font-semibold text-yellow-400 uppercase tracking-wider';
         } else if (data.type === 'local') {
-            typeEl.innerText = 'Local Airport';
+            typeEl.innerText = '地方空港';
             typeEl.className = 'text-xs font-semibold text-orange-400 uppercase tracking-wider';
         } else {
-            typeEl.innerText = 'Fictional Node';
+            typeEl.innerText = '架空ノード';
             typeEl.className = 'text-xs font-semibold text-emerald-400 uppercase tracking-wider';
         }
 
-        // 接続モードのヒントをリセット
-        document.getElementById('btn-connect').classList.remove('hidden');
-        document.getElementById('connect-hint').classList.add('hidden');
+        const btnConnect = document.getElementById('btn-connect');
+        const hintText = document.getElementById('connect-hint');
         
-        // 上限到達時はボタンを無効化する処理も可能だが、今回はUI表示
+        btnConnect.classList.remove('hidden');
+        hintText.classList.add('hidden');
+        
         if(currentConnections >= maxConnections) {
-            document.getElementById('btn-connect').classList.add('opacity-50', 'pointer-events-none');
-            document.getElementById('btn-connect').innerText = 'Connection Full';
+            btnConnect.classList.add('opacity-50', 'pointer-events-none');
+            btnConnect.innerText = '接続上限です';
         } else {
-            document.getElementById('btn-connect').classList.remove('opacity-50', 'pointer-events-none');
-            document.getElementById('btn-connect').innerText = 'Connect Route';
+            btnConnect.classList.remove('opacity-50', 'pointer-events-none');
+            btnConnect.innerText = 'ルートを繋ぐ';
         }
 
         this.infoCard.classList.add('show');
         this.fabBuy.style.transform = 'scale(0)';
+    }
+
+    setConnectingMode() {
+        document.getElementById('btn-connect').classList.add('hidden');
+        document.getElementById('connect-hint').classList.remove('hidden');
     }
 
     showRouteConfirm(fromData, toData) {
@@ -111,4 +128,5 @@ export class UIManager {
         this.fabBuy.style.transform = 'scale(1)';
     }
 }
+
 
