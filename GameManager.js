@@ -11,6 +11,8 @@ const STATE_CONNECTING = 1;
 
 export class GameManager {
     constructor() {
+        if(window.logDebug) window.logDebug("Step 3: GameManager constructor started");
+
         this.container = document.getElementById('webgl-container');
         this.loaderUI = document.getElementById('loading-screen');
         
@@ -24,6 +26,8 @@ export class GameManager {
         this.routeManager = new RouteManager(this.scene, this.globe.group);
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.routeManager);
         this.uiManager = new UIManager();
+
+        if(window.logDebug) window.logDebug("Step 4: All Managers initialized");
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
@@ -62,6 +66,8 @@ export class GameManager {
         this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
         window.addEventListener('pointerup', this.onPointerUp.bind(this));
         window.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        if(window.logDebug) window.logDebug("Step 5: GameManager constructor finished");
     }
 
     resetState() {
@@ -117,33 +123,59 @@ export class GameManager {
     }
 
     async start() {
-        this.globe.buildBase();
+        if(window.logDebug) window.logDebug("Step 6: start() method called");
+        try {
+            this.globe.buildBase();
+            if(window.logDebug) window.logDebug("Step 7: Globe base built");
 
-        const success = await this.mapData.loadData();
-        if (success) {
-            this.globe.buildCoastlines(this.mapData.coastlinePoints);
-            this.airportManager.buildAirportMarkers();
+            const success = await this.mapData.loadData();
+            if(window.logDebug) window.logDebug(`Step 8: MapData load finished. success=${success}`);
+
+            if (success) {
+                this.globe.buildCoastlines(this.mapData.coastlinePoints);
+                if(window.logDebug) window.logDebug("Step 9: Coastlines built");
+                
+                this.airportManager.buildAirportMarkers();
+                if(window.logDebug) window.logDebug("Step 10: Airport markers built");
+                
+                this.initStarterPack();
+                if(window.logDebug) window.logDebug("Step 11: Starter pack initialized");
+                
+                this.hideLoader();
+                if(window.logDebug) window.logDebug("Step 12: Loader hidden");
+            } else {
+                this.showError("Network Error", "地図データの取得に失敗しました。");
+                if(window.logDebug) window.logDebug("[ERROR] MapData load failed", "#f33");
+            }
+
+            this.animate();
+            if(window.logDebug) window.logDebug("Step 13: Animate loop started");
             
-            this.initStarterPack();
-            
-            this.hideLoader();
-        } else {
-            this.showError("Network Error", "地図データの取得に失敗しました。");
+        } catch (e) {
+            if(window.logDebug) {
+                window.logDebug(`[CRASH in start()] ${e.message}`, '#f33');
+                if (e.stack) window.logDebug(e.stack, '#f88');
+            }
         }
-
-        this.animate();
     }
 
     initStarterPack() {
-        const hnd = this.airportManager.getAirportById('HND'); 
-        const cts = this.airportManager.getAirportById('CTS'); 
-        const fuk = this.airportManager.getAirportById('FUK'); 
+        try {
+            const hnd = this.airportManager.getAirportById('HND'); 
+            const cts = this.airportManager.getAirportById('CTS'); 
+            const fuk = this.airportManager.getAirportById('FUK'); 
 
-        if (hnd && cts) this.routeManager.addRoute(hnd, cts);
-        if (hnd && fuk) this.routeManager.addRoute(hnd, fuk);
+            if (hnd && cts) this.routeManager.addRoute(hnd, cts);
+            if (hnd && fuk) this.routeManager.addRoute(hnd, fuk);
 
-        this.planeManager.addPlane('small');
-        this.planeManager.addPlane('small');
+            this.planeManager.addPlane('small');
+            this.planeManager.addPlane('small');
+        } catch(e) {
+            if(window.logDebug) {
+                window.logDebug(`[CRASH in initStarterPack] ${e.message}`, '#f33');
+                if (e.stack) window.logDebug(e.stack, '#f88');
+            }
+        }
     }
 
     onPointerDown(event) {
@@ -228,13 +260,22 @@ export class GameManager {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        const delta = this.clock.getDelta();
+        try {
+            const delta = this.clock.getDelta();
 
-        this.airportManager.updateMarkerScale(this.camera);
-        this.planeManager.update(delta);
-        
-        this.controls.update(); 
-        this.renderer.render(this.scene, this.camera);
+            this.airportManager.updateMarkerScale(this.camera);
+            this.planeManager.update(delta);
+            
+            this.controls.update(); 
+            this.renderer.render(this.scene, this.camera);
+        } catch(e) {
+            // アニメーションループ内でのクラッシュは1回だけログを出して止める
+            if(window.logDebug && !this._crashed) {
+                this._crashed = true;
+                window.logDebug(`[CRASH in animate()] ${e.message}`, '#f33');
+                if (e.stack) window.logDebug(e.stack, '#f88');
+            }
+        }
     }
 
     hideLoader() {
