@@ -5,7 +5,7 @@ import { MapData } from './MapData.js';
 /**
  * AI可読性・先祖返り防止コメント:
  * ゲームシミュレーションの統合マネージャークラス。
- * 【注意】「地球は勝手に回転しないで」の指示に基づき、animate() 内での自動回転（rotation.y += ...）は禁止されています。
+ * 「地球は勝手に回転しないで」の指示に基づき、animate() 内での自動回転（rotation.y += ...）は停止しています。
  */
 export class GameManager {
     constructor() {
@@ -73,7 +73,7 @@ export class GameManager {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
 
-        // 【自動回転禁止】ユーザー操作のみで回転させるため、ここには回転コードを挟まないこと
+        // 【自動回転禁止】ユーザー操作のみで回転させるため、回転ロジックは配置しないこと
         
         // --- 将来のシミュレーション拡張ポイント ---
         // if (this.airplaneManager) this.airplaneManager.update();

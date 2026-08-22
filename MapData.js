@@ -3,9 +3,9 @@ import { Utils } from './Utils.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【重要】座標データをコード内にテキストで直書きしたりBase64化するアプローチは、
- * AIの文字数出力制限により座標が強制間引きされ「折紙のようなデタラメな直線」になります。
- * 必ずこのクラスのように fetch API で世界標準データを取得し、球面上で高密度補間を行ってください。
+ * 【超高密度化の要】
+ * maxInterpolationDistance を 0.005 に設定することで、頂点間に極めて高密度なドットを連続配置します。
+ * これにより、拡大して見ても「点」ではなく「1本の滑らかな美しいライン」として視認できるようになります。
  */
 export class MapData {
     constructor() {
@@ -29,8 +29,9 @@ export class MapData {
         // topojson-client で国境線ではなく「海岸線（外部境界）」のみを正確に抽出
         const coastlines = topojson.mesh(topology, topology.objects.countries, (a, b) => a === b);
         
-        // 点同士の距離に応じて補間し、線が途切れる現象を完全にシャットアウト
-        const maxInterpolationDistance = 0.02;
+        // 【線に見えるレベルの精度調整】
+        // 補間間隔を 0.005 まで極小化。隙間を完全に埋めて連続した光のラインを構築する
+        const maxInterpolationDistance = 0.005;
 
         coastlines.coordinates.forEach(line => {
             for (let i = 0; i < line.length - 1; i++) {
@@ -43,6 +44,7 @@ export class MapData {
                 const dist = v1.distanceTo(v2);
                 const steps = Math.max(Math.ceil(dist / maxInterpolationDistance), 1);
 
+                // 球面上での lerp 補間により、高密度の粒をギッシリと並べる
                 for (let s = 0; s < steps; s++) {
                     const t = s / steps;
                     const p = new THREE.Vector3().copy(v1).lerp(v2, t).normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.01);

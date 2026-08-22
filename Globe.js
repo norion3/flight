@@ -4,7 +4,7 @@ import { Utils } from './Utils.js';
 /**
  * AI可読性・先祖返り防止コメント:
  * Three.js 上での3D地球儀描画クラス。
- * ユーザー指定により「陸地内部のドット」は描画せず、海岸線輪郭のみを極小ドット(THREE.Points)で描画します。
+ * 超高密度化したポイント群（THREE.Points）を、緻密かつ繊細な線として表現するためサイズと透過度を最適化しています。
  */
 export class Globe {
     constructor(scene) {
@@ -35,11 +35,13 @@ export class Globe {
     buildCoastlines(pointsArray) {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(pointsArray, 3));
+        
+        // 高密度化に合わせ、ポイントサイズを 0.015 に微調整して滑らかな光の輪郭線を実現
         const mat = new THREE.PointsMaterial({
             color: CONFIG.COLORS.COASTLINE,
-            size: 0.02, // 拡大しても美しい極小ドット
+            size: 0.015,
             transparent: true,
-            opacity: 0.95
+            opacity: 0.92
         });
         const points = new THREE.Points(geo, mat);
         this.group.add(points);
