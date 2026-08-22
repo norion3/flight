@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- viewport-fit=cover と user-scalable=no により、ネイティブアプリの挙動を再現 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -13,13 +14,19 @@
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
+            /* モダンな dvh を使用し、ブラウザのURLバー伸縮によるレイアウト崩れを完全に防ぐ */
+            height: 100dvh; 
             overflow: hidden;
             background-color: #020617;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
+            
+            /* --- スマホ特有のブラウザ挙動を完全にマスク（封印）する設定群 --- */
+            touch-action: none; /* ブラウザ標準のパン・ズーム操作を無効化 */
+            user-select: none; /* テキストの選択を無効化 */
+            -webkit-user-select: none; /* iOS Safariのテキスト選択無効化 */
+            -webkit-touch-callout: none; /* iOS Safariでの長押しによる画像保存等のメニューを無効化 */
+            -webkit-tap-highlight-color: transparent; /* タップした際のグレーのハイライトを無効化 */
+            overscroll-behavior: none; /* 画面端でのスワイプリロード(バウンス)を無効化 */
         }
         #webgl-container {
             width: 100%;
@@ -50,7 +57,7 @@
         <p class="text-xs text-slate-500 mt-2">Loading authentic high-resolution map data</p>
     </div>
 
-    <!-- Airport Info Card (タップ時に表示) -->
+    <!-- Airport Info Card (GRAVITYのセーフエリアを回避した下部配置) -->
     <div id="airport-info-card" class="ui-overlay bottom-12 left-1/2 transform -translate-x-1/2 translate-y-12 opacity-0 transition-all duration-300 w-80 pointer-events-auto">
         <div class="bg-slate-900/90 border border-cyan-500/50 rounded-xl p-4 backdrop-blur-md shadow-lg shadow-cyan-900/40">
             <div class="flex justify-between items-start mb-2">

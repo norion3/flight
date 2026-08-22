@@ -5,10 +5,10 @@ import { AirportManager } from './AirportManager.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 【スマート・レイキャスト（優先順位付きタップ判定）とUIの洗練化】
- * 光線が貫通したすべてのヒットボックスから、「Major(1) > Local(2) > Fictional(3)」の
- * 優先度で最も高いものを選択します。
- * また、没入感を高めるため、画面下部のヒントテキストUIに対する操作ロジックを削除しています。
+ * 【カメラ初期位置とネイティブ挙動マスク】
+ * GRAVITYアプリ等でのネイティブなゲーム体験を担保するため、
+ * initThree() にて、起動時のカメラ位置を「日本中心・地球全体が見える引きの距離(22.0)」に数学的に計算して設定。
+ * また、コンストラクタ内で contextmenu (右クリック・長押しメニュー) を完全に無効化しています。
  */
 export class GameManager {
     constructor() {
@@ -29,6 +29,11 @@ export class GameManager {
         window.addEventListener('resize', this.onWindowResize.bind(this));
         this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
         window.addEventListener('pointerup', this.onPointerUp.bind(this));
+
+        // スマホ特有の長押し画像保存や、ブラウザの右クリックメニューを完全に禁止
+        window.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
     }
 
     initThree() {
@@ -36,7 +41,19 @@ export class GameManager {
         this.scene.fog = new THREE.FogExp2(CONFIG.COLORS.BACKGROUND, 0.015);
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 0, 14);
+        
+        // --- 起動時の初期位置設定（日本中心・地球全体が見えるサイズ） ---
+        const jpLat = 35.6; // 日本の緯度
+        const jpLon = 139.7; // 日本の経度
+        const distance = 22.0; // 地球全体が収まる引きの距離
+        const phi = (90 - jpLat) * (Math.PI / 180);
+        const theta = (jpLon + 180) * (Math.PI / 180);
+        
+        this.camera.position.set(
+            -(distance * Math.sin(phi) * Math.cos(theta)),
+            distance * Math.cos(phi),
+            distance * Math.sin(phi) * Math.sin(theta)
+        );
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -67,7 +84,6 @@ export class GameManager {
 
     async start() {
         this.globe.buildBase();
-        this.globe.focusJapan();
 
         const success = await this.mapData.loadData();
         if (success) {

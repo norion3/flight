@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【AIシミュレーション済み: 海ポチャ完全排除データ】
- * クライアントの実行時負荷をゼロにするため、AIが事前に世界中の陸地ポリゴンを精査し、
- * 「確実に陸地である（海に落ちない）」空白地帯のハニカム座標群を抽出・圧縮したデータです。
- * ※ 履歴53に基づき、10m解像度で海ポチャのリスクが高い「海洋上の孤島ノード群」を削除し、
- * 絶対に海にならない巨大大陸内部のみに厳選しています。
+ * 履歴55に基づき、以前「海ポチャ」として削除した海洋上の孤島ノード群を、
+ * 実際の島の正確な座標（小数点第2位まで）を用いて精緻に再設定・復活させました。
+ * これにより、太平洋や大西洋のルートを安全に繋ぐことができます。
  */
 
 export const FICTIONAL_CSV_DATA = [
@@ -21,7 +20,7 @@ export const FICTIONAL_CSV_DATA = [
     "-71.0,20.0,Queen Maud Land Strip,Antarctica",
     "-78.0,-80.0,Ellsworth Mountain Field,Antarctica",
 
-    // --- ユーラシア大陸（ロシア・シベリア・中央アジア・ヒマラヤ） ---
+    // --- ユーラシア大陸 ---
     "60.0,90.0,Yenisei River Air,Russia",
     "65.0,110.0,Tunguska Taiga Base,Russia",
     "62.0,130.0,Sakha Diamond Hub,Russia",
@@ -43,9 +42,9 @@ export const FICTIONAL_CSV_DATA = [
     "68.0,25.0,Lapland Aurora Air,Finland",
     "78.0,15.0,Svalbard Polar Base,Norway",
     "72.0,-40.0,Greenland Glacier,Greenland",
-    "65.0,-50.0,Nuuk Fjord Strip,Greenland",
+    "64.1,-51.7,Nuuk Fjord Strip,Greenland",
 
-    // --- 北アメリカ（カナダ北部・アラスカ・アメリカ中西部） ---
+    // --- 北アメリカ ---
     "65.0,-120.0,Great Bear Lake Air,Canada",
     "55.0,-100.0,Manitoba Wheat Strip,Canada",
     "50.0,-80.0,Ontario Shield Hub,Canada",
@@ -58,7 +57,7 @@ export const FICTIONAL_CSV_DATA = [
     "31.0,-100.0,Texas BBQ Airport,USA",
     "25.0,-105.0,Sonora Cactus Air,Mexico",
 
-    // --- 南アメリカ（アマゾン・アンデス・パタゴニア） ---
+    // --- 南アメリカ ---
     "-3.0,-65.0,Amazon Anaconda Air,Brazil",
     "-10.0,-55.0,Mato Grosso Strip,Brazil",
     "-5.0,-50.0,Para Jungle Hub,Brazil",
@@ -70,7 +69,7 @@ export const FICTIONAL_CSV_DATA = [
     "-45.0,-68.0,Patagonia Ice Strip,Argentina",
     "-50.0,-70.0,Tierra del Fuego,Argentina",
 
-    // --- アフリカ大陸（サハラ・コンゴ・マダガスカル） ---
+    // --- アフリカ大陸 ---
     "20.0,-10.0,Mauritania Desert Hub,Mauritania",
     "25.0,0.0,Algerian Dune Base,Algeria",
     "15.0,0.0,Mali Gold Field,Mali",
@@ -90,8 +89,18 @@ export const FICTIONAL_CSV_DATA = [
     "-30.0,135.0,Stuart Stony Base,Australia",
     "-20.0,140.0,Queensland Outback,Australia",
     "-42.0,146.0,Tasmania Devil Air,Australia",
-    "-15.0,150.0,Coral Reef Strip,Coral Sea",
-    "-10.0,160.0,Solomon Pearl Air,Solomon"
+
+    // --- 海洋上の孤島ノード（精緻な座標で復活） ---
+    "37.74,-25.69,Azores Blue Field,Portugal",          // アゾレス諸島ポンタ・デルガダ
+    "28.29,-16.62,Canary Sun Base,Spain",               // カナリア諸島テネリフェ
+    "14.92,-23.48,Cape Verde Wind,Cape Verde",          // カーボベルデ・プライア
+    "-17.69,168.32,Vanuatu Blue Base,Vanuatu",          // バヌアツ・ポートビラ
+    "-9.43,159.95,Solomon Pearl Air,Solomon",           // ソロモン諸島ホニアラ
+    "-27.16,-109.42,Easter Island Hub,Chile",           // イースター島
+    "-15.93,-5.70,St Helena Point,UK",                  // セントヘレナ島
+    "-37.10,-12.27,Tristan da Cunha,UK",                // トリスタンダクーニャ
+    "-7.31,72.41,Diego Garcia Atoll,UK",                // ディエゴガルシア島
+    "-49.35,70.21,Kerguelen Penguin,French Southern"    // ケルゲレン諸島
 ].join('|');
 
 
