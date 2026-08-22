@@ -1,10 +1,3 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * 【日本語ハードコードの完全排除】
- * 履歴66に基づき、このJSファイル内に日本語（全角文字）を直接記述しません。
- * すべて index.html 内に定義した window.APP_LANG 辞書からテキストを取得することで、
- * 文字コード不一致による SyntaxError (Load Error) を完全に防ぎます。
- */
 export class UIManager {
     constructor() {
         this.infoCard = document.getElementById('airport-info-card');

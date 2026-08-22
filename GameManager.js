@@ -1,9 +1,3 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * 【日本語ハードコードの完全排除】
- * 履歴66に基づき、JSファイルから日本語を排除し window.APP_LANG を参照します。
- */
-
 import { CONFIG } from './Config.js';
 import { Globe } from './Globe.js';
 import { MapData } from './MapData.js';
@@ -51,7 +45,6 @@ export class GameManager {
         this.uiManager.onBuyPlane = (type) => {
             const success = this.planeManager.addPlane(type);
             if (!success) {
-                // HTML側に定義した辞書から日本語を取得
                 this.uiManager.showToast(window.APP_LANG.toastNoRoute);
             }
         };
@@ -135,8 +128,7 @@ export class GameManager {
             
             this.hideLoader();
         } else {
-            // HTML側に定義した辞書から日本語を取得
-            this.showError("Network Error", window.APP_LANG.errMapLoad);
+            this.showError("Error", window.APP_LANG.errMapLoad);
         }
 
         this.animate();

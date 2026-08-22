@@ -1,13 +1,8 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * ES Module の仕様に則り、import文はファイルの先頭に記述します。
- * 履歴66に基づき、日本語による文字化けクラッシュを防止するため、
- * ログ等もすべて英語(ASCII文字のみ)に変更しています。
- */
+if(window.logToOSD) window.logToOSD("Step 1.1: main.js evaluated");
 
 import { GameManager } from './GameManager.js';
 
-if(window.logToOSD) window.logToOSD("Step 1: main.js module evaluated & imports resolved");
+if(window.logToOSD) window.logToOSD("Step 1.2: GameManager imported");
 
 window.onload = () => {
     if(window.logToOSD) window.logToOSD("Step 2: window.onload triggered");
