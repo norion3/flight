@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Globe Simulation Core</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- TopoJSON Client -->
+    <script src="https://unpkg.com/topojson-client@3"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020617;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #webgl-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .ui-overlay {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="text-slate-100">
+
+    <div id="webgl-container"></div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm transition-opacity duration-500">
+        <div class="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-4"></div>
+        <h2 class="text-sm font-bold text-cyan-300 tracking-widest uppercase">Initializing Globe Core...</h2>
+        <p class="text-xs text-slate-500 mt-2">Loading authentic high-resolution map data</p>
+    </div>
+
+    <!-- Bottom Hint -->
+    <div class="ui-overlay bottom-6 left-1/2 transform -translate-x-1/2">
+        <div class="bg-slate-900/80 border border-cyan-500/30 text-cyan-400 px-5 py-2.5 rounded-full text-xs font-semibold backdrop-blur-md shadow-lg shadow-cyan-900/20 whitespace-nowrap">
+            Simulation Core Ready ｜ スワイプ: 回転 ｜ ピンチ: 拡大
+        </div>
+    </div>
+
+    <!-- 同一フォルダ内のメインモジュールを読み込み -->
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
+
