@@ -4,13 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3D Globe Simulation Core</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- OrbitControls -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <!-- TopoJSON Client -->
     <script src="https://unpkg.com/topojson-client@3"></script>
     <style>
         body, html {
@@ -38,7 +34,6 @@
             z-index: 10;
             pointer-events: none;
         }
-        /* UIをタップ可能にするためのクラス */
         .pointer-events-auto {
             pointer-events: auto;
         }
@@ -55,15 +50,8 @@
         <p class="text-xs text-slate-500 mt-2">Loading authentic high-resolution map data</p>
     </div>
 
-    <!-- Bottom Hint -->
-    <div class="ui-overlay bottom-6 left-1/2 transform -translate-x-1/2 transition-opacity duration-300" id="hint-text">
-        <div class="bg-slate-900/80 border border-cyan-500/30 text-cyan-400 px-5 py-2.5 rounded-full text-xs font-semibold backdrop-blur-md shadow-lg shadow-cyan-900/20 whitespace-nowrap">
-            Simulation Core Ready ｜ スワイプ: 回転 ｜ 空港をタップ
-        </div>
-    </div>
-
     <!-- Airport Info Card (タップ時に表示) -->
-    <div id="airport-info-card" class="ui-overlay bottom-20 left-1/2 transform -translate-x-1/2 translate-y-12 opacity-0 transition-all duration-300 w-80 pointer-events-auto">
+    <div id="airport-info-card" class="ui-overlay bottom-12 left-1/2 transform -translate-x-1/2 translate-y-12 opacity-0 transition-all duration-300 w-80 pointer-events-auto">
         <div class="bg-slate-900/90 border border-cyan-500/50 rounded-xl p-4 backdrop-blur-md shadow-lg shadow-cyan-900/40">
             <div class="flex justify-between items-start mb-2">
                 <div>
@@ -84,7 +72,6 @@
         </div>
     </div>
 
-    <!-- 同一フォルダ内のメインモジュールを読み込み -->
     <script type="module" src="./main.js"></script>
 </body>
 </html>
