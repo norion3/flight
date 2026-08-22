@@ -7,8 +7,8 @@ import { AirportManager } from './AirportManager.js';
  * AI可読性・先祖返り防止コメント:
  * シミュレーション管理クラス。
  * 【変更点】
- * 1. OrbitControls の上下仰角制限（Polar Angle）を完全に撤去し、上下左右斜め360度際限なく自由回転できるように改修。
- * 2. `AirportManager` を読み込み、3Dネオンリング空港マーカーを起動・描画。
+ * THREE.Raycaster を組み込み、pointerdown (タップ/クリック) イベントで空港マーカーを検出。
+ * 選択された空港情報を UI (HTML側の #airport-info-card) へ動的に流し込み表示します。
  */
 export class GameManager {
     constructor() {
@@ -20,7 +20,13 @@ export class GameManager {
         this.mapData = new MapData();
         this.airportManager = new AirportManager(this.scene, this.globe.group);
 
+        // Raycaster (タップ検出用) の初期化
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+
         window.addEventListener('resize', this.onWindowResize.bind(this));
+        // マウス/タッチイベントのバインド
+        this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
     }
 
     initThree() {
@@ -46,7 +52,6 @@ export class GameManager {
         this.controls.enablePan = false;
 
         // 【360度無限全方向回転の解放】
-        // 極付近でのカメラ引っかかり・回転ブロックをなくすため、角度制限を完全削除
         this.controls.minPolarAngle = 0;
         this.controls.maxPolarAngle = Math.PI;
 
@@ -75,6 +80,65 @@ export class GameManager {
         this.animate();
     }
 
+    // --- タップ検出ロジック ---
+    onPointerDown(event) {
+        // スクリーン座標を NDC (正規化デバイス座標: -1〜+1) へ変換
+        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // カメラからタップした位置へ光線(Ray)を飛ばす
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        
+        // AirportManager に登録された判定用メッシュ群との交差をチェック
+        const intersects = this.raycaster.intersectObjects(this.airportManager.markers);
+
+        if (intersects.length > 0) {
+            // 最も手前にある空港を取得
+            const hitMesh = intersects[0].object;
+            const airportData = hitMesh.userData.airportData;
+            
+            // マーカーをハイライト
+            this.airportManager.highlightMarker(hitMesh);
+            // UIカードに情報を表示
+            this.showAirportInfo(airportData);
+        } else {
+            // 空や海をタップした場合はハイライトとUIを消去
+            this.airportManager.highlightMarker(null);
+            this.hideAirportInfo();
+        }
+    }
+
+    showAirportInfo(data) {
+        const card = document.getElementById('airport-info-card');
+        const hint = document.getElementById('hint-text');
+        if (!card) return;
+
+        // データを流し込む
+        document.getElementById('airport-name').innerText = data.name;
+        document.getElementById('airport-code').innerText = data.id;
+        document.getElementById('airport-country').innerText = data.country;
+        
+        const typeEl = document.getElementById('airport-type');
+        if (data.type === 'major') {
+            typeEl.innerText = 'Major Hub';
+            typeEl.className = 'text-xs font-semibold text-cyan-400 uppercase tracking-wider';
+        } else {
+            typeEl.innerText = 'Local Airport';
+            typeEl.className = 'text-xs font-semibold text-slate-400 uppercase tracking-wider';
+        }
+
+        // ヒントを消してカードを下からスライドイン
+        if (hint) hint.classList.add('opacity-0');
+        card.classList.remove('translate-y-12', 'opacity-0');
+    }
+
+    hideAirportInfo() {
+        const card = document.getElementById('airport-info-card');
+        const hint = document.getElementById('hint-text');
+        if (card) card.classList.add('translate-y-12', 'opacity-0');
+        if (hint) hint.classList.remove('opacity-0');
+    }
+
     onWindowResize() {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
@@ -83,8 +147,6 @@ export class GameManager {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-
-        // 自動回転は停止（ユーザーの自由スワイプ操作のみ）
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
@@ -99,4 +161,5 @@ export class GameManager {
         this.loaderUI.querySelector('p').innerText = msg;
     }
 }
+
 

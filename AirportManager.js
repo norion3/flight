@@ -4,10 +4,10 @@ import { AIRPORTS } from './AirportData.js';
 
 /**
  * AI可読性・先祖返り防止コメント:
- * 世界の主要空港マーカーを3D空間（地球表面）へ描画し、拡大縮小に100%追従させるマネージャー。
- * 【デザイン仕様】
- * - 中心発光点（Inner Core）＋ 外周ネオンリング（Outer Ring）の二重構造。
- * - タッチ・クリック判定領域（hitBox）を視覚表示の約3倍に大きく設定し、指での操作誤作動を劇的に軽減します。
+ * 主要(Major)とローカル(Local)の空港をデザインを分けて3D球面上に描画するマネージャー。
+ * 【スマート間引きロジック】
+ * 空港数が多すぎるため、Major空港の近くにあるLocal空港、およびLocal同士が密集している領域の
+ * Local空港を自動的にスキップし、画面のバランス（黄金比）を保ちます。
  */
 export class AirportManager {
     constructor(scene, globeGroup) {
@@ -16,50 +16,96 @@ export class AirportManager {
         this.airportGroup = new THREE.Group();
         this.globeGroup.add(this.airportGroup);
 
-        this.markers = []; // 将来のレイキャスト（タップ検知）用参照配列
+        this.markers = []; // Raycaster判定用の不可視メッシュ配列
     }
 
     buildAirportMarkers() {
-        // 空港マーカーの共通ジオメトリ・マテリアル
-        const coreGeo = new THREE.SphereGeometry(0.025, 16, 16);
-        const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); // 中心高輝度ホワイト
-
-        const ringGeo = new THREE.RingGeometry(0.04, 0.06, 32);
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: CONFIG.COLORS.COASTLINE,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.85
+        // --- Major Hub 用デザイン（目立つ二重リング） ---
+        const majorCoreGeo = new THREE.SphereGeometry(0.025, 16, 16);
+        const majorCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const majorRingGeo = new THREE.RingGeometry(0.04, 0.06, 32);
+        const majorRingMat = new THREE.MeshBasicMaterial({
+            color: CONFIG.COLORS.COASTLINE, side: THREE.DoubleSide, transparent: true, opacity: 0.85
         });
 
-        // 将来の Raycaster（タッチ判定）用見えないクリック領域
+        // --- Local Airport 用デザイン（控えめな点と極細リング） ---
+        const localCoreGeo = new THREE.SphereGeometry(0.012, 8, 8);
+        const localCoreMat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc }); // 明るいシアン
+        const localRingGeo = new THREE.RingGeometry(0.02, 0.025, 16);
+        const localRingMat = new THREE.MeshBasicMaterial({
+            color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.4
+        });
+
+        // タッチ判定用の見えない当たり判定ボックス（指で押しやすいよう広めに設定）
         const hitGeo = new THREE.SphereGeometry(0.12, 8, 8);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
 
+        const placedMajors = [];
+        const placedLocals = [];
+        
+        // --- 間引き用閾値（距離） ---
+        const MAJOR_EXCLUDE_DIST = 0.20; // Majorの近くにあるLocalを消す範囲
+        const LOCAL_EXCLUDE_DIST = 0.12; // Local同士が近すぎる場合に間引く範囲
+
         AIRPORTS.forEach(airport => {
             const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS + 0.02);
+
+            // --- 重複・近接間引きロジック ---
+            if (airport.type === 'local') {
+                const nearMajor = placedMajors.some(p => p.distanceTo(pos) < MAJOR_EXCLUDE_DIST);
+                if (nearMajor) return; // Majorの近くなら間引く
+                const nearLocal = placedLocals.some(p => p.distanceTo(pos) < LOCAL_EXCLUDE_DIST);
+                if (nearLocal) return; // Local同士が近すぎたら間引く
+                placedLocals.push(pos);
+            } else {
+                placedMajors.push(pos);
+            }
+
             const markerGroup = new THREE.Group();
             markerGroup.position.copy(pos);
-
-            // 球面の法線ベクトルに合わせてリングを球面に沿わせる回転設定
             markerGroup.lookAt(pos.clone().multiplyScalar(2));
 
-            // 1. 中心の白く光る点
-            const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-            markerGroup.add(coreMesh);
+            let ringMesh;
+            if (airport.type === 'major') {
+                markerGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
+                ringMesh = new THREE.Mesh(majorRingGeo, majorRingMat.clone());
+                markerGroup.add(ringMesh);
+            } else {
+                markerGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
+                ringMesh = new THREE.Mesh(localRingGeo, localRingMat.clone());
+                markerGroup.add(ringMesh);
+            }
 
-            // 2. 外周のネオンリング
-            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-            markerGroup.add(ringMesh);
-
-            // 3. 広範囲タッチターゲット判定用の不可視メッシュ
+            // Raycaster用ヒットメッシュに空港情報やリングの参照を持たせる
             const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-            hitMesh.userData = { airportData: airport }; // 空港情報を保持
+            hitMesh.userData = { 
+                airportData: airport, 
+                ringMesh: ringMesh,
+                originalColor: ringMesh.material.color.getHex()
+            };
             markerGroup.add(hitMesh);
 
             this.airportGroup.add(markerGroup);
             this.markers.push(hitMesh);
         });
     }
+
+    // タップされたマーカーのハイライト（選択アニメーション）
+    highlightMarker(hitMesh) {
+        // 全てリセット
+        this.markers.forEach(m => {
+            if (m.userData.ringMesh) {
+                m.userData.ringMesh.material.color.setHex(m.userData.originalColor);
+                m.userData.ringMesh.scale.set(1, 1, 1);
+            }
+        });
+
+        // 選択されたものをハイライト・拡大
+        if (hitMesh && hitMesh.userData.ringMesh) {
+            hitMesh.userData.ringMesh.material.color.setHex(0xffffff); // 白色に発光
+            hitMesh.userData.ringMesh.scale.set(1.5, 1.5, 1.5);
+        }
+    }
 }
+
 
