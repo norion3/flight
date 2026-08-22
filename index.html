@@ -37,7 +37,11 @@
             }
         }, true);
         window.addEventListener('unhandledrejection', function(e) {
+            // 動的インポートのエラーはここで拾われることもあります
             logToOSD('[Promise Error] ' + (e.reason ? e.reason.message : 'Unknown'), '#f33');
+            if (e.reason && e.reason.stack) {
+                logToOSD(e.reason.stack, '#f88');
+            }
         });
         window.addEventListener('DOMContentLoaded', function() {
             var div = document.createElement('div');
@@ -163,7 +167,36 @@
         </div>
     </div>
 
-    <script type="module" src="./main.js"></script>
+    <!-- ★動的インポートによるエントリーポイント起動★ -->
+    <script type="module">
+        if(window.logToOSD) window.logToOSD("Step 0.5: Attempting dynamic import of main.js...");
+        
+        import('./main.js')
+            .then(module => {
+                if(window.logToOSD) window.logToOSD("Step 1: Dynamic import successful (No Syntax Error found).");
+                
+                // 動的インポートが終わった時点で、すでにwindow.onloadのタイミングを過ぎている可能性があるため
+                // document.readyState をチェックして手動で実行する。
+                if (document.readyState === 'complete') {
+                    if(window.logToOSD) window.logToOSD("Step 2: Document already complete. Calling onload directly.");
+                    if (typeof window.onload === 'function') {
+                        window.onload();
+                    }
+                } else {
+                    if(window.logToOSD) window.logToOSD("Step 2: Waiting for natural window.onload...");
+                }
+            })
+            .catch(err => {
+                // ここで隠れていた SyntaxError や Invalid Token を確実にキャッチして表示する
+                if(window.logToOSD) {
+                    window.logToOSD("<br>[FATAL] Dynamic Import Failed!", "#f33");
+                    window.logToOSD("Error Message: " + err.message, "#f33");
+                    if (err.stack) {
+                        window.logToOSD(err.stack.replace(/\n/g, "<br>"), "#f88");
+                    }
+                }
+            });
+    </script>
 </body>
 </html>
 
