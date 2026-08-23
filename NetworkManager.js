@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路の完全3D化（TubeGeometry化）】
- * 履歴78に基づき、空路の描画を THREE.Line（太さのない2Dの線）から
- * THREE.TubeGeometry（立体的なチューブ）に変更し、陰影と厚みを持たせました。
- * 色は明るいシアン（0x22d3ee）を指定しています。
+ * 【線の極小化（美しさへの回帰）】
+ * 履歴80に基づき、ゲームバランスを壊す極太の TubeGeometry を却下しました。
+ * 代わりに、最もクリアでサイバー感が際立つ THREE.Line（太さ1pxの美しい線）へ回帰し、
+ * 色(0x22d3ee)と不透明度(0.8)で美しさを担保しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -61,24 +61,16 @@ export class NetworkManager {
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
-        // ★空路の立体チューブ化 (TubeGeometry)
-        const tubularSegments = 50;  // チューブの分割数（滑らかさ）
-        const radius = 0.015;        // チューブの太さ
-        const radialSegments = 6;    // 断面の円の分割数
-        const closed = false;
-        
-        const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
-        
-        // メッシュの材質設定（立体感が強調される PhongMaterial を採用）
-        const material = new THREE.MeshPhongMaterial({ 
-            color: 0x22d3ee,  // 明るいシアン(水色)
+        // ★極小化・クリアな線へ回帰 (THREE.Line)
+        const points = curve.getPoints(50);
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({ 
+            color: 0x22d3ee,  
             transparent: true, 
-            opacity: 0.8,
-            shininess: 50     // 光沢を持たせる
+            opacity: 0.8
         });
-        
-        const tubeMesh = new THREE.Mesh(geometry, material);
-        this.routeGroup.add(tubeMesh);
+        const line = new THREE.Line(geometry, material);
+        this.routeGroup.add(line);
 
         if (!this.network[fromData.id]) this.network[fromData.id] = [];
         if (!this.network[toData.id]) this.network[toData.id] = [];
