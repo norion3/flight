@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【UI被りの解消】
- * 履歴80に基づき、ルート接続待ちモードになった際、巨大な infoCard を隠し、
- * 代わりにコンパクトな connectingCard (キャンセルボタンのみ) を表示することで
- * 地球儀のタップ領域を最大化しました。
+ * 【FABの表示・非表示連携の完全化】
+ * 履歴92に基づき、UIカードが表示されている間（ルート接続待ち、情報閲覧中など）は、
+ * ユーザーの意識の分散やタップ妨害を防ぐため、右下のFAB(購入ボタン)を
+ * スケールダウンさせて確実に非表示にし、hideAll時に復帰させる制御を追加しました。
  */
 export class UIManager {
     constructor() {
@@ -12,7 +12,7 @@ export class UIManager {
         this.fabBuy = document.getElementById('fab-buy-plane');
         this.buyMenu = document.getElementById('buy-plane-menu');
         this.toast = document.getElementById('toast-notification');
-        this.connectingCard = document.getElementById('connecting-mode-card'); // 追加
+        this.connectingCard = document.getElementById('connecting-mode-card'); 
         this.toastTimeout = null;
 
         this.onConnectRequested = null;
@@ -28,11 +28,11 @@ export class UIManager {
             if (this.onConnectRequested) this.onConnectRequested();
         });
 
-        // infoCardのキャンセルと、コンパクトUIのキャンセルの両方で同じ処理を走らせる
         const cancelRoute = () => {
             if (this.onRouteCanceled) this.onRouteCanceled();
             this.hideRouteConfirm();
             this.connectingCard.classList.remove('show');
+            this.fabBuy.style.transform = 'scale(1)'; // キャンセルでFAB復帰
         };
 
         document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
@@ -42,6 +42,7 @@ export class UIManager {
             if (this.onRouteConfirmed) this.onRouteConfirmed();
             this.hideRouteConfirm();
             this.connectingCard.classList.remove('show');
+            this.fabBuy.style.transform = 'scale(1)'; // 開通完了でFAB復帰
         });
 
         this.fabBuy.addEventListener('click', () => {
@@ -95,7 +96,6 @@ export class UIManager {
         }
 
         const btnConnect = document.getElementById('btn-connect');
-        
         btnConnect.classList.remove('hidden');
         
         if(currentConnections >= maxConnections) {
@@ -107,13 +107,13 @@ export class UIManager {
         }
 
         this.infoCard.classList.add('show');
-        this.fabBuy.style.transform = 'scale(0)';
+        this.fabBuy.style.transform = 'scale(0)'; // 情報カード表示中はFABを隠す
     }
 
     setConnectingMode() {
-        // 巨大なカードを隠し、コンパクトなUIを表示してタップ領域を確保する
         this.infoCard.classList.remove('show');
         this.connectingCard.classList.add('show');
+        this.fabBuy.style.transform = 'scale(0)'; // 接続待ち中もFABを隠す
     }
 
     showRouteConfirm(fromData, toData) {
@@ -121,6 +121,7 @@ export class UIManager {
         document.getElementById('route-from').innerText = fromData.id;
         document.getElementById('route-to').innerText = toData.id;
         this.routeCard.classList.add('show');
+        this.fabBuy.style.transform = 'scale(0)'; // 確認中もFABを隠す
     }
 
     hideRouteConfirm() {
@@ -132,7 +133,7 @@ export class UIManager {
         this.routeCard.classList.remove('show');
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
-        this.fabBuy.style.transform = 'scale(1)';
+        this.fabBuy.style.transform = 'scale(1)'; // すべて隠れたらFAB復帰
     }
 }
 
