@@ -1,10 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【型の不一致と誤タップストレスの完全復旧】
- * 履歴113に基づき、Data_Fictional.js の配列(fictionalNodes)を正しくインポートするように
- * 修復し、CSVパースエラーによる起動フリーズを根絶しました。
- * また、カメラ縮小時に「当たり判定(hitMesh)」まで巨大化するバグを防ぐため、
- * 視覚的なマーカー(visualGroup)と当たり判定を完全に分離する処理を復元しました。
+ * 【マーカースケール上限の抑制】
+ * 履歴125に基づき、カメラ縮小時に「マーカー(visualGroup)」が太くなりすぎて
+ * 野暮ったくなるのを防ぐため、updateMarkerScale の最大拡大率を 2.5 から 1.8 に抑制しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -144,7 +142,8 @@ export class AirportManager {
             const distance = camera.position.distanceTo(markerWorldPos);
             
             let baseScale = distance / 10;
-            baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
+            // ★修正: 縮小時に太くなりすぎて野暮ったくなるのを防ぐため、最大値を 1.8 に抑制
+            baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
             
             const highlightScale = hitMesh.userData.isHighlighted ? 1.5 : 1.0;
             const finalScale = baseScale * highlightScale;

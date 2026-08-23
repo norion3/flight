@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【空路の発光表現（加算合成）の適用】
- * 履歴120に基づき、マテリアルに THREE.AdditiveBlending を追加しました。
- * これにより処理負荷を上げることなく、複雑に絡み合った航路が白く眩く
- * 発光するようになり、交通網の成長が視覚的に美しく表現されます。
+ * 履歴125に基づき、路線のマテリアルに THREE.AdditiveBlending を追加し、
+ * 色を明るいシアン（0x38bdf8）に調整しました。これにより処理を重くせずに、
+ * 複雑に絡み合ったハブ空港周辺の空路が白く眩く発光するようになります。
  */
 
 import { CONFIG } from './Config.js';
@@ -66,9 +66,9 @@ export class NetworkManager {
         
         // ★修正: AdditiveBlending(加算合成)による美しい発光表現の追加
         const material = new THREE.LineBasicMaterial({ 
-            color: 0x3b82f6,
+            color: 0x38bdf8,
             transparent: true, 
-            opacity: 0.6,
+            opacity: 0.8,
             blending: THREE.AdditiveBlending // 重なるほど白く光る
         });
         
