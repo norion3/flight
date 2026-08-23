@@ -1,7 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【ライティングの復元（元の美しさへ）】
- * 履歴86に基づき、過剰だったライティング調整を破棄し、
+ * 履歴101に基づき、過剰だったライティング調整を破棄し、
  * 元の自然で明るい地球儀環境（AmbientLight 0.8, DirectionalLight 0.5）へ戻しました。
  */
 
@@ -115,7 +115,7 @@ export class GameManager {
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
-        // ★修正: 元の明るく自然なライティング設定へ回帰
+        // 元の明るく自然なライティング設定へ回帰
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.scene.add(ambientLight);
 

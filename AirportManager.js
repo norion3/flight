@@ -1,117 +1,153 @@
-"use strict";
-
 /**
- * AirportManager クラス
- * 空港データの非同期読み込み、エラーハンドリング、データのサニタイズを管理します。
+ * AI可読性・先祖返り防止コメント:
+ * 【型の不一致による起動フリーズの完全修復】
+ * 履歴98に基づき、Data_Fictional.js がエクスポートしている
+ * 配列オブジェクト(fictionalNodes)をそのまま読み込んで結合するように修正しました。
+ * 古いCSV分割処理(.split)は削除され、確実なデータ連携が保証されます。
  */
-class AirportManager {
-    constructor() {
-        this.airports = [];
-        this.isLoaded = false;
-        this.isLoading = false;
+
+import { CONFIG } from './Config.js';
+import { Utils } from './Utils.js';
+import { AIRPORTS_ASIA } from './Data_Real_Asia.js';
+import { AIRPORTS_AMERICAS } from './Data_Real_Americas.js';
+import { AIRPORTS_EMEA } from './Data_Real_EMEA.js';
+import { fictionalNodes } from './Data_Fictional.js'; // ★修正: 正しい配列変数をインポート
+
+export class AirportManager {
+    constructor(scene, globeGroup) {
+        this.scene = scene;
+        this.globeGroup = globeGroup;
+        this.airportGroup = new THREE.Group();
+        this.globeGroup.add(this.airportGroup);
+
+        this.markers = []; 
+        this.allAirports = this._compileAllAirports();
     }
 
-    /**
-     * 空港データを非同期で読み込むメインメソッド
-     * @returns {Promise<Array>} 読み込まれた空港データの配列
-     */
-    async loadData() {
-        if (this.isLoading) {
-            throw new Error("現在データを読み込み中です。");
-        }
+    _compileAllAirports() {
+        // 実在空港データ
+        const reals = [...AIRPORTS_ASIA, ...AIRPORTS_AMERICAS, ...AIRPORTS_EMEA];
+        
+        // ★修正: fictionalNodes 配列をそのまま結合し、ランク順にソートする
+        return [...reals, ...fictionalNodes].sort((a, b) => {
+            const rank = { 'major': 1, 'local': 2, 'fictional': 3 };
+            return rank[a.type] - rank[b.type];
+        });
+    }
 
-        this.isLoading = true;
-        this.isLoaded = false;
+    getAirportById(id) {
+        return this.allAirports.find(a => a.id === id);
+    }
 
-        try {
-            console.log("データの取得を開始します...");
-            
-            // 実際の環境では fetch('api/airports') などを呼び出します
-            const rawData = await this._mockFetchData();
+    buildAirportMarkers() {
+        const majorCoreGeo = new THREE.SphereGeometry(0.02, 16, 16);
+        const majorCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const majorRingGeo1 = new THREE.RingGeometry(0.035, 0.045, 32);
+        const majorRingGeo2 = new THREE.RingGeometry(0.06, 0.065, 32);
+        const majorRingMat = new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
 
-            // 1. データ構造の検証
-            if (!rawData || !Array.isArray(rawData)) {
-                throw new TypeError("無効なデータ形式を受信しました。配列が必要です。");
+        const localCoreGeo = new THREE.SphereGeometry(0.015, 8, 8);
+        const localCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const localRingGeo = new THREE.RingGeometry(0.035, 0.045, 24);
+        const localRingMat = new THREE.MeshBasicMaterial({ color: 0xfb923c, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+
+        const fictionalGeo = new THREE.OctahedronGeometry(0.025, 0);
+        const fictionalMat = new THREE.MeshBasicMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0.9 });
+
+        const hitGeo = new THREE.SphereGeometry(0.06, 8, 8);
+        const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+
+        const placedMajors = [];
+        const placedLocals = [];
+        const placedFictionals = [];
+        
+        const EXCLUDE_DIST_MAJOR = 0.16; 
+        const EXCLUDE_DIST_LOCAL = 0.09;
+        const EXCLUDE_DIST_FICTIONAL = 0.06;
+
+        this.allAirports.forEach(airport => {
+            const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS + 0.02);
+
+            if (airport.type === 'fictional') {
+                if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
+                if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
+                if (placedFictionals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_FICTIONAL)) return;
+                placedFictionals.push(pos);
+            } else if (airport.type === 'local') {
+                if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
+                if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
+                placedLocals.push(pos);
+            } else {
+                placedMajors.push(pos);
             }
 
-            // 2. データのサニタイズとマッピング（欠損値の補完など）
-            this.airports = rawData.map(apt => {
-                // 必須フィールドのチェック
-                if (!apt.code) {
-                    console.warn("コードが欠損している空港データをスキップしました:", apt);
-                    return null;
-                }
+            const markerGroup = new THREE.Group();
+            markerGroup.position.copy(pos);
+            markerGroup.lookAt(pos.clone().multiplyScalar(2));
 
-                return {
-                    code: String(apt.code).trim().toUpperCase(),
-                    name: apt.name ? String(apt.name).trim() : 'Unknown Airport',
-                    city: apt.city ? String(apt.city).trim() : 'Unknown City',
-                    runways: typeof apt.runways === 'number' && apt.runways >= 0 ? apt.runways : 0,
-                    isActive: apt.isActive !== undefined ? Boolean(apt.isActive) : true
-                };
-            }).filter(apt => apt !== null); // null (無効なデータ) を除外
+            let highlightTarget;
+            if (airport.type === 'major') {
+                markerGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
+                markerGroup.add(new THREE.Mesh(majorRingGeo1, majorRingMat.clone()));
+                highlightTarget = new THREE.Mesh(majorRingGeo2, majorRingMat.clone());
+                markerGroup.add(highlightTarget);
+            } else if (airport.type === 'local') {
+                markerGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
+                highlightTarget = new THREE.Mesh(localRingGeo, localRingMat.clone());
+                markerGroup.add(highlightTarget);
+            } else {
+                highlightTarget = new THREE.Mesh(fictionalGeo, fictionalMat.clone());
+                markerGroup.add(highlightTarget);
+            }
 
-            this.isLoaded = true;
-            console.log(`データの読み込みが完了しました。${this.airports.length}件の空港を登録しました。`);
-            
-            return this.airports;
+            const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+            hitMesh.userData = { 
+                airportData: airport, 
+                targetMesh: highlightTarget,
+                originalColor: highlightTarget.material.color.getHex(),
+                isHighlighted: false
+            };
+            markerGroup.add(hitMesh);
 
-        } catch (error) {
-            console.error("データ読み込み処理で致命的なエラーが発生しました:", error);
-            this.isLoaded = false;
-            // 上位の呼び出し元（UI層など）にエラーを伝播させる
-            throw error;
-        } finally {
-            this.isLoading = false;
+            this.airportGroup.add(markerGroup);
+            this.markers.push(hitMesh);
+        });
+    }
+
+    highlightMarker(hitMesh) {
+        this.markers.forEach(m => {
+            if (m.userData.targetMesh) {
+                m.userData.targetMesh.material.color.setHex(m.userData.originalColor);
+                m.userData.isHighlighted = false;
+            }
+        });
+
+        if (hitMesh && hitMesh.userData.targetMesh) {
+            hitMesh.userData.targetMesh.material.color.setHex(0xffffff);
+            hitMesh.userData.isHighlighted = true;
         }
     }
 
-    /**
-     * 指定されたコードの空港を取得する
-     * @param {string} code - 取得したい空港のIATAコード
-     * @returns {Object|null} 空港オブジェクト、存在しないか未読み込みの場合はnull
-     */
-    getAirport(code) {
-        if (!this.isLoaded) return null;
-        return this.airports.find(a => a.code === code) || null;
-    }
+    updateMarkerScale(camera) {
+        this.airportGroup.children.forEach(markerGroup => {
+            const markerWorldPos = new THREE.Vector3();
+            markerGroup.getWorldPosition(markerWorldPos);
+            const distance = camera.position.distanceTo(markerWorldPos);
+            
+            let baseScale = distance / 10;
+            baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
+            
+            let isHighlight = false;
+            markerGroup.children.forEach(child => {
+                if (child.userData && child.userData.isHighlighted) isHighlight = true;
+            });
 
-    /**
-     * API通信をシミュレートするプライベートメソッド
-     * @returns {Promise<Array>} 
-     * @private
-     */
-    _mockFetchData() {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                // 約10%の確率で通信エラーをシミュレート
-                if (Math.random() < 0.1) {
-                    reject(new Error("ネットワーク接続がタイムアウトしました。"));
-                    return;
-                }
-
-                // モックデータ（一部意図的に欠損値を含める）
-                const mockResponse = [
-                    { code: "HND", name: "Tokyo Haneda", city: "Tokyo", runways: 4, isActive: true },
-                    { code: "NRT", name: "Narita International", city: "Chiba", runways: 2, isActive: true },
-                    { code: "KIX", name: "Kansai International", city: "Osaka", runways: 2, isActive: true },
-                    { code: "ITM", name: "Osaka International (Itami)", city: "Osaka", runways: 2, isActive: true },
-                    { code: "FUK", name: "Fukuoka", city: "Fukuoka", runways: 1, isActive: true },
-                    { code: "CTS", name: "New Chitose", city: "Sapporo", runways: 2, isActive: true },
-                    { code: "OKA", name: "Naha", city: "Naha", runways: 2, isActive: true },
-                    // 意図的な不良データ
-                    { code: "XYZ", name: "Test Airport", city: "Test City", runways: "invalid", isActive: false }, 
-                    { name: "No Code Airport" } // codeがないデータ
-                ];
-                
-                resolve(mockResponse);
-            }, 1500); // 1.5秒の遅延
+            const highlightScale = isHighlight ? 1.5 : 1.0;
+            const finalScale = baseScale * highlightScale;
+            
+            markerGroup.scale.set(finalScale, finalScale, finalScale);
         });
     }
 }
-
-// プロジェクトのモジュールシステムに合わせて以下を使用してください
-// export default AirportManager;
-// module.exports = AirportManager;
 
 

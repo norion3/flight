@@ -1,8 +1,8 @@
 /**
  * 架空ノードデータ (Fictional Nodes)
  * 太平洋、大西洋、インド洋など、実在の空港が少ない地域を補完するためのダミーノード。
- * ※履歴92に基づき、海上に浮いてしまうバグ（海岸線データとの不和）を防ぐため、
- * 大西洋等の孤島ノードを最寄りの大陸沿岸部（陸地側）へ座標修正しました。
+ * ※履歴101に基づき、大陸間の長距離路線のルートバランス（中継地点）を担保するため、
+ * アゾレス諸島などの一部ノードを「メガフロート基地」として本来の洋上座標へ復元しました。
  */
 export const fictionalNodes = [
     { id: 'F001', name: 'Pacific Hub Alpha', type: 'fictional', lat: 20.0, lon: 170.0, country: 'Pacific Ocean' },
@@ -73,16 +73,17 @@ export const fictionalNodes = [
     { id: 'F066', name: 'Samoa Basin Relay', type: 'fictional', lat: -14.0, lon: -170.0, country: 'Samoa Basin' },
     { id: 'F067', name: 'Tahiti Trench Outpost', type: 'fictional', lat: -18.0, lon: -150.0, country: 'Tahiti Trench' },
     { id: 'F068', name: 'Marquesas Fracture Hub', type: 'fictional', lat: -10.0, lon: -140.0, country: 'Marquesas Fracture' },
-    // ★ 海ポチャ回避：大西洋の島々を最寄りの大陸沿岸部へ座標修正 ★
-    { id: 'F069', name: 'Azores Blue Field', type: 'fictional', lat: 38.7, lon: -9.1, country: 'Portugal' }, // ポルトガル沿岸へ
-    { id: 'F070', name: 'Canary Sun Base', type: 'fictional', lat: 27.5, lon: -13.2, country: 'Spain' }, // アフリカ西岸(モロッコ寄り)へ
-    { id: 'F071', name: 'Cape Verde Wind', type: 'fictional', lat: 14.7, lon: -17.4, country: 'Cape Verde' }, // セネガル沿岸へ
+    
+    // ★ 路線バランス復元：海ポチャを恐れず、長距離ルートの「洋上メガフロート基地」として本来の洋上へ座標を復元 ★
+    { id: 'F069', name: 'Azores Blue Field', type: 'fictional', lat: 38.7, lon: -28.0, country: 'Atlantic Ocean' },
+    { id: 'F070', name: 'Canary Sun Base', type: 'fictional', lat: 28.0, lon: -16.0, country: 'Atlantic Ocean' },
+    { id: 'F071', name: 'Cape Verde Wind', type: 'fictional', lat: 16.0, lon: -24.0, country: 'Atlantic Ocean' },
     { id: 'F072', name: 'Bermuda Triangle Base', type: 'fictional', lat: 25.0, lon: -70.0, country: 'Bermuda' },
     { id: 'F073', name: 'Falkland Ice Station', type: 'fictional', lat: -51.8, lon: -59.5, country: 'UK' },
     { id: 'F074', name: 'South Georgia Relay', type: 'fictional', lat: -54.2, lon: -36.5, country: 'UK' },
-    // ★ 海ポチャ回避：南大西洋の孤島を大陸沿岸部へ座標修正 ★
-    { id: 'F075', name: 'St Helena Point', type: 'fictional', lat: -15.9, lon: 11.8, country: 'UK' }, // アンゴラ/ナミビア沿岸へ
-    { id: 'F076', name: 'Tristan da Cunha', type: 'fictional', lat: -37.1, lon: 15.0, country: 'UK' }, // 南アフリカ沿岸へ
+    { id: 'F075', name: 'St Helena Point', type: 'fictional', lat: -15.9, lon: -5.7, country: 'Atlantic Ocean' },
+    { id: 'F076', name: 'Tristan da Cunha', type: 'fictional', lat: -37.1, lon: -12.2, country: 'Atlantic Ocean' },
+    
     { id: 'F077', name: 'Bouvet Island Hub', type: 'fictional', lat: -54.4, lon: 3.4, country: 'Norway' },
     { id: 'F078', name: 'Heard Island Base', type: 'fictional', lat: -53.0, lon: 73.5, country: 'Australia' },
     { id: 'F079', name: 'Macquarie Island Station', type: 'fictional', lat: -54.6, lon: 158.9, country: 'Australia' },

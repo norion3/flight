@@ -5,6 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
 
+    <!-- ★ ES Modules キャッシュ不整合(Dynamic Import Failed)の完全排除機構 ★ -->
+    <script>
+        const v = new Date().getTime();
+        const importMap = {
+            imports: {
+                './Config.js': './Config.js?v=' + v,
+                './Globe.js': './Globe.js?v=' + v,
+                './MapData.js': './MapData.js?v=' + v,
+                './AirportManager.js': './AirportManager.js?v=' + v,
+                './UIManager.js': './UIManager.js?v=' + v,
+                './NetworkManager.js': './NetworkManager.js?v=' + v,
+                './PlaneManager.js': './PlaneManager.js?v=' + v,
+                './Data_Real_Asia.js': './Data_Real_Asia.js?v=' + v,
+                './Data_Real_Americas.js': './Data_Real_Americas.js?v=' + v,
+                './Data_Real_EMEA.js': './Data_Real_EMEA.js?v=' + v,
+                './Data_Fictional.js': './Data_Fictional.js?v=' + v,
+                './Utils.js': './Utils.js?v=' + v,
+                './GameManager.js': './GameManager.js?v=' + v,
+                './main.js': './main.js?v=' + v
+            }
+        };
+        const im = document.createElement('script');
+        im.type = 'importmap';
+        im.textContent = JSON.stringify(importMap);
+        document.head.appendChild(im);
+    </script>
+
     <style>
         #osd-console {
             position: fixed; top: 0; left: 0; width: 100%; height: 35%;
@@ -31,16 +58,13 @@
         });
         window.logToOSD = logToOSD;
 
-        // ★GRAVITY/ブラウザ対応: 画面環境を動的に判別しUIの底面余白を自動調整する★
+        // GRAVITY/ブラウザ対応: 画面環境を動的に判別しUIの底面余白を自動調整する
         function updateUIBottomMargin() {
-            // PWA・WebViewなどのスタンドアロンモードか判定
             const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-            // Safariなどで下部ツールバーが出ているか判定 (画面高と描画領域の差分)
             const hasBottomBar = !isStandalone && (window.innerHeight < window.screen.height - 150); 
             
-            let margin = 'max(env(safe-area-inset-bottom), 20px)'; // デフォルト(GRAVITY等)
+            let margin = 'max(env(safe-area-inset-bottom), 20px)'; 
             if (hasBottomBar) {
-                // ツールバーが存在する場合はツールバーの上に浮くように余白を取る
                 margin = '75px'; 
             }
             document.documentElement.style.setProperty('--ui-bottom', margin);
@@ -80,7 +104,7 @@
         #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
         .interactive-ui { pointer-events: auto; touch-action: manipulation; }
         
-        /* ★修正：動的マージンによる可変配置と、横幅・余白のスリム化★ */
+        /* 動的マージンによる可変配置と、確実に無効化する処理 */
         .bottom-sheet { 
             transform: translateY(200px); 
             opacity: 0;
@@ -97,7 +121,7 @@
         }
         
         .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
-        #fab-buy-plane { bottom: var(--ui-bottom) !important; }
+        #fab-buy-plane { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
 <body class="text-slate-100">
@@ -154,7 +178,7 @@
             </button>
         </div>
 
-        <button id="fab-buy-plane" class="interactive-ui absolute right-6 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 transition-transform z-20">
+        <button id="fab-buy-plane" class="interactive-ui absolute right-6 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 z-20">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
         </button>
 
@@ -184,10 +208,9 @@
         </div>
     </div>
 
-    <!-- Dynamic Import -->
+    <!-- importmap によりキャッシュ問題を解決したため、?t= の付与は不要となります -->
     <script type="module">
-        var ts = new Date().getTime();
-        import('./main.js?t=' + ts)
+        import('./main.js')
             .then(function(module) {
                 if (document.readyState === 'complete') {
                     if (typeof window.onload === 'function') window.onload();

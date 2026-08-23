@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【二重ロードによる起動フリーズの完全修復】
- * 履歴95に基づき、システムをクラッシュさせていた先頭の
- * `import * as THREE...` を完全に削除しました。
- * これによりグローバルなTHREEを共有し、安定して起動します。
- * (飛行機は純白の完全2D ShapeGeometryで、姿勢制御は makeBasis で完璧な方向を維持)
+ * 【質感(高級感)チューニングの実施 & 二重ロード排除】
+ * 履歴101に基づき、飛行機のマテリアルを「純白ベタ塗り」から
+ * 「アイスホワイト(0xf8fafc) + 微かな透過(opacity: 0.9)」へ変更し、
+ * 安っぽさを消し去った洗練された質感を確立しました。
+ * (※ `import * as THREE...` は通信エラーとフリーズの原因となるため絶対に記述しません)
  */
 
 export class PlaneManager {
@@ -19,9 +19,11 @@ export class PlaneManager {
 
         this.baseGeometry = this._createPlaneGeometry();
         
-        // デザイン工学に基づき、洗練された純白。陰影処理のないフラットなBasicMaterialを使用。
+        // ★修正: 質感を高めるアイスホワイトと透過の追加
         this.planeMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff, // 純白
+            color: 0xf8fafc,      // わずかに青みがかったアイスホワイト
+            transparent: true,
+            opacity: 0.9,         // わずかな透け感で高級なUIアイコン風に
             side: THREE.DoubleSide
         }); 
     }
