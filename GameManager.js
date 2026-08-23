@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【究極のタップ判定（状況適応型2Dスクリーン判定）】
- * 履歴127に基づき、カメラ縮小時に的が小さくなり反応しなくなる欠陥を防ぐため、
- * 3DのRaycasterを廃止し、2D画面上のピクセル距離で判定する「ファッツィー・ターゲティング」を実装。
- * これにより「孤立時は広範囲で吸い付き、密集時は最も近いものを確実に拾う」最高峰の操作性を実現。
+ * 【究極のタップ判定（状況適応型2Dスクリーン判定）と吸着バランス】
+ * 履歴129に基づき、カメラ縮小時に的が小さくなり反応しなくなる欠陥を防ぐための
+ * 2Dピクセル距離判定を維持しつつ、吸着の最大範囲を「約45ピクセル」に厳密化しました。
+ * これにより「海をタップしたのに遠くの空港を吸い込む」キャンセル妨害が根絶され、
+ * 孤立時の吸着とキャンセル操作が両立するベストバランスの操作感を実現しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -57,6 +58,8 @@ export class GameManager {
             }
         };
 
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
         this.selectedHitMesh = null;
@@ -167,14 +170,14 @@ export class GameManager {
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
 
-        // ★修正: 3Dのレイキャストを廃止し、2D画面上のピクセル距離判定へ変更
         const tapX = event.clientX;
         const tapY = event.clientY;
         const widthHalf = window.innerWidth / 2;
         const heightHalf = window.innerHeight / 2;
 
-        // 画面サイズの約8% (指の太さに近いピクセル数) をタップの許容範囲とする (最低60px保証)
-        const maxDist = Math.max(60, Math.min(window.innerWidth, window.innerHeight) * 0.08);
+        // ★修正: 吸着範囲を人間の指の標準的なタップ領域（約45ピクセル）に厳格に制限。
+        // これにより、空地(海など)をタップした際に遠くの空港を無理やり吸い込むキャンセル妨害を根絶。
+        const maxDist = 45; 
         
         let bestHit = null;
         let minDistance = maxDist;
@@ -184,7 +187,6 @@ export class GameManager {
             hitMesh.getWorldPosition(pos);
 
             // 地球の裏側判定 (バックフェイスカリング)
-            // カメラからマーカーへのベクトルと、マーカーでの地球の法線ベクトルの内積で判定
             const cameraToMarker = this.camera.position.clone().sub(pos);
             const normal = pos.clone().normalize();
             if (cameraToMarker.dot(normal) < 0) return; // 裏側を向いているため除外
@@ -201,7 +203,7 @@ export class GameManager {
             const dy = tapY - screenY;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // 許容範囲内の中で、最も近いものを選択する（密集時の誤タップ防止と孤立時の救済を両立）
+            // 45pxの許容範囲内で、最も近いものを選択する
             if (dist < minDistance) {
                 minDistance = dist;
                 bestHit = hitMesh;
