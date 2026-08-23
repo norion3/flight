@@ -1,3 +1,11 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 【ライティングの美観チューニング (Phase 1)】
+ * 履歴85に基づき、AmbientLight(環境光)を暗く落とし、
+ * DirectionalLight(太陽光)を白く強く当てることで、
+ * 飛行機の立体アイコンのエッジに美しいハイライトと陰影を持たせました。
+ */
+
 import { CONFIG } from './Config.js';
 import { Globe } from './Globe.js';
 import { MapData } from './MapData.js';
@@ -108,11 +116,13 @@ export class GameManager {
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        // ★ライティングチューニング: 環境光をグッと落とし、深い宇宙空間の暗さを強調
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
         this.scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(CONFIG.COLORS.COASTLINE, 0.5);
-        dirLight.position.set(10, 10, 10);
+        // ★ライティングチューニング: 平行光源(太陽)を白く強く当て、機体に高級な陰影を持たせる
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(15, 20, 10);
         this.scene.add(dirLight);
     }
 

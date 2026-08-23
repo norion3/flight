@@ -1,11 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【線の極小化（美しさへの回帰）】
- * 履歴80に基づき、ゲームバランスを壊す極太の TubeGeometry を却下しました。
- * 代わりに、最もクリアでサイバー感が際立つ THREE.Line（太さ1pxの美しい線）へ回帰し、
- * 色(0x22d3ee)と不透明度(0.8)で美しさを担保しています。
+ * 【空路の発光美観チューニング (Phase 1)】
+ * 履歴85に基づき、空路(THREE.Line)のマテリアルに加算合成(AdditiveBlending)と
+ * depthWrite:falseを追加しました。これにより路線が密集・交差する箇所で
+ * 光ファイバーのように眩しく白く発光するサイバーな美しさを実現しています。
  */
 
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
 
@@ -61,14 +62,18 @@ export class NetworkManager {
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
-        // ★極小化・クリアな線へ回帰 (THREE.Line)
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        
+        // ★加算合成と深度無視による発光ネットワーク表現
         const material = new THREE.LineBasicMaterial({ 
             color: 0x22d3ee,  
             transparent: true, 
-            opacity: 0.8
+            opacity: 0.6, // 重なって白飛びしすぎないようにやや下げる
+            blending: THREE.AdditiveBlending, // 加算合成（重なると明るくなる）
+            depthWrite: false                 // 深度バッファに書き込まない（線の重なり描画破綻を防ぐ）
         });
+        
         const line = new THREE.Line(geometry, material);
         this.routeGroup.add(line);
 
