@@ -5,31 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
 
-    <!-- ★ ES Modules キャッシュ不整合(Dynamic Import Failed)の完全排除機構 ★ -->
-    <script>
-        const v = new Date().getTime();
-        const importMap = {
-            imports: {
-                './Config.js': './Config.js?v=' + v,
-                './Globe.js': './Globe.js?v=' + v,
-                './MapData.js': './MapData.js?v=' + v,
-                './AirportManager.js': './AirportManager.js?v=' + v,
-                './UIManager.js': './UIManager.js?v=' + v,
-                './NetworkManager.js': './NetworkManager.js?v=' + v,
-                './PlaneManager.js': './PlaneManager.js?v=' + v,
-                './Data_Real_Asia.js': './Data_Real_Asia.js?v=' + v,
-                './Data_Real_Americas.js': './Data_Real_Americas.js?v=' + v,
-                './Data_Real_EMEA.js': './Data_Real_EMEA.js?v=' + v,
-                './Data_Fictional.js': './Data_Fictional.js?v=' + v,
-                './Utils.js': './Utils.js?v=' + v,
-                './GameManager.js': './GameManager.js?v=' + v,
-                './main.js': './main.js?v=' + v
-            }
-        };
-        const im = document.createElement('script');
-        im.type = 'importmap';
-        im.textContent = JSON.stringify(importMap);
-        document.head.appendChild(im);
+    <!-- ★修正: 起動フリーズの罠であった「動的生成」を廃止し、安全な静的 importmap へ回帰 ★ -->
+    <script type="importmap">
+    {
+        "imports": {
+            "./Config.js": "./Config.js",
+            "./Globe.js": "./Globe.js",
+            "./MapData.js": "./MapData.js",
+            "./AirportManager.js": "./AirportManager.js",
+            "./UIManager.js": "./UIManager.js",
+            "./NetworkManager.js": "./NetworkManager.js",
+            "./PlaneManager.js": "./PlaneManager.js",
+            "./Data_Real_Asia.js": "./Data_Real_Asia.js",
+            "./Data_Real_Americas.js": "./Data_Real_Americas.js",
+            "./Data_Real_EMEA.js": "./Data_Real_EMEA.js",
+            "./Data_Fictional.js": "./Data_Fictional.js",
+            "./Utils.js": "./Utils.js",
+            "./GameManager.js": "./GameManager.js",
+            "./main.js": "./main.js"
+        }
+    }
     </script>
 
     <style>
@@ -73,16 +68,16 @@
     </script>
 
     <script>
-        // ★修正: 用語を最適化（架空ノード→架空空港、ルートを繋ぐ→空路を繋ぐ）
+        // ★修正: 世界観の最適化（架空空港→中継基地、空路を繋ぐ→空路を開拓する）
         window.APP_LANG = {
-            toastNoRoute: "先に空路を開通してください",
-            toastLimit: "接続上限、または既に接続済みです",
+            toastNoRoute: "先に空路を開拓してください",
+            toastLimit: "接続上限、または既に開拓済みです",
             errMapLoad: "地図データの取得に失敗しました。",
             hubMajor: "拠点ハブ",
             hubLocal: "地方空港",
-            hubFictional: "架空空港",
+            hubFictional: "中継基地",
             btnLimit: "接続上限です",
-            btnConnect: "空路を繋ぐ"
+            btnConnect: "空路を開拓する"
         };
     </script>
 
@@ -118,7 +113,6 @@
             opacity: 1;
             pointer-events: auto;
         }
-        /* ★修正: メッセージカードの横幅をスリム化 */
         #connecting-mode-card {
             width: fit-content !important;
             min-width: 240px;
@@ -150,7 +144,8 @@
         </div>
 
         <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute">
-            <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">空路開通</h3>
+            <!-- ★修正: 用語変更 -->
+            <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">空路開拓</h3>
             <div class="flex justify-between items-center text-lg font-bold mb-4">
                 <span id="route-from" class="text-white">---</span>
                 <span class="text-slate-500">➔</span>
@@ -158,7 +153,7 @@
             </div>
             <div class="flex space-x-3">
                 <button id="btn-cancel-route" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold active:bg-slate-700">キャンセル</button>
-                <button id="btn-open-route" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50">開通する</button>
+                <button id="btn-open-route" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50">開拓する</button>
             </div>
         </div>
 
@@ -191,7 +186,6 @@
                 <h2 class="text-lg font-bold text-white">飛行機を購入</h2>
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
-            <!-- ★修正: アイコンの高さ差を吸収し、Flexboxで文字のベースライン(縦位置)を美しく揃えました -->
             <div class="grid grid-cols-4 gap-2">
                 <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20" data-type="small">
                     <div class="flex-1 flex items-center justify-center">
@@ -221,8 +215,10 @@
         </div>
     </div>
 
+    <!-- キャッシュバスターは動的に付与 -->
     <script type="module">
-        import('./main.js')
+        var ts = new Date().getTime();
+        import('./main.js?t=' + ts)
             .then(function(module) {
                 if (document.readyState === 'complete') {
                     if (typeof window.onload === 'function') window.onload();

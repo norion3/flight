@@ -1,13 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【透過バグ解消とカラー統一の実施】
- * 履歴104に基づき、飛行機の色をメニューアイコンと同じエメラルドグリーン(0x34d399)に変更し、
- * 不透明（transparent: false）に設定しました。
- * これにより、3D空間特有の「半透明同士のZソートバグ」が解消され、
- * 飛行機が空路の線の下に潜り込む（透ける）煩わしい現象が完全に消滅しました。
+ * 【Zファイティング(描画の重なり)バグの根絶】
+ * 履歴106に基づき、飛行機と空路の線が同じ座標に存在することで発生していた
+ * 面のチラつきや貫通（Zファイティング）を防ぐため、飛行機の座標を計算後に
+ * 「法線方向(宇宙側)へ +0.005」だけオフセットさせる処理を追加しました。
+ * これにより飛行機は常に確実に空路の手前に描画されます。
  */
-
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
 export class PlaneManager {
     constructor(scene, globeGroup, networkManager) {
@@ -21,7 +19,6 @@ export class PlaneManager {
 
         this.baseGeometry = this._createPlaneGeometry();
         
-        // ★修正: メニューと統一したエメラルドグリーン。不透明にしてZソートバグを回避。
         this.planeMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x34d399,      
             transparent: false,
@@ -29,11 +26,9 @@ export class PlaneManager {
         }); 
     }
 
-    // 洗練されたシルエットの定義（厚みのない完全2D Shape）
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
-        // 機首 (Y軸正の方向)
         shape.moveTo(0, 0.5);
         shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
         shape.lineTo(0.35, -0.1);
@@ -67,7 +62,6 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
         if (!routeData) return false;
 
-        // 速度は優雅さとゲームバランスを考慮した平準化
         let scale = 0.06;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.04; speed = 0.20; }
@@ -116,10 +110,13 @@ export class PlaneManager {
                 }
             } else {
                 const position = curve.getPointAt(plane.progress);
-                plane.mesh.position.copy(position);
-
                 const tangent = curve.getTangentAt(plane.progress).normalize(); 
                 const up = position.clone().normalize(); 
+                
+                // ★修正: Zファイティング解消のため、線の座標から法線(宇宙)方向へわずかに浮かせる(オフセット)
+                const offsetPosition = position.clone().add(up.clone().multiplyScalar(0.005));
+                plane.mesh.position.copy(offsetPosition);
+
                 const right = new THREE.Vector3().crossVectors(tangent, up).normalize();
 
                 const matrix = new THREE.Matrix4().makeBasis(right, tangent, up);

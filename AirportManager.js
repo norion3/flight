@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【型の不一致による起動フリーズの完全修復】
- * 履歴104に基づき、Data_Fictional.js がエクスポートしている
- * 配列オブジェクト(fictionalNodes)をそのまま読み込んで結合するように修正しました。
- * 古いCSV分割処理(.split)は削除され、確実なデータ連携が保証されます。
+ * 【誤タップストレスの完全根絶（スケール分離）】
+ * 履歴106に基づき、カメラ縮小時に「当たり判定(hitMesh)」まで
+ * 巨大化して密集地で重なり合うバグを防ぐため、
+ * 視覚的なマーカー(visualGroup)と当たり判定を完全に分離しました。
+ * 縮小時は視覚マーカーのみが拡大し、タップ判定は常に一定のピンポイントを保ちます。
  */
 
 import { CONFIG } from './Config.js';
@@ -52,6 +53,7 @@ export class AirportManager {
         const fictionalGeo = new THREE.OctahedronGeometry(0.025, 0);
         const fictionalMat = new THREE.MeshBasicMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0.9 });
 
+        // 当たり判定用メッシュ (透明)
         const hitGeo = new THREE.SphereGeometry(0.06, 8, 8);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
 
@@ -79,31 +81,39 @@ export class AirportManager {
                 placedMajors.push(pos);
             }
 
+            // ★修正: 全体のコンテナと、視覚情報だけのコンテナを分離
             const markerGroup = new THREE.Group();
+            const visualGroup = new THREE.Group();
+            
             markerGroup.position.copy(pos);
             markerGroup.lookAt(pos.clone().multiplyScalar(2));
 
             let highlightTarget;
             if (airport.type === 'major') {
-                markerGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
-                markerGroup.add(new THREE.Mesh(majorRingGeo1, majorRingMat.clone()));
+                visualGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
+                visualGroup.add(new THREE.Mesh(majorRingGeo1, majorRingMat.clone()));
                 highlightTarget = new THREE.Mesh(majorRingGeo2, majorRingMat.clone());
-                markerGroup.add(highlightTarget);
+                visualGroup.add(highlightTarget);
             } else if (airport.type === 'local') {
-                markerGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
-                highlightTarget = new THREE.Mesh(localRingGeo, localRingMat.clone());
-                markerGroup.add(highlightTarget);
+                visualGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
+                highlightTarget = new Mesh(localRingGeo, localRingMat.clone());
+                visualGroup.add(highlightTarget);
             } else {
                 highlightTarget = new THREE.Mesh(fictionalGeo, fictionalMat.clone());
-                markerGroup.add(highlightTarget);
+                visualGroup.add(highlightTarget);
             }
 
+            // 視覚グループをメイングループに追加
+            markerGroup.add(visualGroup);
+
+            // 当たり判定は直接メイングループに追加し、updateMarkerScale の拡大影響を受けさせない
             const hitMesh = new THREE.Mesh(hitGeo, hitMat);
             hitMesh.userData = { 
                 airportData: airport, 
                 targetMesh: highlightTarget,
                 originalColor: highlightTarget.material.color.getHex(),
-                isHighlighted: false
+                isHighlighted: false,
+                visualGroup: visualGroup // 拡大縮小処理のために参照を保持
             };
             markerGroup.add(hitMesh);
 
@@ -127,23 +137,21 @@ export class AirportManager {
     }
 
     updateMarkerScale(camera) {
-        this.airportGroup.children.forEach(markerGroup => {
+        // ★修正: 視覚的なマーカー(visualGroup)のみを拡大し、当たり判定(hitMesh)は拡大しない
+        this.markers.forEach(hitMesh => {
             const markerWorldPos = new THREE.Vector3();
-            markerGroup.getWorldPosition(markerWorldPos);
+            hitMesh.getWorldPosition(markerWorldPos);
             const distance = camera.position.distanceTo(markerWorldPos);
             
             let baseScale = distance / 10;
             baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
             
-            let isHighlight = false;
-            markerGroup.children.forEach(child => {
-                if (child.userData && child.userData.isHighlighted) isHighlight = true;
-            });
-
-            const highlightScale = isHighlight ? 1.5 : 1.0;
+            const highlightScale = hitMesh.userData.isHighlighted ? 1.5 : 1.0;
             const finalScale = baseScale * highlightScale;
             
-            markerGroup.scale.set(finalScale, finalScale, finalScale);
+            if (hitMesh.userData.visualGroup) {
+                hitMesh.userData.visualGroup.scale.set(finalScale, finalScale, finalScale);
+            }
         });
     }
 }
