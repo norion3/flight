@@ -5,27 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
 
-    <!-- ★修正: 起動フリーズの罠であった「動的生成」を廃止し、安全な静的 importmap へ回帰 ★ -->
-    <script type="importmap">
-    {
-        "imports": {
-            "./Config.js": "./Config.js",
-            "./Globe.js": "./Globe.js",
-            "./MapData.js": "./MapData.js",
-            "./AirportManager.js": "./AirportManager.js",
-            "./UIManager.js": "./UIManager.js",
-            "./NetworkManager.js": "./NetworkManager.js",
-            "./PlaneManager.js": "./PlaneManager.js",
-            "./Data_Real_Asia.js": "./Data_Real_Asia.js",
-            "./Data_Real_Americas.js": "./Data_Real_Americas.js",
-            "./Data_Real_EMEA.js": "./Data_Real_EMEA.js",
-            "./Data_Fictional.js": "./Data_Fictional.js",
-            "./Utils.js": "./Utils.js",
-            "./GameManager.js": "./GameManager.js",
-            "./main.js": "./main.js"
-        }
-    }
-    </script>
+    <!-- ★修正: WebViewや古いiOSで起動フリーズの致命的エラーとなる `importmap` を完全撤廃し、安全な標準モジュール解決へ戻しました ★ -->
 
     <style>
         #osd-console {
@@ -57,7 +37,8 @@
             const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
             const hasBottomBar = !isStandalone && (window.innerHeight < window.screen.height - 150); 
             
-            let margin = 'max(env(safe-area-inset-bottom), 20px)'; 
+            // ★修正: iPhoneのホームインジケータとの干渉を防ぐため、安全領域を30pxに拡大しゆとりを持たせました
+            let margin = 'max(env(safe-area-inset-bottom), 30px)'; 
             if (hasBottomBar) {
                 margin = '75px'; 
             }
@@ -68,7 +49,6 @@
     </script>
 
     <script>
-        // ★修正: 世界観の最適化（架空空港→中継基地、空路を繋ぐ→空路を開拓する）
         window.APP_LANG = {
             toastNoRoute: "先に空路を開拓してください",
             toastLimit: "接続上限、または既に開拓済みです",
@@ -87,7 +67,7 @@
     <script src="https://unpkg.com/topojson-client@3"></script>
     <style>
         :root {
-            --ui-bottom: 20px;
+            --ui-bottom: 30px; /* デフォルトも30pxへ変更 */
         }
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
@@ -144,7 +124,6 @@
         </div>
 
         <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute">
-            <!-- ★修正: 用語変更 -->
             <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">空路開拓</h3>
             <div class="flex justify-between items-center text-lg font-bold mb-4">
                 <span id="route-from" class="text-white">---</span>
@@ -215,7 +194,7 @@
         </div>
     </div>
 
-    <!-- キャッシュバスターは動的に付与 -->
+    <!-- キャッシュバスターはブラウザ機能で付与(動的importmapは禁止) -->
     <script type="module">
         var ts = new Date().getTime();
         import('./main.js?t=' + ts)

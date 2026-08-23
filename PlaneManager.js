@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Zファイティング(描画の重なり)バグの根絶】
- * 履歴106に基づき、飛行機と空路の線が同じ座標に存在することで発生していた
- * 面のチラつきや貫通（Zファイティング）を防ぐため、飛行機の座標を計算後に
- * 「法線方向(宇宙側)へ +0.005」だけオフセットさせる処理を追加しました。
- * これにより飛行機は常に確実に空路の手前に描画されます。
+ * 【Zファイティング完全解消と動的スケールの導入】
+ * 履歴108に基づき、不透明なエメラルドグリーンへの色統一に加え、
+ * 飛行機の座標を「法線方向(宇宙側)へ +0.005」浮かす処理を復活させ、
+ * 空路の線との重なり(Zファイティング)バグを完全に根絶しました。
+ * また、地球儀縮小時に飛行機が点になって見えなくなるのを防ぐため、
+ * カメラ距離に応じた `updateScale` メソッドを追加実装しました。
  */
 
 export class PlaneManager {
@@ -19,6 +20,7 @@ export class PlaneManager {
 
         this.baseGeometry = this._createPlaneGeometry();
         
+        // メニュー色と統一し、不透明にしてZソートを安定化
         this.planeMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x34d399,      
             transparent: false,
@@ -79,10 +81,27 @@ export class PlaneManager {
             currentAirportId: spawnAirportId,
             currentRoute: routeData,
             progress: 0,
-            baseSpeed: speed
+            baseSpeed: speed,
+            originalScale: scale // ★追加: 動的スケーリングの基準値として保持
         });
 
         return true;
+    }
+
+    // ★追加: 縮小時に飛行機が点になって見えなくなるのを防ぐ動的スケール処理
+    updateScale(camera) {
+        this.planes.forEach(plane => {
+            const pos = new THREE.Vector3();
+            plane.mesh.getWorldPosition(pos);
+            const distance = camera.position.distanceTo(pos);
+            
+            // 空港マーカーと同じ拡大率カーブを使用する
+            let baseScale = distance / 10;
+            baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
+            
+            const finalScale = plane.originalScale * baseScale;
+            plane.mesh.scale.set(finalScale, finalScale, finalScale);
+        });
     }
 
     update(delta) {
