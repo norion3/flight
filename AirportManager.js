@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【誤タップストレスの完全根絶（スケール分離）】
- * 履歴106に基づき、カメラ縮小時に「当たり判定(hitMesh)」まで
- * 巨大化して密集地で重なり合うバグを防ぐため、
- * 視覚的なマーカー(visualGroup)と当たり判定を完全に分離しました。
- * 縮小時は視覚マーカーのみが拡大し、タップ判定は常に一定のピンポイントを保ちます。
+ * 【型の不一致と誤タップストレスの完全復旧】
+ * 履歴113に基づき、Data_Fictional.js の配列(fictionalNodes)を正しくインポートするように
+ * 修復し、CSVパースエラーによる起動フリーズを根絶しました。
+ * また、カメラ縮小時に「当たり判定(hitMesh)」まで巨大化するバグを防ぐため、
+ * 視覚的なマーカー(visualGroup)と当たり判定を完全に分離する処理を復元しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -81,7 +81,7 @@ export class AirportManager {
                 placedMajors.push(pos);
             }
 
-            // ★修正: 全体のコンテナと、視覚情報だけのコンテナを分離
+            // 全体のコンテナと、視覚情報だけのコンテナを分離
             const markerGroup = new THREE.Group();
             const visualGroup = new THREE.Group();
             
@@ -96,7 +96,7 @@ export class AirportManager {
                 visualGroup.add(highlightTarget);
             } else if (airport.type === 'local') {
                 visualGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
-                highlightTarget = new Mesh(localRingGeo, localRingMat.clone());
+                highlightTarget = new THREE.Mesh(localRingGeo, localRingMat.clone());
                 visualGroup.add(highlightTarget);
             } else {
                 highlightTarget = new THREE.Mesh(fictionalGeo, fictionalMat.clone());
@@ -137,7 +137,7 @@ export class AirportManager {
     }
 
     updateMarkerScale(camera) {
-        // ★修正: 視覚的なマーカー(visualGroup)のみを拡大し、当たり判定(hitMesh)は拡大しない
+        // 視覚的なマーカー(visualGroup)のみを拡大し、当たり判定(hitMesh)は拡大しない
         this.markers.forEach(hitMesh => {
             const markerWorldPos = new THREE.Vector3();
             hitMesh.getWorldPosition(markerWorldPos);

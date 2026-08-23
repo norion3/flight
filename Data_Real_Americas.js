@@ -1,6 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 履歴104に基づき、不足していた南米大陸の地方空港を大増量しました。
+ * 履歴113に基づき、先祖返りで失われていた南米等の大増量データを復元しました。
  */
 export const AIRPORTS_AMERICAS = [
     { id: 'LAX', name: 'Los Angeles', lat: 33.9416, lon: -118.4085, country: 'USA', type: 'major' },
@@ -46,7 +46,7 @@ export const AIRPORTS_AMERICAS = [
     { id: 'BSB', name: 'Brasilia', lat: -15.8692, lon: -47.9208, country: 'Brazil', type: 'local' },
     { id: 'AEP', name: 'Buenos Aires Jorge Newbery', lat: -34.5580, lon: -58.4156, country: 'Argentina', type: 'local' },
     { id: 'UIO', name: 'Quito Mariscal Sucre', lat: -0.1292, lon: -78.3575, country: 'Ecuador', type: 'local' },
-    // ★大増量: 南米の地方空港
+    // 大増量データ復旧
     { id: 'COR', name: 'Cordoba', lat: -31.3100, lon: -64.2083, country: 'Argentina', type: 'local' },
     { id: 'MVD', name: 'Montevideo', lat: -34.8384, lon: -56.0308, country: 'Uruguay', type: 'local' },
     { id: 'MAO', name: 'Manaus', lat: -3.0386, lon: -60.0497, country: 'Brazil', type: 'local' },

@@ -1,11 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Zファイティング完全解消と動的スケールの導入】
- * 履歴108に基づき、不透明なエメラルドグリーンへの色統一に加え、
- * 飛行機の座標を「法線方向(宇宙側)へ +0.005」浮かす処理を復活させ、
- * 空路の線との重なり(Zファイティング)バグを完全に根絶しました。
- * また、地球儀縮小時に飛行機が点になって見えなくなるのを防ぐため、
- * カメラ距離に応じた `updateScale` メソッドを追加実装しました。
+ * 【Zファイティング完全解消と動的スケールの復元】
+ * 履歴113に基づき、先祖返りで失われていた「エメラルドグリーン＆不透明」の質感を復元し、
+ * 空路の線との重なり(Zファイティング)を防ぐための「+0.005オフセット」を再適用しました。
+ * また、縮小時に飛行機が点になって見えなくなるのを防ぐ `updateScale` メソッドも復元済です。
  */
 
 export class PlaneManager {
@@ -82,20 +80,20 @@ export class PlaneManager {
             currentRoute: routeData,
             progress: 0,
             baseSpeed: speed,
-            originalScale: scale // ★追加: 動的スケーリングの基準値として保持
+            originalScale: scale // 動的スケーリングの基準値として保持
         });
 
         return true;
     }
 
-    // ★追加: 縮小時に飛行機が点になって見えなくなるのを防ぐ動的スケール処理
+    // 縮小時に飛行機が点になって見えなくなるのを防ぐ動的スケール処理
     updateScale(camera) {
         this.planes.forEach(plane => {
             const pos = new THREE.Vector3();
             plane.mesh.getWorldPosition(pos);
             const distance = camera.position.distanceTo(pos);
             
-            // 空港マーカーと同じ拡大率カーブを使用する
+            // 空港マーカーと同じ拡大率カーブを使用
             let baseScale = distance / 10;
             baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
             
@@ -132,7 +130,7 @@ export class PlaneManager {
                 const tangent = curve.getTangentAt(plane.progress).normalize(); 
                 const up = position.clone().normalize(); 
                 
-                // ★修正: Zファイティング解消のため、線の座標から法線(宇宙)方向へわずかに浮かせる(オフセット)
+                // Zファイティング解消のため、線の座標から法線(宇宙)方向へわずかに浮かせる(オフセット)
                 const offsetPosition = position.clone().add(up.clone().multiplyScalar(0.005));
                 plane.mesh.position.copy(offsetPosition);
 

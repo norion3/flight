@@ -1,11 +1,11 @@
-```javascript
 /**
  * AI可読性・先祖返り防止コメント:
  * 【モヤ(Fog)の撤廃と、究極のタップ判定最適化】
- * 履歴106に基づき、不要なFogを削除してクリアな宇宙空間にしました。
- * また、密集地でのタップのストレス（ハブへの吸い込み）を無くすため、
- * Raycasterの判定を「ランク」ではなく、純粋に「一番手前にあるもの」を優先する
- * 人間工学的に最適なロジックへと書き換えました。
+ * 履歴113に基づき、不要なFogを削除しクリアな宇宙空間を復元しました。
+ * 密集地でのタップのストレス（ハブへの吸い込み）を無くすため、
+ * Raycasterの判定を「ランク優先」から「一番手前にあるもの」を素直に優先する
+ * 人間工学的に最適なロジックへと復旧させました。
+ * また、飛行機の動的スケール(updateScale)も連携させています。
  */
 
 import { CONFIG } from './Config.js';
@@ -85,7 +85,7 @@ export class GameManager {
 
     initThree() {
         this.scene = new THREE.Scene();
-        // ★修正: 宇宙のモヤ(Fog)を撤廃し、クリアな視界を確保
+        // 宇宙のモヤ(Fog)は撤廃済み
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         
@@ -176,12 +176,11 @@ export class GameManager {
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         
-        // Raycasterの仕様上、intersects配列は既に「カメラから近い順」にソートされている
         const intersects = this.raycaster.intersectObjects(this.airportManager.markers);
 
         let bestHit = null;
         if (intersects.length > 0) {
-            // ★修正: ランク優先の悪質ロジックを廃止。純粋に「一番指に近かったもの(先頭要素)」を素直に選択する。
+            // 吸い込みを排除し、純粋に「一番指に近かったもの(先頭要素)」を素直に選択
             bestHit = intersects[0].object;
         }
 
@@ -231,6 +230,8 @@ export class GameManager {
         const delta = this.clock.getDelta();
 
         this.airportManager.updateMarkerScale(this.camera);
+        // カメラ距離に応じて飛行機も動的スケーリングさせる
+        this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
         
         this.controls.update(); 
@@ -249,4 +250,3 @@ export class GameManager {
 }
 
 
-```

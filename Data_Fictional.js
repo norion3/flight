@@ -1,8 +1,8 @@
 /**
  * 架空ノードデータ (Fictional Nodes)
  * 太平洋、大西洋、インド洋など、実在の空港が少ない地域を補完するためのダミーノード。
- * ※履歴104に基づき、洋上のメガフロート基地に加え、
- * アマゾン、サハラ、シベリア等の「大陸内陸部」の架空空港を多数追加しました。
+ * ※履歴113に基づき、洋上のメガフロート基地に加え、
+ * アマゾン、サハラ、シベリア等の「大陸内陸部」の架空空港を復旧・追加しました。
  */
 export const fictionalNodes = [
     { id: 'F001', name: 'Pacific Hub Alpha', type: 'fictional', lat: 20.0, lon: 170.0, country: 'Pacific Ocean' },
@@ -74,7 +74,7 @@ export const fictionalNodes = [
     { id: 'F067', name: 'Tahiti Trench Outpost', type: 'fictional', lat: -18.0, lon: -150.0, country: 'Tahiti Trench' },
     { id: 'F068', name: 'Marquesas Fracture Hub', type: 'fictional', lat: -10.0, lon: -140.0, country: 'Marquesas Fracture' },
     
-    // 洋上メガフロート基地
+    // 長距離ルートを支える洋上中継基地群の復元
     { id: 'F069', name: 'Azores Blue Field', type: 'fictional', lat: 38.7, lon: -28.0, country: 'Atlantic Ocean' },
     { id: 'F070', name: 'Canary Sun Base', type: 'fictional', lat: 28.0, lon: -16.0, country: 'Atlantic Ocean' },
     { id: 'F071', name: 'Cape Verde Wind', type: 'fictional', lat: 16.0, lon: -24.0, country: 'Atlantic Ocean' },
@@ -108,7 +108,7 @@ export const fictionalNodes = [
     { id: 'F099', name: 'Kermadec Islands Station', type: 'fictional', lat: -29.2, lon: -177.9, country: 'New Zealand' },
     { id: 'F100', name: 'Chatham Islands Relay', type: 'fictional', lat: -44.0, lon: -176.5, country: 'New Zealand' },
 
-    // ★ 大増量: 内陸部の架空空港 (Inland Fictional Hubs)
+    // 大増量: 内陸部の中継基地群の復元
     { id: 'F101', name: 'Sahara Oasis Hub', type: 'fictional', lat: 20.0, lon: 10.0, country: 'Africa Inland' },
     { id: 'F102', name: 'Kalahari Base', type: 'fictional', lat: -22.0, lon: 22.0, country: 'Africa Inland' },
     { id: 'F103', name: 'Congo Basin Relay', type: 'fictional', lat: -2.0, lon: 22.0, country: 'Africa Inland' },

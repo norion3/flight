@@ -1,6 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 履歴104に基づき、不足していたアフリカ大陸、ロシア(欧州側)、中東の地方空港を大増量しました。
+ * 履歴113に基づき、先祖返りで失われていたアフリカ大陸等の大増量データを復元しました。
  */
 export const AIRPORTS_EMEA = [
     { id: 'LHR', name: 'London Heathrow', lat: 51.4700, lon: -0.4543, country: 'UK', type: 'major' },
@@ -41,7 +41,7 @@ export const AIRPORTS_EMEA = [
     { id: 'HEL', name: 'Helsinki', lat: 60.3172, lon: 24.9633, country: 'Finland', type: 'local' },
     { id: 'KEF', name: 'Keflavik', lat: 63.9850, lon: -22.6056, country: 'Iceland', type: 'local' },
     
-    // ★大増量: ロシア、アフリカ、中東
+    // 大増量データ復旧
     { id: 'DME', name: 'Moscow Domodedovo', lat: 55.4086, lon: 37.9061, country: 'Russia', type: 'local' },
     { id: 'LED', name: 'St. Petersburg', lat: 59.8003, lon: 30.2625, country: 'Russia', type: 'local' },
     { id: 'KZN', name: 'Kazan', lat: 55.6062, lon: 49.2787, country: 'Russia', type: 'local' },

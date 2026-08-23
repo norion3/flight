@@ -1,6 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 履歴104に基づき、ロシア(アジア側)や中国内陸などの地方空港を大増量しました。
+ * 履歴113に基づき、先祖返りで失われていたロシア・中国内陸等の大増量データを復元しました。
  */
 export const AIRPORTS_ASIA = [
     { id: 'HND', name: 'Tokyo Haneda', lat: 35.1, lon: 139.2, country: 'Japan', type: 'major' },
@@ -43,7 +43,7 @@ export const AIRPORTS_ASIA = [
     { id: 'SZX', name: 'Shenzhen', lat: 22.6393, lon: 113.8107, country: 'China', type: 'local' },
     { id: 'CTU', name: 'Chengdu', lat: 30.5785, lon: 103.9471, country: 'China', type: 'local' },
     { id: 'XIY', name: 'Xi\'an', lat: 34.4471, lon: 108.7516, country: 'China', type: 'local' },
-    // ★大増量: 中国、ロシア等の内陸/極東空港
+    // 大増量データ復旧
     { id: 'URC', name: 'Urumqi', lat: 43.9071, lon: 87.4743, country: 'China', type: 'local' },
     { id: 'KMG', name: 'Kunming', lat: 25.1019, lon: 102.9292, country: 'China', type: 'local' },
     { id: 'CKG', name: 'Chongqing', lat: 29.7192, lon: 106.6417, country: 'China', type: 'local' },
