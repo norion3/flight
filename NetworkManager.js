@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【名前の呪縛からの解放】
- * 旧 RouteManager.js がiOS上で異常ファイルとしてキャッシュされていたため、
- * ファイル名およびクラス名を NetworkManager として新規作成し、OSに新しいファイルとして認識させます。
- * 内部ロジックは空路（ネットワーク）の接続・アーチ描画・上限管理で、以前と完全に同一です。
+ * 【空路の完全3D化（TubeGeometry化）】
+ * 履歴78に基づき、空路の描画を THREE.Line（太さのない2Dの線）から
+ * THREE.TubeGeometry（立体的なチューブ）に変更し、陰影と厚みを持たせました。
+ * 色は明るいシアン（0x22d3ee）を指定しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -61,15 +61,24 @@ export class NetworkManager {
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
-        const points = curve.getPoints(50);
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({ 
-            color: 0x3b82f6, 
+        // ★空路の立体チューブ化 (TubeGeometry)
+        const tubularSegments = 50;  // チューブの分割数（滑らかさ）
+        const radius = 0.015;        // チューブの太さ
+        const radialSegments = 6;    // 断面の円の分割数
+        const closed = false;
+        
+        const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, closed);
+        
+        // メッシュの材質設定（立体感が強調される PhongMaterial を採用）
+        const material = new THREE.MeshPhongMaterial({ 
+            color: 0x22d3ee,  // 明るいシアン(水色)
             transparent: true, 
-            opacity: 0.6 
+            opacity: 0.8,
+            shininess: 50     // 光沢を持たせる
         });
-        const line = new THREE.Line(geometry, material);
-        this.routeGroup.add(line);
+        
+        const tubeMesh = new THREE.Mesh(geometry, material);
+        this.routeGroup.add(tubeMesh);
 
         if (!this.network[fromData.id]) this.network[fromData.id] = [];
         if (!this.network[toData.id]) this.network[toData.id] = [];
@@ -96,4 +105,5 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 }
+
 

@@ -1,8 +1,3 @@
-/**
- * AI可読性・先祖返り防止コメント:
- * 履歴74に基づき、RouteManager のインポートおよび変数をすべて NetworkManager へ書き換えました。
- */
-
 import { CONFIG } from './Config.js';
 import { Globe } from './Globe.js';
 import { MapData } from './MapData.js';

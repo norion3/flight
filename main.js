@@ -1,21 +1,16 @@
-if(window.logToOSD) window.logToOSD("Step 1.1: main.js evaluated");
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 不要なログ出力を停止し、クリーンなエントリーポイントを維持しています。
+ */
 
 import { GameManager } from './GameManager.js';
 
-if(window.logToOSD) window.logToOSD("Step 1.2: GameManager imported");
-
 window.onload = () => {
-    if(window.logToOSD) window.logToOSD("Step 2: window.onload triggered");
-    
     try {
         const game = new GameManager();
-        if(window.logToOSD) window.logToOSD("Step 3: GameManager instantiated");
-        
         game.start();
-        if(window.logToOSD) window.logToOSD("Step 4: game.start() called");
-        
     } catch(e) {
-        if(window.logToOSD) window.logToOSD("[CRASH in main.js] " + e.message, "#f33");
+        console.error("[CRASH in main.js]", e);
     }
 };
 
