@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
 
-    <!-- ★修正: WebViewや古いiOSで起動フリーズの致命的エラーとなる `importmap` を完全撤廃し、安全な標準モジュール解決へ戻しました ★ -->
+    <!-- ★修正: WebViewや古いiOSで起動フリーズの致命的エラーとなる `importmap` を完全に削除しました ★ -->
 
     <style>
         #osd-console {
@@ -37,7 +37,6 @@
             const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
             const hasBottomBar = !isStandalone && (window.innerHeight < window.screen.height - 150); 
             
-            // ★修正: iPhoneのホームインジケータとの干渉を防ぐため、安全領域を30pxに拡大しゆとりを持たせました
             let margin = 'max(env(safe-area-inset-bottom), 30px)'; 
             if (hasBottomBar) {
                 margin = '75px'; 
@@ -67,7 +66,7 @@
     <script src="https://unpkg.com/topojson-client@3"></script>
     <style>
         :root {
-            --ui-bottom: 30px; /* デフォルトも30pxへ変更 */
+            --ui-bottom: 30px;
         }
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
@@ -194,7 +193,7 @@
         </div>
     </div>
 
-    <!-- キャッシュバスターはブラウザ機能で付与(動的importmapは禁止) -->
+    <!-- キャッシュバスターは動的に付与 -->
     <script type="module">
         var ts = new Date().getTime();
         import('./main.js?t=' + ts)
