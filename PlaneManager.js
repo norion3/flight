@@ -1,10 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Zファイティング完全解消と動的スケールの復元】
- * 履歴113に基づき、先祖返りで失われていた「エメラルドグリーン＆不透明」の質感を復元し、
- * 空路の線との重なり(Zファイティング)を防ぐための「+0.005オフセット」を再適用しました。
- * また、縮小時に飛行機が点になって見えなくなるのを防ぐ `updateScale` メソッドも復元済です。
+ * 【Zファイティング完全解消と動的スケールの統一】
+ * 履歴131に基づき、カメラ縮小時の飛行機の最大拡大率を 2.5 から 1.8 に引き下げました。
+ * これにより、空港マーカーの拡大率と完全に同調し、飛行機だけが異常に巨大化する
+ * バランス崩壊を防ぎ、洗練された箱庭感を実現しています。
  */
+
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
 export class PlaneManager {
     constructor(scene, globeGroup, networkManager) {
@@ -93,9 +95,9 @@ export class PlaneManager {
             plane.mesh.getWorldPosition(pos);
             const distance = camera.position.distanceTo(pos);
             
-            // 空港マーカーと同じ拡大率カーブを使用
             let baseScale = distance / 10;
-            baseScale = Math.max(1.0, Math.min(baseScale, 2.5)); 
+            // ★修正: 空港マーカーのスケール上限(1.8)と統一し、飛行機だけが巨大化する野暮ったさを防ぐ
+            baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
             
             const finalScale = plane.originalScale * baseScale;
             plane.mesh.scale.set(finalScale, finalScale, finalScale);

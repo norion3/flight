@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【マーカースケール上限の抑制】
- * 履歴125に基づき、カメラ縮小時に「マーカー(visualGroup)」が太くなりすぎて
- * 野暮ったくなるのを防ぐため、updateMarkerScale の最大拡大率を 2.5 から 1.8 に抑制しました。
+ * 【不要メッシュの廃止とパフォーマンス最適化】
+ * 履歴131に基づき、2Dタップ判定の導入により不要となっていた「3D物理判定用の透明な球体メッシュ」
+ * の生成を完全に削除しました。
+ * 代わりに、マーカーの親グループ(markerGroup)自身に userData を持たせることで、
+ * 見た目やゲームロジックを変えずに、スマホGPUの描画頂点数（メモリ）を大幅に軽量化しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -50,10 +52,6 @@ export class AirportManager {
 
         const fictionalGeo = new THREE.OctahedronGeometry(0.025, 0);
         const fictionalMat = new THREE.MeshBasicMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0.9 });
-
-        // 当たり判定用メッシュ (透明)
-        const hitGeo = new THREE.SphereGeometry(0.06, 8, 8);
-        const hitMat = new THREE.MeshBasicMaterial({ visible: false });
 
         const placedMajors = [];
         const placedLocals = [];
@@ -104,19 +102,17 @@ export class AirportManager {
             // 視覚グループをメイングループに追加
             markerGroup.add(visualGroup);
 
-            // 当たり判定は直接メイングループに追加し、updateMarkerScale の拡大影響を受けさせない
-            const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-            hitMesh.userData = { 
+            // ★修正: 無駄な透明メッシュを廃止し、markerGroup自身にuserDataを持たせて軽量化
+            markerGroup.userData = { 
                 airportData: airport, 
                 targetMesh: highlightTarget,
                 originalColor: highlightTarget.material.color.getHex(),
                 isHighlighted: false,
-                visualGroup: visualGroup // 拡大縮小処理のために参照を保持
+                visualGroup: visualGroup
             };
-            markerGroup.add(hitMesh);
 
             this.airportGroup.add(markerGroup);
-            this.markers.push(hitMesh);
+            this.markers.push(markerGroup);
         });
     }
 
@@ -135,14 +131,14 @@ export class AirportManager {
     }
 
     updateMarkerScale(camera) {
-        // 視覚的なマーカー(visualGroup)のみを拡大し、当たり判定(hitMesh)は拡大しない
+        // 視覚的なマーカー(visualGroup)のみを拡大し、当たり判定は拡大しない
         this.markers.forEach(hitMesh => {
             const markerWorldPos = new THREE.Vector3();
             hitMesh.getWorldPosition(markerWorldPos);
             const distance = camera.position.distanceTo(markerWorldPos);
             
             let baseScale = distance / 10;
-            // ★修正: 縮小時に太くなりすぎて野暮ったくなるのを防ぐため、最大値を 1.8 に抑制
+            // 縮小時に太くなりすぎて野暮ったくなるのを防ぐため、最大値を 1.8 に抑制
             baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
             
             const highlightScale = hitMesh.userData.isHighlighted ? 1.5 : 1.0;
