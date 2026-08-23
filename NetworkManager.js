@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【二重ロードによる起動フリーズの完全修復を維持】
- * 履歴113に基づき、システムをクラッシュさせていた先頭の
- * `import * as THREE...` が絶対に混入しないよう徹底しています。
+ * 【空路の発光表現（加算合成）の適用】
+ * 履歴120に基づき、マテリアルに THREE.AdditiveBlending を追加しました。
+ * これにより処理負荷を上げることなく、複雑に絡み合った航路が白く眩く
+ * 発光するようになり、交通網の成長が視覚的に美しく表現されます。
  */
 
 import { CONFIG } from './Config.js';
@@ -63,11 +64,12 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // 元の美しかった青色と通常合成
+        // ★修正: AdditiveBlending(加算合成)による美しい発光表現の追加
         const material = new THREE.LineBasicMaterial({ 
             color: 0x3b82f6,
             transparent: true, 
-            opacity: 0.6
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending // 重なるほど白く光る
         });
         
         const line = new THREE.Line(geometry, material);
