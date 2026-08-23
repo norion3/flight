@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライティングの復元（元の美しさへ）】
- * 履歴101に基づき、過剰だったライティング調整を破棄し、
- * 元の自然で明るい地球儀環境（AmbientLight 0.8, DirectionalLight 0.5）へ戻しました。
+ * 【モヤ(Fog)の撤廃と、究極のタップ判定最適化】
+ * 履歴104に基づき、不要なFogを削除してクリアな宇宙空間にしました。
+ * また、密集地でのタップのストレス（ハブへの吸い込み）を無くすため、
+ * Raycasterの判定を「ランク」ではなく、純粋に「一番手前にあるもの」を優先する
+ * 人間工学的に最適なロジックへと書き換えました。
  */
 
 import { CONFIG } from './Config.js';
@@ -82,7 +84,7 @@ export class GameManager {
 
     initThree() {
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(CONFIG.COLORS.BACKGROUND, 0.015);
+        // ★修正: 宇宙のモヤ(Fog)を撤廃し、クリアな視界を確保
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         
@@ -115,7 +117,6 @@ export class GameManager {
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
-        // 元の明るく自然なライティング設定へ回帰
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.scene.add(ambientLight);
 
@@ -174,23 +175,13 @@ export class GameManager {
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         
+        // Raycasterの仕様上、intersects配列は既に「カメラから近い順」にソートされている
         const intersects = this.raycaster.intersectObjects(this.airportManager.markers);
 
         let bestHit = null;
         if (intersects.length > 0) {
-            let bestRank = 999;
-            const rankMap = { 'major': 1, 'local': 2, 'fictional': 3 };
-
-            for (let i = 0; i < intersects.length; i++) {
-                const hit = intersects[i];
-                const data = hit.object.userData.airportData;
-                const rank = rankMap[data.type] || 999;
-                if (rank < bestRank) {
-                    bestRank = rank;
-                    bestHit = hit.object;
-                }
-                if (bestRank === 1) break;
-            }
+            // ★修正: ランク優先の悪質ロジックを廃止。純粋に「一番指に近かったもの(先頭要素)」を素直に選択する。
+            bestHit = intersects[0].object;
         }
 
         if (this.state === STATE_IDLE) {

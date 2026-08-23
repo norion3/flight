@@ -1,8 +1,8 @@
 /**
  * 架空ノードデータ (Fictional Nodes)
  * 太平洋、大西洋、インド洋など、実在の空港が少ない地域を補完するためのダミーノード。
- * ※履歴101に基づき、大陸間の長距離路線のルートバランス（中継地点）を担保するため、
- * アゾレス諸島などの一部ノードを「メガフロート基地」として本来の洋上座標へ復元しました。
+ * ※履歴104に基づき、洋上のメガフロート基地に加え、
+ * アマゾン、サハラ、シベリア等の「大陸内陸部」の架空空港を多数追加しました。
  */
 export const fictionalNodes = [
     { id: 'F001', name: 'Pacific Hub Alpha', type: 'fictional', lat: 20.0, lon: 170.0, country: 'Pacific Ocean' },
@@ -74,7 +74,7 @@ export const fictionalNodes = [
     { id: 'F067', name: 'Tahiti Trench Outpost', type: 'fictional', lat: -18.0, lon: -150.0, country: 'Tahiti Trench' },
     { id: 'F068', name: 'Marquesas Fracture Hub', type: 'fictional', lat: -10.0, lon: -140.0, country: 'Marquesas Fracture' },
     
-    // ★ 路線バランス復元：海ポチャを恐れず、長距離ルートの「洋上メガフロート基地」として本来の洋上へ座標を復元 ★
+    // 洋上メガフロート基地
     { id: 'F069', name: 'Azores Blue Field', type: 'fictional', lat: 38.7, lon: -28.0, country: 'Atlantic Ocean' },
     { id: 'F070', name: 'Canary Sun Base', type: 'fictional', lat: 28.0, lon: -16.0, country: 'Atlantic Ocean' },
     { id: 'F071', name: 'Cape Verde Wind', type: 'fictional', lat: 16.0, lon: -24.0, country: 'Atlantic Ocean' },
@@ -83,7 +83,6 @@ export const fictionalNodes = [
     { id: 'F074', name: 'South Georgia Relay', type: 'fictional', lat: -54.2, lon: -36.5, country: 'UK' },
     { id: 'F075', name: 'St Helena Point', type: 'fictional', lat: -15.9, lon: -5.7, country: 'Atlantic Ocean' },
     { id: 'F076', name: 'Tristan da Cunha', type: 'fictional', lat: -37.1, lon: -12.2, country: 'Atlantic Ocean' },
-    
     { id: 'F077', name: 'Bouvet Island Hub', type: 'fictional', lat: -54.4, lon: 3.4, country: 'Norway' },
     { id: 'F078', name: 'Heard Island Base', type: 'fictional', lat: -53.0, lon: 73.5, country: 'Australia' },
     { id: 'F079', name: 'Macquarie Island Station', type: 'fictional', lat: -54.6, lon: 158.9, country: 'Australia' },
@@ -107,7 +106,23 @@ export const fictionalNodes = [
     { id: 'F097', name: 'Lord Howe Island Hub', type: 'fictional', lat: -31.5, lon: 159.0, country: 'Australia' },
     { id: 'F098', name: 'Norfolk Island Base', type: 'fictional', lat: -29.0, lon: 167.9, country: 'Australia' },
     { id: 'F099', name: 'Kermadec Islands Station', type: 'fictional', lat: -29.2, lon: -177.9, country: 'New Zealand' },
-    { id: 'F100', name: 'Chatham Islands Relay', type: 'fictional', lat: -44.0, lon: -176.5, country: 'New Zealand' }
+    { id: 'F100', name: 'Chatham Islands Relay', type: 'fictional', lat: -44.0, lon: -176.5, country: 'New Zealand' },
+
+    // ★ 大増量: 内陸部の架空空港 (Inland Fictional Hubs)
+    { id: 'F101', name: 'Sahara Oasis Hub', type: 'fictional', lat: 20.0, lon: 10.0, country: 'Africa Inland' },
+    { id: 'F102', name: 'Kalahari Base', type: 'fictional', lat: -22.0, lon: 22.0, country: 'Africa Inland' },
+    { id: 'F103', name: 'Congo Basin Relay', type: 'fictional', lat: -2.0, lon: 22.0, country: 'Africa Inland' },
+    { id: 'F104', name: 'Siberian Tundra Station', type: 'fictional', lat: 60.0, lon: 90.0, country: 'Eurasia Inland' },
+    { id: 'F105', name: 'Altai Mountain Hub', type: 'fictional', lat: 50.0, lon: 90.0, country: 'Eurasia Inland' },
+    { id: 'F106', name: 'Gobi Desert Point', type: 'fictional', lat: 43.0, lon: 105.0, country: 'Eurasia Inland' },
+    { id: 'F107', name: 'Tibetan Plateau Base', type: 'fictional', lat: 33.0, lon: 88.0, country: 'Eurasia Inland' },
+    { id: 'F108', name: 'Amazon Deep Station', type: 'fictional', lat: -5.0, lon: -65.0, country: 'South America Inland' },
+    { id: 'F109', name: 'Mato Grosso Relay', type: 'fictional', lat: -12.0, lon: -55.0, country: 'South America Inland' },
+    { id: 'F110', name: 'Patagonia Outpost', type: 'fictional', lat: -45.0, lon: -68.0, country: 'South America Inland' },
+    { id: 'F111', name: 'Outback Center Hub', type: 'fictional', lat: -25.0, lon: 135.0, country: 'Australia Inland' },
+    { id: 'F112', name: 'Great Victoria Base', type: 'fictional', lat: -29.0, lon: 128.0, country: 'Australia Inland' },
+    { id: 'F113', name: 'Greenland Ice Relay', type: 'fictional', lat: 75.0, lon: -40.0, country: 'Greenland Inland' },
+    { id: 'F114', name: 'Rocky Mountain Hub', type: 'fictional', lat: 43.0, lon: -110.0, country: 'North America Inland' }
 ];
 
 

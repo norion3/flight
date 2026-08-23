@@ -1,11 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【質感(高級感)チューニングの実施 & 二重ロード排除】
- * 履歴101に基づき、飛行機のマテリアルを「純白ベタ塗り」から
- * 「アイスホワイト(0xf8fafc) + 微かな透過(opacity: 0.9)」へ変更し、
- * 安っぽさを消し去った洗練された質感を確立しました。
- * (※ `import * as THREE...` は通信エラーとフリーズの原因となるため絶対に記述しません)
+ * 【透過バグ解消とカラー統一の実施】
+ * 履歴104に基づき、飛行機の色をメニューアイコンと同じエメラルドグリーン(0x34d399)に変更し、
+ * 不透明（transparent: false）に設定しました。
+ * これにより、3D空間特有の「半透明同士のZソートバグ」が解消され、
+ * 飛行機が空路の線の下に潜り込む（透ける）煩わしい現象が完全に消滅しました。
  */
+
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
 export class PlaneManager {
     constructor(scene, globeGroup, networkManager) {
@@ -19,11 +21,10 @@ export class PlaneManager {
 
         this.baseGeometry = this._createPlaneGeometry();
         
-        // ★修正: 質感を高めるアイスホワイトと透過の追加
+        // ★修正: メニューと統一したエメラルドグリーン。不透明にしてZソートバグを回避。
         this.planeMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xf8fafc,      // わずかに青みがかったアイスホワイト
-            transparent: true,
-            opacity: 0.9,         // わずかな透け感で高級なUIアイコン風に
+            color: 0x34d399,      
+            transparent: false,
             side: THREE.DoubleSide
         }); 
     }
@@ -54,7 +55,6 @@ export class PlaneManager {
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
         const geometry = new THREE.ShapeGeometry(shape);
-        // 回転の軸を正確にするため、ジオメトリの中心を原点に自動調整する
         geometry.center();
         
         return geometry;
@@ -67,7 +67,6 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
         if (!routeData) return false;
 
-        // 2Dシルエット用のスケールに戻す（大きすぎない洗練されたサイズ感）
         // 速度は優雅さとゲームバランスを考慮した平準化
         let scale = 0.06;
         let speed = 0.20; 
@@ -119,14 +118,10 @@ export class PlaneManager {
                 const position = curve.getPointAt(plane.progress);
                 plane.mesh.position.copy(position);
 
-                // バック飛行完全解消済みの正確な姿勢制御
-                const tangent = curve.getTangentAt(plane.progress).normalize(); // 進行方向
-                const up = position.clone().normalize(); // 地球の中心からの法線ベクトル(背中)
-                // tangentとupから右翼方向を算出
+                const tangent = curve.getTangentAt(plane.progress).normalize(); 
+                const up = position.clone().normalize(); 
                 const right = new THREE.Vector3().crossVectors(tangent, up).normalize();
 
-                // ShapeGeometryは X軸=右, Y軸=機首, Z軸=表向き法線 で生成されているため、
-                // right(右), tangent(進行方向), up(背中) をそのまま基底ベクトルに当てはめる
                 const matrix = new THREE.Matrix4().makeBasis(right, tangent, up);
                 plane.mesh.quaternion.setFromRotationMatrix(matrix);
             }

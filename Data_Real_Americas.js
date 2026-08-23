@@ -1,3 +1,7 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 履歴104に基づき、不足していた南米大陸の地方空港を大増量しました。
+ */
 export const AIRPORTS_AMERICAS = [
     { id: 'LAX', name: 'Los Angeles', lat: 33.9416, lon: -118.4085, country: 'USA', type: 'major' },
     { id: 'SFO', name: 'San Francisco', lat: 37.6213, lon: -122.3790, country: 'USA', type: 'major' },
@@ -26,7 +30,6 @@ export const AIRPORTS_AMERICAS = [
     { id: 'SLC', name: 'Salt Lake City', lat: 40.7884, lon: -111.9772, country: 'USA', type: 'local' },
     { id: 'SAN', name: 'San Diego', lat: 32.7336, lon: -117.1831, country: 'USA', type: 'local' },
     { id: 'PDX', name: 'Portland', lat: 45.5898, lon: -122.5951, country: 'USA', type: 'local' },
-    { id: 'DTW', name: 'Dallas Fort Worth', lat: 32.8998, lon: -97.0403, country: 'USA', type: 'local' },
     { id: 'HOU', name: 'Houston Hobby', lat: 29.6454, lon: -95.2789, country: 'USA', type: 'local' },
     { id: 'ANC', name: 'Anchorage', lat: 61.1743, lon: -149.9962, country: 'USA', type: 'local' },
     { id: 'YUL', name: 'Montreal Trudeau', lat: 45.4706, lon: -73.7408, country: 'Canada', type: 'local' },
@@ -42,7 +45,18 @@ export const AIRPORTS_AMERICAS = [
     { id: 'GIG', name: 'Rio de Janeiro Galeao', lat: -22.8100, lon: -43.2506, country: 'Brazil', type: 'local' },
     { id: 'BSB', name: 'Brasilia', lat: -15.8692, lon: -47.9208, country: 'Brazil', type: 'local' },
     { id: 'AEP', name: 'Buenos Aires Jorge Newbery', lat: -34.5580, lon: -58.4156, country: 'Argentina', type: 'local' },
-    { id: 'UIO', name: 'Quito Mariscal Sucre', lat: -0.1292, lon: -78.3575, country: 'Ecuador', type: 'local' }
+    { id: 'UIO', name: 'Quito Mariscal Sucre', lat: -0.1292, lon: -78.3575, country: 'Ecuador', type: 'local' },
+    // ★大増量: 南米の地方空港
+    { id: 'COR', name: 'Cordoba', lat: -31.3100, lon: -64.2083, country: 'Argentina', type: 'local' },
+    { id: 'MVD', name: 'Montevideo', lat: -34.8384, lon: -56.0308, country: 'Uruguay', type: 'local' },
+    { id: 'MAO', name: 'Manaus', lat: -3.0386, lon: -60.0497, country: 'Brazil', type: 'local' },
+    { id: 'BEL', name: 'Belem', lat: -1.3792, lon: -48.4763, country: 'Brazil', type: 'local' },
+    { id: 'REC', name: 'Recife', lat: -8.1259, lon: -34.9228, country: 'Brazil', type: 'local' },
+    { id: 'SSA', name: 'Salvador', lat: -12.9111, lon: -38.3316, country: 'Brazil', type: 'local' },
+    { id: 'CNF', name: 'Belo Horizonte', lat: -19.6244, lon: -43.9719, country: 'Brazil', type: 'local' },
+    { id: 'CUZ', name: 'Cusco', lat: -13.5357, lon: -71.9388, country: 'Peru', type: 'local' },
+    { id: 'LPB', name: 'La Paz', lat: -16.5133, lon: -68.1923, country: 'Bolivia', type: 'local' },
+    { id: 'GYE', name: 'Guayaquil', lat: -2.1574, lon: -79.8835, country: 'Ecuador', type: 'local' }
 ];
 
 

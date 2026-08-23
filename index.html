@@ -58,7 +58,6 @@
         });
         window.logToOSD = logToOSD;
 
-        // GRAVITY/ブラウザ対応: 画面環境を動的に判別しUIの底面余白を自動調整する
         function updateUIBottomMargin() {
             const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
             const hasBottomBar = !isStandalone && (window.innerHeight < window.screen.height - 150); 
@@ -74,15 +73,16 @@
     </script>
 
     <script>
+        // ★修正: 用語を最適化（架空ノード→架空空港、ルートを繋ぐ→空路を繋ぐ）
         window.APP_LANG = {
-            toastNoRoute: "先にルートを開通してください",
+            toastNoRoute: "先に空路を開通してください",
             toastLimit: "接続上限、または既に接続済みです",
             errMapLoad: "地図データの取得に失敗しました。",
             hubMajor: "拠点ハブ",
             hubLocal: "地方空港",
-            hubFictional: "架空ノード",
+            hubFictional: "架空空港",
             btnLimit: "接続上限です",
-            btnConnect: "ルートを繋ぐ"
+            btnConnect: "空路を繋ぐ"
         };
     </script>
 
@@ -104,7 +104,6 @@
         #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
         .interactive-ui { pointer-events: auto; touch-action: manipulation; }
         
-        /* 動的マージンによる可変配置と、確実に無効化する処理 */
         .bottom-sheet { 
             transform: translateY(200px); 
             opacity: 0;
@@ -118,6 +117,11 @@
             transform: translateY(0); 
             opacity: 1;
             pointer-events: auto;
+        }
+        /* ★修正: メッセージカードの横幅をスリム化 */
+        #connecting-mode-card {
+            width: fit-content !important;
+            min-width: 240px;
         }
         
         .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
@@ -141,12 +145,12 @@
     <div id="ui-layer" class="pb-4 px-4 relative overflow-hidden flex flex-col items-center">
         
         <div id="connecting-mode-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-full py-2 px-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 absolute flex items-center justify-between space-x-4">
-            <p class="text-xs text-yellow-400 font-bold animate-pulse">行先の空港をタップ...</p>
-            <button id="btn-cancel-connect" class="px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold active:bg-slate-700">キャンセル</button>
+            <p class="text-xs text-yellow-400 font-bold animate-pulse whitespace-nowrap">行先の空港をタップ...</p>
+            <button id="btn-cancel-connect" class="px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold active:bg-slate-700 whitespace-nowrap">キャンセル</button>
         </div>
 
         <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute">
-            <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">ルート開通</h3>
+            <h3 class="text-xs text-yellow-400 font-bold tracking-wider mb-2">空路開通</h3>
             <div class="flex justify-between items-center text-lg font-bold mb-4">
                 <span id="route-from" class="text-white">---</span>
                 <span class="text-slate-500">➔</span>
@@ -187,28 +191,36 @@
                 <h2 class="text-lg font-bold text-white">飛行機を購入</h2>
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
+            <!-- ★修正: アイコンの高さ差を吸収し、Flexboxで文字のベースライン(縦位置)を美しく揃えました -->
             <div class="grid grid-cols-4 gap-2">
-                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="small">
-                    <span class="text-emerald-400 mb-1"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
-                    <span class="text-[10px] font-bold text-white">小型機</span>
+                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20" data-type="small">
+                    <div class="flex-1 flex items-center justify-center">
+                        <span class="text-emerald-400"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    </div>
+                    <span class="text-[10px] font-bold text-white mt-1">小型機</span>
                 </button>
-                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="medium">
-                    <span class="text-emerald-400 mb-1"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
-                    <span class="text-[10px] font-bold text-white">中型機</span>
+                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20" data-type="medium">
+                    <div class="flex-1 flex items-center justify-center">
+                        <span class="text-emerald-400"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    </div>
+                    <span class="text-[10px] font-bold text-white mt-1">中型機</span>
                 </button>
-                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="large">
-                    <span class="text-emerald-400 mb-1"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
-                    <span class="text-[10px] font-bold text-white">大型機</span>
+                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20" data-type="large">
+                    <div class="flex-1 flex items-center justify-center">
+                        <span class="text-emerald-400"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    </div>
+                    <span class="text-[10px] font-bold text-white mt-1">大型機</span>
                 </button>
-                <button class="buy-plane-btn flex flex-col items-center bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500" data-type="super">
-                    <span class="text-emerald-400 mb-1"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
-                    <span class="text-[10px] font-bold text-white">超大型</span>
+                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20" data-type="super">
+                    <div class="flex-1 flex items-center justify-center">
+                        <span class="text-emerald-400"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></span>
+                    </div>
+                    <span class="text-[10px] font-bold text-white mt-1">超大型</span>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- importmap によりキャッシュ問題を解決したため、?t= の付与は不要となります -->
     <script type="module">
         import('./main.js')
             .then(function(module) {

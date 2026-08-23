@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【FABの表示・非表示連携の完全化】
- * 履歴101に基づき、UIカードが表示されている間（ルート接続待ち、情報閲覧中など）は、
- * ユーザーの意識の分散やタップ妨害を防ぐため、右下のFAB(購入ボタン)を
- * スケールダウンさせて確実に非表示にし、hideAll時に復帰させる制御を追加しました。
+ * 【連続購入の快適化】
+ * 履歴104に基づき、飛行機を購入するたびにメニューが閉じてしまう仕様を撤廃しました。
+ * メニューを開いたまま連続して機体を追加できます。
  */
 export class UIManager {
     constructor() {
@@ -60,8 +59,7 @@ export class UIManager {
             btn.addEventListener('click', (e) => {
                 const type = e.currentTarget.getAttribute('data-type');
                 if (this.onBuyPlane) this.onBuyPlane(type);
-                this.buyMenu.classList.remove('show');
-                this.fabBuy.style.transform = 'scale(1)';
+                // ★修正: 購入後もメニューを閉じない（連続購入を可能にする）
             });
         });
     }

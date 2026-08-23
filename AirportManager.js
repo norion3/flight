@@ -1,7 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【型の不一致による起動フリーズの完全修復】
- * 履歴98に基づき、Data_Fictional.js がエクスポートしている
+ * 履歴104に基づき、Data_Fictional.js がエクスポートしている
  * 配列オブジェクト(fictionalNodes)をそのまま読み込んで結合するように修正しました。
  * 古いCSV分割処理(.split)は削除され、確実なデータ連携が保証されます。
  */
@@ -11,7 +11,7 @@ import { Utils } from './Utils.js';
 import { AIRPORTS_ASIA } from './Data_Real_Asia.js';
 import { AIRPORTS_AMERICAS } from './Data_Real_Americas.js';
 import { AIRPORTS_EMEA } from './Data_Real_EMEA.js';
-import { fictionalNodes } from './Data_Fictional.js'; // ★修正: 正しい配列変数をインポート
+import { fictionalNodes } from './Data_Fictional.js'; 
 
 export class AirportManager {
     constructor(scene, globeGroup) {
@@ -25,10 +25,8 @@ export class AirportManager {
     }
 
     _compileAllAirports() {
-        // 実在空港データ
         const reals = [...AIRPORTS_ASIA, ...AIRPORTS_AMERICAS, ...AIRPORTS_EMEA];
         
-        // ★修正: fictionalNodes 配列をそのまま結合し、ランク順にソートする
         return [...reals, ...fictionalNodes].sort((a, b) => {
             const rank = { 'major': 1, 'local': 2, 'fictional': 3 };
             return rank[a.type] - rank[b.type];

@@ -1,3 +1,7 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 履歴104に基づき、ロシア(アジア側)や中国内陸などの地方空港を大増量しました。
+ */
 export const AIRPORTS_ASIA = [
     { id: 'HND', name: 'Tokyo Haneda', lat: 35.1, lon: 139.2, country: 'Japan', type: 'major' },
     { id: 'NRT', name: 'Tokyo Narita', lat: 36.2, lon: 140.9, country: 'Japan', type: 'major' },
@@ -39,6 +43,18 @@ export const AIRPORTS_ASIA = [
     { id: 'SZX', name: 'Shenzhen', lat: 22.6393, lon: 113.8107, country: 'China', type: 'local' },
     { id: 'CTU', name: 'Chengdu', lat: 30.5785, lon: 103.9471, country: 'China', type: 'local' },
     { id: 'XIY', name: 'Xi\'an', lat: 34.4471, lon: 108.7516, country: 'China', type: 'local' },
+    // ★大増量: 中国、ロシア等の内陸/極東空港
+    { id: 'URC', name: 'Urumqi', lat: 43.9071, lon: 87.4743, country: 'China', type: 'local' },
+    { id: 'KMG', name: 'Kunming', lat: 25.1019, lon: 102.9292, country: 'China', type: 'local' },
+    { id: 'CKG', name: 'Chongqing', lat: 29.7192, lon: 106.6417, country: 'China', type: 'local' },
+    { id: 'HGH', name: 'Hangzhou', lat: 30.2295, lon: 120.4344, country: 'China', type: 'local' },
+    { id: 'VVO', name: 'Vladivostok', lat: 43.3989, lon: 132.1481, country: 'Russia', type: 'local' },
+    { id: 'OVB', name: 'Novosibirsk', lat: 55.0126, lon: 82.6507, country: 'Russia', type: 'local' },
+    { id: 'IKT', name: 'Irkutsk', lat: 52.2680, lon: 104.3890, country: 'Russia', type: 'local' },
+    { id: 'TAS', name: 'Tashkent', lat: 41.2579, lon: 69.2812, country: 'Uzbekistan', type: 'local' },
+    { id: 'ALA', name: 'Almaty', lat: 43.3521, lon: 70.0615, country: 'Kazakhstan', type: 'local' },
+    { id: 'UBN', name: 'Ulaanbaatar', lat: 47.6533, lon: 106.8183, country: 'Mongolia', type: 'local' },
+
     { id: 'HAN', name: 'Hanoi Noi Bai', lat: 21.2212, lon: 105.8072, country: 'Vietnam', type: 'local' },
     { id: 'DAD', name: 'Da Nang', lat: 16.0439, lon: 108.1994, country: 'Vietnam', type: 'local' },
     { id: 'SGN', name: 'Ho Chi Minh', lat: 10.8188, lon: 106.6519, country: 'Vietnam', type: 'local' },
@@ -51,7 +67,6 @@ export const AIRPORTS_ASIA = [
     { id: 'SUB', name: 'Surabaya Juanda', lat: -7.3798, lon: 112.7871, country: 'Indonesia', type: 'local' },
     { id: 'DPS', name: 'Bali Ngurah Rai', lat: -8.7482, lon: 115.1675, country: 'Indonesia', type: 'local' },
     { id: 'UPG', name: 'Hasanuddin', lat: -5.0616, lon: 119.5540, country: 'Indonesia', type: 'local' },
-    
     { id: 'BLR', name: 'Bengaluru', lat: 13.1986, lon: 77.7066, country: 'India', type: 'local' },
     { id: 'MAA', name: 'Chennai', lat: 12.9941, lon: 80.1709, country: 'India', type: 'local' },
     { id: 'CCU', name: 'Kolkata', lat: 22.6520, lon: 88.4467, country: 'India', type: 'local' },
