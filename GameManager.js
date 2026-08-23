@@ -1,11 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【モヤ(Fog)の撤廃と、究極のタップ判定最適化】
- * 履歴113に基づき、不要なFogを削除しクリアな宇宙空間を復元しました。
- * 密集地でのタップのストレス（ハブへの吸い込み）を無くすため、
- * Raycasterの判定を「ランク優先」から「一番手前にあるもの」を素直に優先する
- * 人間工学的に最適なロジックへと復旧させました。
- * また、飛行機の動的スケール(updateScale)も連携させています。
+ * 【究極のタップ判定（状況適応型2Dスクリーン判定）】
+ * 履歴127に基づき、カメラ縮小時に的が小さくなり反応しなくなる欠陥を防ぐため、
+ * 3DのRaycasterを廃止し、2D画面上のピクセル距離で判定する「ファッツィー・ターゲティング」を実装。
+ * これにより「孤立時は広範囲で吸い付き、密集時は最も近いものを確実に拾う」最高峰の操作性を実現。
  */
 
 import { CONFIG } from './Config.js';
@@ -59,8 +57,6 @@ export class GameManager {
             }
         };
 
-        this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
         this.selectedHitMesh = null;
@@ -85,7 +81,6 @@ export class GameManager {
 
     initThree() {
         this.scene = new THREE.Scene();
-        // 宇宙のモヤ(Fog)は撤廃済み
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         
@@ -172,17 +167,46 @@ export class GameManager {
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
 
-        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        this.raycaster.setFromCamera(this.mouse, this.camera);
-        
-        const intersects = this.raycaster.intersectObjects(this.airportManager.markers);
+        // ★修正: 3Dのレイキャストを廃止し、2D画面上のピクセル距離判定へ変更
+        const tapX = event.clientX;
+        const tapY = event.clientY;
+        const widthHalf = window.innerWidth / 2;
+        const heightHalf = window.innerHeight / 2;
 
+        // 画面サイズの約8% (指の太さに近いピクセル数) をタップの許容範囲とする (最低60px保証)
+        const maxDist = Math.max(60, Math.min(window.innerWidth, window.innerHeight) * 0.08);
+        
         let bestHit = null;
-        if (intersects.length > 0) {
-            // 吸い込みを排除し、純粋に「一番指に近かったもの(先頭要素)」を素直に選択
-            bestHit = intersects[0].object;
-        }
+        let minDistance = maxDist;
+
+        this.airportManager.markers.forEach(hitMesh => {
+            const pos = new THREE.Vector3();
+            hitMesh.getWorldPosition(pos);
+
+            // 地球の裏側判定 (バックフェイスカリング)
+            // カメラからマーカーへのベクトルと、マーカーでの地球の法線ベクトルの内積で判定
+            const cameraToMarker = this.camera.position.clone().sub(pos);
+            const normal = pos.clone().normalize();
+            if (cameraToMarker.dot(normal) < 0) return; // 裏側を向いているため除外
+
+            // 3D座標を2Dスクリーン座標(NDC)に投影
+            const proj = pos.clone().project(this.camera);
+
+            // NDC (-1 ~ 1) から 画面上のピクセル座標へ変換
+            const screenX = (proj.x * widthHalf) + widthHalf;
+            const screenY = -(proj.y * heightHalf) + heightHalf;
+
+            // タップ位置とのピクセル距離を計算
+            const dx = tapX - screenX;
+            const dy = tapY - screenY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // 許容範囲内の中で、最も近いものを選択する（密集時の誤タップ防止と孤立時の救済を両立）
+            if (dist < minDistance) {
+                minDistance = dist;
+                bestHit = hitMesh;
+            }
+        });
 
         if (this.state === STATE_IDLE) {
             if (bestHit) {
