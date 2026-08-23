@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路の色の復元】
- * 履歴86に基づき、過剰だった加算合成（AdditiveBlending）を破棄し、
- * 元の美しい青色（0x3b82f6）と自然な合成方法（通常合成）へ回帰しました。
+ * 【二重ロードによる起動フリーズの完全修復】
+ * 履歴95に基づき、システムをクラッシュさせていた先頭の
+ * `import * as THREE...` を完全に削除しました。
+ * (空路は元の美しい青色(0x3b82f6)と自然な通常合成を維持しています)
  */
 
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
 
@@ -64,7 +64,7 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // ★修正: 元の美しかった青色と通常合成への回帰
+        // 元の美しかった青色と通常合成
         const material = new THREE.LineBasicMaterial({ 
             color: 0x3b82f6,  // 元の美しいブルー
             transparent: true, 
