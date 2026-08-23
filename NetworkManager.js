@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路の発光美観チューニング (Phase 1)】
- * 履歴85に基づき、空路(THREE.Line)のマテリアルに加算合成(AdditiveBlending)と
- * depthWrite:falseを追加しました。これにより路線が密集・交差する箇所で
- * 光ファイバーのように眩しく白く発光するサイバーな美しさを実現しています。
+ * 【空路の色の復元】
+ * 履歴86に基づき、過剰だった加算合成（AdditiveBlending）を破棄し、
+ * 元の美しい青色（0x3b82f6）と自然な合成方法（通常合成）へ回帰しました。
  */
 
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
@@ -65,13 +64,11 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // ★加算合成と深度無視による発光ネットワーク表現
+        // ★修正: 元の美しかった青色と通常合成への回帰
         const material = new THREE.LineBasicMaterial({ 
-            color: 0x22d3ee,  
+            color: 0x3b82f6,  // 元の美しいブルー
             transparent: true, 
-            opacity: 0.6, // 重なって白飛びしすぎないようにやや下げる
-            blending: THREE.AdditiveBlending, // 加算合成（重なると明るくなる）
-            depthWrite: false                 // 深度バッファに書き込まない（線の重なり描画破綻を防ぐ）
+            opacity: 0.6
         });
         
         const line = new THREE.Line(geometry, material);

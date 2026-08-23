@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D Globe Simulation Core</title>
 
-    <!-- OSD Console (負荷なし・非表示モード) -->
     <style>
         #osd-console {
             position: fixed; top: 0; left: 0; width: 100%; height: 35%;
@@ -33,7 +32,6 @@
         window.logToOSD = logToOSD;
     </script>
 
-    <!-- Dictionary -->
     <script>
         window.APP_LANG = {
             toastNoRoute: "先にルートを開通してください",
@@ -62,14 +60,21 @@
         #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
         .interactive-ui { pointer-events: auto; touch-action: manipulation; }
         
+        /* ★修正：UIの常時見切れバグを解消。opacityとpointer-eventsで確実に無効化する★ */
         .bottom-sheet { 
-            transform: translateY(150%); 
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            transform: translateY(200px); 
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
             bottom: 80px !important; 
         }
-        .bottom-sheet.show { transform: translateY(0); }
-        .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
+        .bottom-sheet.show { 
+            transform: translateY(0); 
+            opacity: 1;
+            pointer-events: auto;
+        }
         
+        .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
         #fab-buy-plane { bottom: calc(2rem + 80px) !important; }
     </style>
 </head>
@@ -89,9 +94,9 @@
 
     <div id="ui-layer" class="pb-8 px-4 relative overflow-hidden">
         
-        <!-- ★新規追加：タップ阻害を防ぐ、コンパクトな接続モードUI★ -->
         <div id="connecting-mode-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-full py-2 px-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 w-fit mx-auto absolute left-0 right-0 flex items-center justify-between space-x-4">
-            <p class="text-xs text-yellow-400 font-bold animate-pulse">行き先の空港をタップ...</p>
+            <!-- ★修正：言葉の意味が伝わる範囲で短縮 ★ -->
+            <p class="text-xs text-yellow-400 font-bold animate-pulse">行先の空港をタップ...</p>
             <button id="btn-cancel-connect" class="px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold active:bg-slate-700">キャンセル</button>
         </div>
 
@@ -126,6 +131,8 @@
             <button id="btn-connect" class="w-full py-3 rounded-xl bg-cyan-600 text-white font-bold active:bg-cyan-500 shadow-lg shadow-cyan-900/50 transition-colors">
                 Connect
             </button>
+            <!-- ★修正：念のためこちらの非表示テキストも短縮★ -->
+            <p id="connect-hint" class="hidden text-center text-xs text-yellow-400 mt-2 font-bold animate-pulse">行先の空港をタップ...</p>
         </div>
 
         <button id="fab-buy-plane" class="interactive-ui absolute right-6 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 transition-transform z-20">
