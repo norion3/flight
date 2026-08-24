@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【安全マージンをとった航続距離の制限】
- * 履歴161に基づき、Utils をインポートし、空路開拓時に「2点間の3D直線距離」を測定する
- * ロジックを追加しました。
- * 距離が地球儀半径の1.25倍を超える場合、地中貫通バグを防ぎ、かつハブ空港の構築を促すため、
- * 開拓をブロックして「航続距離を超えています」という警告を表示させます。
+ * 【連続開拓・廃止UXの実装】
+ * 履歴177に基づき、添付の正しいコードをベースとして、
+ * 空路のアクション確定後に this.resetState() でメッセージを強制終了させず、
+ * 繋がっているか否かに応じて開拓・廃止ボタンを相互に切り替え、
+ * 次々と他の空港を選択して連続で操作できるように修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -14,7 +14,7 @@ import { AirportManager } from './AirportManager.js';
 import { UIManager } from './UIManager.js';
 import { NetworkManager } from './NetworkManager.js';
 import { PlaneManager } from './PlaneManager.js';
-import { Utils } from './Utils.js'; // ★追加: 距離測定のためインポート
+import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
 const STATE_CONNECTING = 1;
@@ -37,6 +37,7 @@ export class GameManager {
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
+            this.selectedOrigin = this.selectedHitMesh; // 起点を保存
             this.airportManager.highlightMarker(this.selectedHitMesh);
             this.uiManager.setConnectingMode();
         };
@@ -53,12 +54,22 @@ export class GameManager {
                 if (actionType === 'add') {
                     this.networkManager.addRoute(originData, destData);
                     this.planeManager.wakeUpPlanes();
+                    // ★修正: 追加成功後はメッセージを閉じず「廃止」モードへ切り替える
+                    this.uiManager.showRouteConfirm(originData, destData, true);
                 } else if (actionType === 'remove') {
                     this.networkManager.removeRoute(originData, destData);
                     this.planeManager.checkAndReassignPlanes();
+                    // ★修正: 削除成功後はメッセージを閉じず「開拓」モードへ切り替える（接続可能なら）
+                    if (this.networkManager.canConnect(originData, destData)) {
+                        this.uiManager.showRouteConfirm(originData, destData, false);
+                    } else {
+                        this.uiManager.showToast(window.APP_LANG.toastLimit);
+                        this.selectedDestination = null;
+                        this.uiManager.setConnectingMode();
+                    }
                 }
             }
-            this.resetState();
+            // ★修正: this.resetState() の自動呼び出しを削除（カードを維持する）
         };
 
         this.uiManager.onBuyPlane = (type) => {
@@ -225,8 +236,14 @@ export class GameManager {
                 this.resetState();
             }
         } else if (this.state === STATE_CONNECTING) {
-            if (bestHit && bestHit !== this.selectedHitMesh) {
-                this.selectedOrigin = this.selectedHitMesh;
+            if (bestHit) {
+                // 起点空港自体を再タップした場合は何もしない（画面を維持）
+                if (bestHit === this.selectedOrigin) return;
+
+                // 起点を固定したまま、新しい行先をタップして選択
+                if (!this.selectedOrigin) {
+                    this.selectedOrigin = this.selectedHitMesh;
+                }
                 this.selectedDestination = bestHit;
                 
                 const originData = this.selectedOrigin.userData.airportData;
@@ -238,25 +255,26 @@ export class GameManager {
                     this.airportManager.highlightMarker(this.selectedDestination);
                     this.uiManager.showRouteConfirm(originData, destData, true); 
                 } else {
-                    // ★追加: 黄金の航続距離制限ロジック（安全マージン 1.25倍）
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
                     const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
                     const distance = posA.distanceTo(posB);
                     const maxDistance = CONFIG.GLOBE_RADIUS * 1.25;
 
                     if (distance > maxDistance) {
-                        // 制限距離オーバー時は弾く
                         this.uiManager.showToast(window.APP_LANG.toastOverDistance);
-                        this.resetState();
+                        this.selectedDestination = null;
+                        this.uiManager.setConnectingMode();
                     } else if (this.networkManager.canConnect(originData, destData)) {
                         this.airportManager.highlightMarker(this.selectedDestination);
                         this.uiManager.showRouteConfirm(originData, destData, false); 
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
-                        this.resetState();
+                        this.selectedDestination = null;
+                        this.uiManager.setConnectingMode();
                     }
                 }
             } else {
+                // 海などの何もない空間をタップした時のみリセット（終了）
                 this.resetState();
             }
         }

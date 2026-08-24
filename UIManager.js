@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ボタン色彩の適正化】
- * 履歴146に基づき、接続上限時におけるボタンの色をグレー(slate)から
- * 通常の青色(cyan)に戻しました。
- * 押せるボタンである以上、色を変えないことが最も自然で直感的なUIとなります。
+ * 【ボタン色彩の適正化および連続操作対応】
+ * 履歴177に基づき、添付の正しいコードをベースとして、
+ * 連続開拓・廃止時にカードを自動的に閉じないよう btn-action-route の自己閉鎖処理のみを削除しました。
  */
 export class UIManager {
     constructor() {
@@ -42,9 +41,7 @@ export class UIManager {
 
         document.getElementById('btn-action-route').addEventListener('click', () => {
             if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
-            this.hideRouteConfirm();
-            this.connectingCard.classList.remove('show');
-            this.fabBuy.style.transform = 'scale(1)'; 
+            // ★修正: 連続操作（お絵かき）を可能にするため、ここでの自動クローズ処理（hideRouteConfirm等）を削除
         });
 
         this.fabBuy.addEventListener('click', () => {
@@ -105,8 +102,6 @@ export class UIManager {
         const btnConnect = document.getElementById('btn-connect');
         btnConnect.classList.remove('hidden');
         
-        // ★修正: 上限時でも「押せるボタン」であることを視覚的に保証するため、
-        // 常に通常のアクティブカラー（cyan-600）に統一する。
         btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50';
 
         if(currentConnections >= maxConnections) {
