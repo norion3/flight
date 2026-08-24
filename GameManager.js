@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【安全マージンをとった航続距離の制限】
- * 履歴161に基づき、Utils をインポートし、空路開拓時に「2点間の3D直線距離」を測定する
- * ロジックを追加しました。
- * 距離が地球儀半径の1.25倍を超える場合、地中貫通バグを防ぎ、かつハブ空港の構築を促すため、
- * 開拓をブロックして「航続距離を超えています」という警告を表示させます。
+ * 【シームレス連続操作UXの実現】
+ * 履歴172に基づき、開拓・廃止ボタン押下後の `resetState()` 強制終了を削除しました。
+ * 起点（selectedOrigin）を維持したまま、開拓後は「廃止」に、廃止後は「開拓」に
+ * UIを瞬時に切り替え、次々と別の空港をタップして連続操作できるお絵かきUXを実装しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -14,7 +13,7 @@ import { AirportManager } from './AirportManager.js';
 import { UIManager } from './UIManager.js';
 import { NetworkManager } from './NetworkManager.js';
 import { PlaneManager } from './PlaneManager.js';
-import { Utils } from './Utils.js'; // ★追加: 距離測定のためインポート
+import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
 const STATE_CONNECTING = 1;
@@ -37,7 +36,9 @@ export class GameManager {
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
-            this.airportManager.highlightMarker(this.selectedHitMesh);
+            // ★修正: 起点を明確に保存し、連続操作中の基準点とする
+            this.selectedOrigin = this.selectedHitMesh; 
+            this.airportManager.highlightMarker(this.selectedOrigin);
             this.uiManager.setConnectingMode();
         };
 
@@ -53,12 +54,23 @@ export class GameManager {
                 if (actionType === 'add') {
                     this.networkManager.addRoute(originData, destData);
                     this.planeManager.wakeUpPlanes();
+                    // ★修正: リセットせず、即座に「廃止」モードへUIを切り替える（連続操作）
+                    this.uiManager.showRouteConfirm(originData, destData, true);
                 } else if (actionType === 'remove') {
                     this.networkManager.removeRoute(originData, destData);
                     this.planeManager.checkAndReassignPlanes();
+                    // ★修正: リセットせず、即座に「開拓」モードへUIを切り替える（接続上限を考慮）
+                    if (this.networkManager.canConnect(originData, destData)) {
+                        this.uiManager.showRouteConfirm(originData, destData, false);
+                    } else {
+                        this.uiManager.showToast(window.APP_LANG.toastLimit);
+                        this.selectedDestination = null;
+                        this.uiManager.setConnectingMode();
+                        this.airportManager.highlightMarker(this.selectedOrigin);
+                    }
                 }
             }
-            this.resetState();
+            // ★修正: this.resetState(); を削除し、UIを閉じさせない
         };
 
         this.uiManager.onBuyPlane = (type) => {
@@ -225,8 +237,11 @@ export class GameManager {
                 this.resetState();
             }
         } else if (this.state === STATE_CONNECTING) {
-            if (bestHit && bestHit !== this.selectedHitMesh) {
-                this.selectedOrigin = this.selectedHitMesh;
+            if (bestHit) {
+                // 起点自身をタップした場合は無視する（キャンセルさせない）
+                if (bestHit === this.selectedOrigin) return;
+
+                // ★修正: ターゲットを切り替え、状態を維持したまま判定を行う（連続タップ対応）
                 this.selectedDestination = bestHit;
                 
                 const originData = this.selectedOrigin.userData.airportData;
@@ -235,28 +250,35 @@ export class GameManager {
                 const isConnected = this.networkManager.isConnected(originData.id, destData.id);
 
                 if (isConnected) {
+                    // 繋がっていれば廃止モードのUIを呼び出す
                     this.airportManager.highlightMarker(this.selectedDestination);
                     this.uiManager.showRouteConfirm(originData, destData, true); 
                 } else {
-                    // ★追加: 黄金の航続距離制限ロジック（安全マージン 1.25倍）
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
                     const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
                     const distance = posA.distanceTo(posB);
                     const maxDistance = CONFIG.GLOBE_RADIUS * 1.25;
 
                     if (distance > maxDistance) {
-                        // 制限距離オーバー時は弾く
                         this.uiManager.showToast(window.APP_LANG.toastOverDistance);
-                        this.resetState();
+                        // 遠すぎる場合は弾くが、モードは継続し別のターゲットを選べるようにする
+                        this.selectedDestination = null;
+                        this.uiManager.setConnectingMode();
+                        this.airportManager.highlightMarker(this.selectedOrigin);
                     } else if (this.networkManager.canConnect(originData, destData)) {
+                        // 繋がっていなくて接続可能なら開拓モードのUIを呼び出す
                         this.airportManager.highlightMarker(this.selectedDestination);
                         this.uiManager.showRouteConfirm(originData, destData, false); 
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
-                        this.resetState();
+                        // 接続上限の場合も弾くが、モードは継続する
+                        this.selectedDestination = null;
+                        this.uiManager.setConnectingMode();
+                        this.airportManager.highlightMarker(this.selectedOrigin);
                     }
                 }
             } else {
+                // 何もない海などをタップした場合は、連続操作を終了する
                 this.resetState();
             }
         }
