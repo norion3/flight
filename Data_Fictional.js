@@ -3,6 +3,9 @@
  * 太平洋、大西洋、インド洋など、実在の空港が少ない地域を補完するためのダミーノード。
  * ※履歴113に基づき、洋上のメガフロート基地に加え、
  * アマゾン、サハラ、シベリア等の「大陸内陸部」の架空空港を復旧・追加しました。
+ * * ※履歴167に基づき、過去の114個の財産を完全に保護した上で、
+ * 航続距離制限をカバーするための新たな情報（南極、スバールバル、マダガスカル等）を
+ * F115〜F119として末尾に正しく追加しました。
  */
 export const fictionalNodes = [
     { id: 'F001', name: 'Pacific Hub Alpha', type: 'fictional', lat: 20.0, lon: 170.0, country: 'Pacific Ocean' },
@@ -122,7 +125,12 @@ export const fictionalNodes = [
     { id: 'F111', name: 'Outback Center Hub', type: 'fictional', lat: -25.0, lon: 135.0, country: 'Australia Inland' },
     { id: 'F112', name: 'Great Victoria Base', type: 'fictional', lat: -29.0, lon: 128.0, country: 'Australia Inland' },
     { id: 'F113', name: 'Greenland Ice Relay', type: 'fictional', lat: 75.0, lon: -40.0, country: 'Greenland Inland' },
-    { id: 'F114', name: 'Rocky Mountain Hub', type: 'fictional', lat: 43.0, lon: -110.0, country: 'North America Inland' }
+    { id: 'F114', name: 'Rocky Mountain Hub', type: 'fictional', lat: 43.0, lon: -110.0, country: 'North America Inland' },
+
+    // --- 新規追加情報（履歴167: 極地、マダガスカル、アフリカ南端等のさらなる戦略的補完） ---
+    { id: 'F115', name: 'Madagascar East Relay', type: 'fictional', lat: -18.9, lon: 47.5, country: 'Madagascar' },
+    { id: 'F116', name: 'Cape South Base', type: 'fictional', lat: -33.9, lon: 18.4, country: 'South Africa' },
+    { id: 'F117', name: 'Svalbard Arctic Base', type: 'fictional', lat: 78.2, lon: 15.6, country: 'Norway' },
+    { id: 'F118', name: 'Antarctica South Pole Base', type: 'fictional', lat: -85.0, lon: 0.0, country: 'Antarctica' },
+    { id: 'F119', name: 'McMurdo Relay Station', type: 'fictional', lat: -77.8, lon: 166.6, country: 'Antarctica' }
 ];
-
-
