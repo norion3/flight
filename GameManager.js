@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【安全な最適化B：一時変数の再利用によるGCゴミ削減】
- * 履歴183に基づき、handleTap内での new THREE.Vector3() の大量生成を排除しました。
- * constructorで用意した一時変数（_tempPos等）を .copy() で使い回すことで、
- * ブラウザのガベージコレクションによる画面のカクつきを完全に防止しています。
+ * 【連続開拓・廃止UXの実装】
+ * 履歴177に基づき、添付の正しいコードをベースとして、
+ * 空路のアクション確定後に this.resetState() でメッセージを強制終了させず、
+ * 繋がっているか否かに応じて開拓・廃止ボタンを相互に切り替え、
+ * 次々と他の空港を選択して連続で操作できるように修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,12 +27,6 @@ export class GameManager {
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
 
-        // ★最適化B: 計算用の一時変数を事前確保し、ループ内でのGCゴミ発生を防ぐ
-        this._tempPos = new THREE.Vector3();
-        this._tempCamPos = new THREE.Vector3();
-        this._tempNormal = new THREE.Vector3();
-        this._tempCameraToMarker = new THREE.Vector3();
-
         this.initThree();
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
@@ -42,7 +37,7 @@ export class GameManager {
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
-            this.selectedOrigin = this.selectedHitMesh;
+            this.selectedOrigin = this.selectedHitMesh; // 起点を保存
             this.airportManager.highlightMarker(this.selectedHitMesh);
             this.uiManager.setConnectingMode();
         };
@@ -59,10 +54,12 @@ export class GameManager {
                 if (actionType === 'add') {
                     this.networkManager.addRoute(originData, destData);
                     this.planeManager.wakeUpPlanes();
+                    // ★修正: 追加成功後はメッセージを閉じず「廃止」モードへ切り替える
                     this.uiManager.showRouteConfirm(originData, destData, true);
                 } else if (actionType === 'remove') {
                     this.networkManager.removeRoute(originData, destData);
                     this.planeManager.checkAndReassignPlanes();
+                    // ★修正: 削除成功後はメッセージを閉じず「開拓」モードへ切り替える（接続可能なら）
                     if (this.networkManager.canConnect(originData, destData)) {
                         this.uiManager.showRouteConfirm(originData, destData, false);
                     } else {
@@ -72,6 +69,7 @@ export class GameManager {
                     }
                 }
             }
+            // ★修正: this.resetState() の自動呼び出しを削除（カードを維持する）
         };
 
         this.uiManager.onBuyPlane = (type) => {
@@ -195,26 +193,21 @@ export class GameManager {
         const tapY = event.clientY;
         const widthHalf = window.innerWidth / 2;
         const heightHalf = window.innerHeight / 2;
+
         const maxDist = 45; 
         
         let bestHit = null;
         let minDistance = maxDist;
 
-        // ★最適化B: カメラ座標を一時変数にキャッシュ
-        this._tempCamPos.copy(this.camera.position);
-
         this.airportManager.markers.forEach(hitMesh => {
-            // ★最適化B: 一時変数を使い回して new の発生をゼロにする
-            hitMesh.getWorldPosition(this._tempPos);
+            const pos = new THREE.Vector3();
+            hitMesh.getWorldPosition(pos);
 
-            this._tempCameraToMarker.copy(this._tempCamPos).sub(this._tempPos);
-            this._tempNormal.copy(this._tempPos).normalize();
-            
-            if (this._tempCameraToMarker.dot(this._tempNormal) < 0) return; 
+            const cameraToMarker = this.camera.position.clone().sub(pos);
+            const normal = pos.clone().normalize();
+            if (cameraToMarker.dot(normal) < 0) return; 
 
-            // projectはインスタンス自身を変更するため、もう一度コピーしてから利用する
-            this._tempNormal.copy(this._tempPos).project(this.camera);
-            const proj = this._tempNormal;
+            const proj = pos.clone().project(this.camera);
 
             const screenX = (proj.x * widthHalf) + widthHalf;
             const screenY = -(proj.y * heightHalf) + heightHalf;
@@ -244,8 +237,10 @@ export class GameManager {
             }
         } else if (this.state === STATE_CONNECTING) {
             if (bestHit) {
+                // 起点空港自体を再タップした場合は何もしない（画面を維持）
                 if (bestHit === this.selectedOrigin) return;
 
+                // 起点を固定したまま、新しい行先をタップして選択
                 if (!this.selectedOrigin) {
                     this.selectedOrigin = this.selectedHitMesh;
                 }
@@ -279,6 +274,7 @@ export class GameManager {
                     }
                 }
             } else {
+                // 海などの何もない空間をタップした時のみリセット（終了）
                 this.resetState();
             }
         }
