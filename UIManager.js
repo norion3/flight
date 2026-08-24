@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路廃止の動的UI実装】
- * 履歴141に基づき、開拓モード中に「未接続」なら開拓ポップアップを、
- * 「接続済み」なら赤色の廃止ポップアップを出し分ける showRouteConfirm を改修しました。
- * 画面を汚さずに直感的な操作感を実現しています。
+ * 【デッドロックの完全解消】
+ * 履歴143に基づき、showAirportInfo におけるボタンの `pointer-events-none`（無効化）を撤廃しました。
+ * 接続上限時もボタンをアクティブなままにし、色と文言（空路を整理する）を変更することで、
+ * ユーザーが直感的に廃止モードへ入れるように導線を修正しています。
  */
 export class UIManager {
     constructor() {
@@ -16,7 +16,7 @@ export class UIManager {
         this.toastTimeout = null;
 
         this.onConnectRequested = null;
-        this.onRouteActionConfirmed = null; // ★追加: 開拓と廃止を統合処理
+        this.onRouteActionConfirmed = null; 
         this.onRouteCanceled = null;
         this.onBuyPlane = null;
         
@@ -40,7 +40,6 @@ export class UIManager {
         document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
         document.getElementById('btn-cancel-connect').addEventListener('click', cancelRoute);
 
-        // ★修正: 開拓と廃止のアクションを動的に処理する
         document.getElementById('btn-action-route').addEventListener('click', () => {
             if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
             this.hideRouteConfirm();
@@ -106,11 +105,13 @@ export class UIManager {
         const btnConnect = document.getElementById('btn-connect');
         btnConnect.classList.remove('hidden');
         
+        // ★修正: 接続上限のデッドロック解消
+        // 上限時も pointer-events-none を付与せず、整理(廃止)モードの入り口としてボタンをアクティブに保つ
         if(currentConnections >= maxConnections) {
-            btnConnect.classList.add('opacity-50', 'pointer-events-none');
-            btnConnect.innerText = window.APP_LANG.btnLimit;
+            btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-slate-700 active:bg-slate-600 shadow-slate-900/50';
+            btnConnect.innerText = window.APP_LANG.btnLimitAction;
         } else {
-            btnConnect.classList.remove('opacity-50', 'pointer-events-none');
+            btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50';
             btnConnect.innerText = window.APP_LANG.btnConnect;
         }
 
@@ -124,7 +125,6 @@ export class UIManager {
         this.fabBuy.style.transform = 'scale(0)'; 
     }
 
-    // ★修正: 未接続なら「開拓」、接続済みなら「廃止」にUIを切り替える
     showRouteConfirm(fromData, toData, isConnected) {
         this.connectingCard.classList.remove('show');
         document.getElementById('route-from').innerText = fromData.id;
@@ -136,14 +136,12 @@ export class UIManager {
         this.currentRouteAction = isConnected ? 'remove' : 'add';
 
         if (isConnected) {
-            // 廃止モード（赤色）
             titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
             titleEl.className = "text-xs text-red-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
             btnAction.innerText = window.APP_LANG.btnRemoveRoute || "廃止する";
             btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50";
         } else {
-            // 開拓モード（黄色と青色）
             titleEl.innerText = window.APP_LANG.routeOpenTitle || "空路開拓";
             titleEl.className = "text-xs text-yellow-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute show";

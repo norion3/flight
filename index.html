@@ -54,7 +54,8 @@
             hubLocal: "地方空港",
             hubFictional: "中継基地",
             btnLimit: "接続上限です",
-            // ★修正: 文言をUIのブラッシュアップに基づき変更
+            // ★追加: デッドロックを解消し、空路を整理できることを伝える文言
+            btnLimitAction: "接続上限 (空路を整理する)",
             btnConnect: "空路を開拓・廃止する",
             routeOpenTitle: "空路開拓",
             routeRemoveTitle: "空路廃止",
@@ -126,7 +127,6 @@
         </div>
 
         <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-slate-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-slate-900/20 absolute">
-            <!-- ★修正: 動的UIとして文言と色を切り替えられるようIDを付与 -->
             <h3 id="route-action-title" class="text-xs font-bold tracking-wider mb-2">---</h3>
             <div class="flex justify-between items-center text-lg font-bold mb-4">
                 <span id="route-from" class="text-white">---</span>
@@ -157,7 +157,7 @@
                 <span class="text-slate-600">|</span>
                 <span class="text-xs text-slate-400">接続数: <span id="airport-conn" class="text-white font-bold">0/0</span></span>
             </div>
-            <button id="btn-connect" class="w-full py-3 rounded-xl bg-cyan-600 text-white font-bold active:bg-cyan-500 shadow-lg shadow-cyan-900/50 transition-colors">
+            <button id="btn-connect" class="w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors">
                 Connect
             </button>
         </div>
