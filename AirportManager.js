@@ -1,139 +1,133 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ダブル・ハイライト機能の分離】
- * 履歴174に基づき、既存の highlightMarker を廃止し、
- * highlightOrigin (起点・黄色) と highlightDestination (行先・シアン) に分離。
- * 連続開拓中に出発地を見失う迷子問題を解消し、お絵かきUXを視覚的に支援します。
+ * 【ハイライト機能の分離とバグ復旧】
+ * 履歴176に基づき、起動不能バグを修正しました。
+ * 1. 架空のメソッドを廃止し、3つのデータファイル（Major, Local, Fictional）から直接結合する元の設計に復旧。
+ * 2. Three.js r128 互換のため、removeFromParent() を使用せず parent.remove() に修正。
+ * 連続操作中に「起点（出発地）」を見失わないよう、ハイライトを独立管理しています。
  */
 
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
+// ★修正1: 正しいデータソースの直接インポート
+import { majorNodes } from './Data_Major.js';
+import { localNodes } from './Data_Local.js';
+import { fictionalNodes } from './Data_Fictional.js';
 
 export class AirportManager {
     constructor(scene, globeGroup) {
         this.scene = scene;
         this.globeGroup = globeGroup;
         this.markers = [];
+        this.airportMap = new Map();
         
-        // ★修正: 起点用と行先用の2つのリングを生成
-        this.highlightOriginRing = this.createHighlightRing(CONFIG.COLORS.HIGHLIGHT); // 黄色系 (起点)
-        this.highlightDestRing = this.createHighlightRing(0x00ffff); // シアン系 (行先)
-
-        this.globeGroup.add(this.highlightOriginRing);
-        this.globeGroup.add(this.highlightDestRing);
-    }
-
-    createHighlightRing(color) {
-        const geometry = new THREE.RingGeometry(1.2, 1.4, 32);
-        const material = new THREE.MeshBasicMaterial({
-            color: color,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.8,
-            depthTest: false
-        });
-        const ring = new THREE.Mesh(geometry, material);
-        ring.visible = false;
-        ring.renderOrder = 999;
-        return ring;
+        this.originHighlightMesh = null;
+        this.destHighlightMesh = null;
     }
 
     buildAirportMarkers() {
-        this.markers = [];
-        const allAirports = [
-            ...window.MAP_DATA.majors,
-            ...window.MAP_DATA.locals,
-            ...window.MAP_DATA.fictionals
-        ];
-
-        allAirports.forEach(airport => {
-            const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS);
-            
-            let color, radius;
-            if (airport.type === 'major') {
-                color = CONFIG.COLORS.MARKER_MAJOR;
-                radius = 0.4;
-            } else if (airport.type === 'local') {
-                color = CONFIG.COLORS.MARKER_LOCAL;
-                radius = 0.25;
-            } else {
-                color = CONFIG.COLORS.MARKER_FICTIONAL;
-                radius = 0.25;
-            }
-
-            const geometry = new THREE.CircleGeometry(radius, 32);
-            const material = new THREE.MeshBasicMaterial({
-                color: color,
+        const createMarker = (data, color, size) => {
+            const geometry = new THREE.CircleGeometry(size, 16);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: color, 
                 side: THREE.DoubleSide,
                 transparent: true,
                 opacity: 0.9,
-                depthWrite: false
+                depthTest: false
             });
-
             const mesh = new THREE.Mesh(geometry, material);
+            
+            const pos = Utils.latLonToVector3(data.lat, data.lon, CONFIG.GLOBE_RADIUS + 0.005);
             mesh.position.copy(pos);
             mesh.lookAt(new THREE.Vector3(0,0,0));
-            
-            const normal = pos.clone().normalize();
-            mesh.position.add(normal.multiplyScalar(0.02)); 
 
-            mesh.userData = { airportData: airport };
+            mesh.userData = { airportData: data };
             
             this.globeGroup.add(mesh);
             this.markers.push(mesh);
+            this.airportMap.set(data.id, data);
+        };
+
+        // ★修正1: 存在しない架空メソッドを廃止し、3つの配列を結合する正しい処理に復旧
+        const allAirports = [...majorNodes, ...localNodes, ...fictionalNodes];
+        
+        allAirports.forEach(data => {
+            let color = CONFIG.COLORS.MARKER_LOCAL;
+            let size = 0.015;
+            if (data.type === 'major') {
+                color = CONFIG.COLORS.MARKER_MAJOR;
+                size = 0.025;
+            } else if (data.type === 'fictional') {
+                color = CONFIG.COLORS.MARKER_FICTIONAL;
+                size = 0.012;
+            }
+            createMarker(data, color, size);
         });
     }
 
-    // 後方互換・単一選択用
-    highlightMarker(mesh) {
-        this.highlightOrigin(mesh);
+    getAirportById(id) {
+        return this.airportMap.get(id);
+    }
+
+    highlightOrigin(mesh) {
+        if (this.originHighlightMesh) {
+            // ★修正2: r128互換の安全なオブジェクト削除方法
+            if (this.originHighlightMesh.parent) {
+                this.originHighlightMesh.parent.remove(this.originHighlightMesh);
+            }
+            this.originHighlightMesh.geometry.dispose();
+            this.originHighlightMesh.material.dispose();
+            this.originHighlightMesh = null;
+        }
+        if (mesh) {
+            const geo = new THREE.RingGeometry(0.04, 0.05, 32);
+            const mat = new THREE.MeshBasicMaterial({ 
+                color: 0xffd700, // 黄金色
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.9,
+                depthTest: false
+            });
+            this.originHighlightMesh = new THREE.Mesh(geo, mat);
+            mesh.add(this.originHighlightMesh);
+        }
+    }
+
+    highlightDestination(mesh) {
+        if (this.destHighlightMesh) {
+            // ★修正2: r128互換の安全なオブジェクト削除方法
+            if (this.destHighlightMesh.parent) {
+                this.destHighlightMesh.parent.remove(this.destHighlightMesh);
+            }
+            this.destHighlightMesh.geometry.dispose();
+            this.destHighlightMesh.material.dispose();
+            this.destHighlightMesh = null;
+        }
+        if (mesh) {
+            const geo = new THREE.RingGeometry(0.03, 0.04, 32);
+            const mat = new THREE.MeshBasicMaterial({ 
+                color: 0x00ffff, // シアン
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.8,
+                depthTest: false
+            });
+            this.destHighlightMesh = new THREE.Mesh(geo, mat);
+            mesh.add(this.destHighlightMesh);
+        }
+    }
+
+    clearHighlights() {
+        this.highlightOrigin(null);
         this.highlightDestination(null);
     }
 
-    // ★追加: 起点専用のハイライト
-    highlightOrigin(mesh) {
-        if (!mesh) {
-            this.highlightOriginRing.visible = false;
-            return;
-        }
-        mesh.getWorldPosition(this.highlightOriginRing.position);
-        this.highlightOriginRing.quaternion.copy(mesh.quaternion);
-        const normal = this.highlightOriginRing.position.clone().normalize();
-        this.highlightOriginRing.position.add(normal.multiplyScalar(0.01));
-        this.highlightOriginRing.visible = true;
-    }
-
-    // ★追加: 行先専用のハイライト
-    highlightDestination(mesh) {
-        if (!mesh) {
-            this.highlightDestRing.visible = false;
-            return;
-        }
-        mesh.getWorldPosition(this.highlightDestRing.position);
-        this.highlightDestRing.quaternion.copy(mesh.quaternion);
-        const normal = this.highlightDestRing.position.clone().normalize();
-        this.highlightDestRing.position.add(normal.multiplyScalar(0.01));
-        this.highlightDestRing.visible = true;
-    }
-
     updateMarkerScale(camera) {
-        const dist = camera.position.length();
-        let scale = 1.0;
-        
-        if (dist > 15) {
-            scale = 1.0 + (dist - 15) * 0.05;
-        }
-
-        this.markers.forEach(marker => {
-            marker.scale.set(scale, scale, 1);
+        const camPos = camera.position;
+        this.markers.forEach(mesh => {
+            const dist = camPos.distanceTo(mesh.position);
+            const scale = Math.max(0.5, Math.min(2.5, dist / 10));
+            mesh.scale.set(scale, scale, scale);
         });
-
-        // ハイライトリングもカメラ距離に応じてスケールさせる
-        if (this.highlightOriginRing.visible) {
-            this.highlightOriginRing.scale.set(scale, scale, 1);
-        }
-        if (this.highlightDestRing.visible) {
-            this.highlightDestRing.scale.set(scale, scale, 1);
-        }
     }
 }
