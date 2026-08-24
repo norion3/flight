@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【究極のタップ判定（状況適応型2Dスクリーン判定）と吸着バランス】
- * 履歴129に基づき、カメラ縮小時に的が小さくなり反応しなくなる欠陥を防ぐための
- * 2Dピクセル距離判定を維持しつつ、吸着の最大範囲を「約45ピクセル」に厳密化しました。
- * これにより「海をタップしたのに遠くの空港を吸い込む」キャンセル妨害が根絶され、
- * 孤立時の吸着とキャンセル操作が両立するベストバランスの操作感を実現しています。
+ * 【究極のタップ判定と、不要コードの完全払拭】
+ * 履歴133に基づき、2Dスクリーン判定への移行によって不要となった 
+ * this.raycaster および this.mouse の生成処理を完全に削除し、メモリを洗練化しました。
+ * 吸着範囲のベストバランス（45px）はそのまま維持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -58,8 +57,6 @@ export class GameManager {
             }
         };
 
-        this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
         this.selectedHitMesh = null;
@@ -175,7 +172,7 @@ export class GameManager {
         const widthHalf = window.innerWidth / 2;
         const heightHalf = window.innerHeight / 2;
 
-        // ★修正: 吸着範囲を人間の指の標準的なタップ領域（約45ピクセル）に厳格に制限。
+        // 吸着範囲を人間の指の標準的なタップ領域（約45ピクセル）に厳格に制限。
         // これにより、空地(海など)をタップした際に遠くの空港を無理やり吸い込むキャンセル妨害を根絶。
         const maxDist = 45; 
         
@@ -274,5 +271,3 @@ export class GameManager {
         this.loaderUI.querySelector('p').innerText = msg;
     }
 }
-
-

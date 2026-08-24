@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【空路の発光表現の美観最適化】
- * 履歴131に基づき、THREE.AdditiveBlending の白飛びを防ぐため opacity を 0.4 に引き下げました。
- * これにより線が2〜3本重なっただけでは潰れず、ハブ空港で密集するにつれて
- * ジワジワと眩い光の束になっていく「最高に美しい発光グラデーション」を実現しています。
+ * 履歴133に基づき、加算合成の透明度を下げすぎたことによる「単線の視認性低下」を解消。
+ * ベース色を少し濃いシアン（0x0ea5e9）にし、opacityを0.65に設定することで、
+ * 「1本でも美しく見え、重なると眩く光る」デザイン工学的なベストバランスを適用しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -64,11 +64,11 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // ★修正: AdditiveBlending(加算合成)の白飛びを防ぐため、opacityを0.4に抑制。美しい発光グラデーションを実現。
+        // ★修正: 色を濃いシアンにし、透明度を0.65にすることで、単線時の視認性と交差時の発光を両立。
         const material = new THREE.LineBasicMaterial({ 
-            color: 0x38bdf8,
+            color: 0x0ea5e9, 
             transparent: true, 
-            opacity: 0.4, // 重なるほど白く光るため、ベースは低めが美しい
+            opacity: 0.65, 
             blending: THREE.AdditiveBlending 
         });
         
@@ -100,5 +100,3 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 }
-
-

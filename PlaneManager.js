@@ -1,12 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【Zファイティング完全解消と動的スケールの統一】
- * 履歴131に基づき、カメラ縮小時の飛行機の最大拡大率を 2.5 から 1.8 に引き下げました。
- * これにより、空港マーカーの拡大率と完全に同調し、飛行機だけが異常に巨大化する
- * バランス崩壊を防ぎ、洗練された箱庭感を実現しています。
+ * 履歴133に基づき、冒頭に誤って混入していた不要な import * as THREE を削除しました。
+ * （これによりブラウザフリーズの原因となるThree.jsの二重ロードを完全に防止しています）
+ * カメラ縮小時の飛行機の最大拡大率を 1.8 に保ち、マーカーとのバランスを統一しています。
  */
-
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
 export class PlaneManager {
     constructor(scene, globeGroup, networkManager) {
@@ -96,7 +94,7 @@ export class PlaneManager {
             const distance = camera.position.distanceTo(pos);
             
             let baseScale = distance / 10;
-            // ★修正: 空港マーカーのスケール上限(1.8)と統一し、飛行機だけが巨大化する野暮ったさを防ぐ
+            // 空港マーカーのスケール上限(1.8)と統一し、飛行機だけが巨大化する野暮ったさを防ぐ
             baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
             
             const finalScale = plane.originalScale * baseScale;
@@ -144,5 +142,3 @@ export class PlaneManager {
         }
     }
 }
-
-
