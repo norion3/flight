@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【のんびりライバルAIの実装】
- * 履歴196に基づき新規追加。各社が独立して正確に1分(60秒)間隔で行動します。
- * また、接続先を探す際に「起点から直線距離が最も近い空港」から順に評価し、
- * 自然に広がっていくリアルなネットワーク構築を行います。
+ * 【有機的なネットワーク発展と、停滞バグの完全防止】
+ * 履歴199に基づき、ライバルAIを極めて賢く美しいアルゴリズムに昇華させました。
+ * 1. 行動の空振りを防ぐため、起点を選ぶ際は「まだ接続上限に達していない空港」のみをフィルタリングします。
+ * 2. 接続先を探す際は、絶対的な最短距離ではなく「距離が近い上位4つの候補の中からランダムに選ぶ」ことで、
+ * プレイするたびに毎回違う、美しく有機的なクモの巣状の発展を遂げるようにしています。
  */
 
 import { CONFIG } from './Config.js';
@@ -70,7 +71,19 @@ export class RivalManager {
 
     performAction(companyId) {
         const net = this.networkManager.network[companyId];
-        const connectedIds = Object.keys(net).filter(id => net[id].length > 0);
+        
+        // ★修正（空振り防止）:
+        // 繋がっている空港のうち、「まだ接続上限(MAX)に達していない空港」だけをリストアップする
+        const connectedIds = Object.keys(net).filter(id => {
+            if (net[id].length === 0) return false;
+            const airportNode = this.airportManager.getAirportById(id);
+            if (!airportNode) return false;
+            
+            const maxConns = this.networkManager.MAX_CONNECTIONS[airportNode.type];
+            return net[id].length < maxConns; // 上限未満の空港だけを残す
+        });
+
+        // どこからも線を引けない場合は行動パス（ただし空振り防止策により基本発生しない）
         if (connectedIds.length === 0) return;
 
         // 70%の確率で空路開拓、30%の確率で飛行機購入
@@ -87,29 +100,43 @@ export class RivalManager {
     }
 
     expandNetwork(companyId, originNode) {
-        const candidates = this.airportManager.markers.map(m => m.userData.airportData);
+        const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
-        // ★距離順ソート: 最も近い空港から優先して繋ぐ
-        candidates.sort((a, b) => {
+        // ★修正（安全確実な候補選定）: 
+        // 接続可能な空港（距離制限内、未接続、上限未到達）だけを先に絞り込む
+        const validCandidates = allCandidates.filter(destNode => {
+            if (originNode.id === destNode.id) return false;
+            if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) return false;
+            
+            // 航続距離の制限チェック（1.25倍）
+            const posDest = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);
+            if (posOrigin.distanceTo(posDest) > CONFIG.GLOBE_RADIUS * 1.25) return false;
+
+            // 接続上限のチェック
+            if (!this.networkManager.canConnect(originNode, destNode, companyId)) return false;
+            
+            return true;
+        });
+
+        // 繋げる先が一つもない場合は終了
+        if (validCandidates.length === 0) return;
+
+        // 距離順にソート（近い順）
+        validCandidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
             const posB = Utils.latLonToVector3(b.lat, b.lon, CONFIG.GLOBE_RADIUS);
             return posOrigin.distanceTo(posA) - posOrigin.distanceTo(posB);
         });
 
-        for (const destNode of candidates) {
-            if (originNode.id === destNode.id) continue;
-            if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) continue;
-            
-            // 航続距離の制限チェック（1.25倍）
-            const posDest = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);
-            if (posOrigin.distanceTo(posDest) > CONFIG.GLOBE_RADIUS * 1.25) continue;
+        // ★修正（有機的なアルゴリズムの導入）:
+        // 一番近い空港だけを絶対視せず、距離が近い「上位最大4つ」の中からランダムに選ぶ
+        // これにより、プレイするたびに毎回違う自然な（有機的な）ネットワークが形成される
+        const poolSize = Math.min(validCandidates.length, 4);
+        const selectedDest = validCandidates[Math.floor(Math.random() * poolSize)];
 
-            if (this.networkManager.canConnect(originNode, destNode, companyId)) {
-                this.networkManager.addRoute(originNode, destNode, companyId);
-                this.planeManager.wakeUpPlanes(companyId);
-                break;
-            }
-        }
+        // 確実に線を引いて飛行機を飛ばす
+        this.networkManager.addRoute(originNode, selectedDest, companyId);
+        this.planeManager.wakeUpPlanes(companyId);
     }
 }
