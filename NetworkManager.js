@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【接続上限の各社独立管理と、型不整合の完全吸収】
- * 履歴192に基づき、removeRoute メソッドの引数として「オブジェクト」が渡された場合でも
- * 「文字列（ID）」が渡された場合でも、安全に ID を抽出して処理を実行するフェイルセーフを追加しました。
- * これにより、GameManager 側を一切修正することなく、路線の削除（廃止）が確実に動作します。
+ * 【空路線の透け防止】
+ * 履歴193に基づき、LineBasicMaterial に設定されていた depthTest: false を削除し、
+ * 地球儀の裏側にある線が手前に透けて見えてしまう問題を解消しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -72,11 +71,12 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        
+        // ★修正: depthTest: false を削除し、地球の裏側から透けないように正しい奥行きを復元
         const material = new THREE.LineBasicMaterial({ 
             color: color, 
             transparent: true, 
-            opacity: 0.8,
-            depthTest: false 
+            opacity: 0.8
         });
 
         const line = new THREE.Line(geometry, material);
@@ -87,7 +87,6 @@ export class NetworkManager {
     }
 
     removeRoute(fromId, toId, companyId = 'player') {
-        // ★修正（安全弁）: 引数にオブジェクトが渡された場合、自動的にIDを抽出して空振りを防ぐ
         const fId = typeof fromId === 'object' ? fromId.id : fromId;
         const tId = typeof toId === 'object' ? toId.id : toId;
 
@@ -103,7 +102,6 @@ export class NetworkManager {
         this.routeGroup.children.forEach(child => {
             if (child.userData && child.userData.companyId === companyId) {
                 const u = child.userData;
-                // 安全に抽出したID（fId, tId）を使って比較する
                 if ((u.fromId === fId && u.toId === tId) || (u.fromId === tId && u.toId === fId)) {
                     linesToRemove.push(child);
                 }

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルの色分け対応とZファイティング対策】
- * 履歴191に基づき、各社ごとの色で飛行機を生成し、
- * NetworkManagerと同様の高度オフセットを持たせることで、
- * 他社の飛行機と重なった際のチラつきを防止しています。
+ * 【飛行機消失バグの修正と透け防止】
+ * 履歴193に基づき、updateループ内で ptIndex と nextIndex が同一になった際に
+ * lookAt が破綻してオブジェクトが消失(NaN)するバグを修正しました。
+ * また、depthTest: false を削除し、地球の裏側の飛行機が透けて見えないよう正しい奥行きを復元しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -36,10 +36,11 @@ export class PlaneManager {
             0.02, -0.02, 0
         ]);
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        
+        // ★修正: depthTest: false を削除し、地球の裏側から透けないようにする
         const material = new THREE.MeshBasicMaterial({ 
             color: color, 
-            side: THREE.DoubleSide,
-            depthTest: false
+            side: THREE.DoubleSide
         });
         
         const mesh = new THREE.Mesh(geometry, material);
@@ -111,8 +112,12 @@ export class PlaneManager {
                 
                 if (u.arcPoints[ptIndex] && u.arcPoints[nextIndex]) {
                     plane.position.copy(u.arcPoints[ptIndex]);
-                    plane.lookAt(u.arcPoints[nextIndex]);
-                    plane.rotateX(Math.PI / 2);
+                    
+                    // ★修正: 自分自身と同じ座標を向いて消失(NaN化)するバグを防止する安全弁
+                    if (ptIndex !== nextIndex) {
+                        plane.lookAt(u.arcPoints[nextIndex]);
+                        plane.rotateX(Math.PI / 2);
+                    }
                 }
             }
         });
