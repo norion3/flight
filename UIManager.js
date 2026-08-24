@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【デッドロックの完全解消】
- * 履歴143に基づき、showAirportInfo におけるボタンの `pointer-events-none`（無効化）を撤廃しました。
- * 接続上限時もボタンをアクティブなままにし、色と文言（空路を整理する）を変更することで、
- * ユーザーが直感的に廃止モードへ入れるように導線を修正しています。
+ * 【ボタン色彩の適正化】
+ * 履歴146に基づき、接続上限時におけるボタンの色をグレー(slate)から
+ * 通常の青色(cyan)に戻しました。
+ * 押せるボタンである以上、色を変えないことが最も自然で直感的なUIとなります。
  */
 export class UIManager {
     constructor() {
@@ -20,7 +20,7 @@ export class UIManager {
         this.onRouteCanceled = null;
         this.onBuyPlane = null;
         
-        this.currentRouteAction = null; // 'add' or 'remove'
+        this.currentRouteAction = null; 
 
         this._bindEvents();
     }
@@ -105,13 +105,13 @@ export class UIManager {
         const btnConnect = document.getElementById('btn-connect');
         btnConnect.classList.remove('hidden');
         
-        // ★修正: 接続上限のデッドロック解消
-        // 上限時も pointer-events-none を付与せず、整理(廃止)モードの入り口としてボタンをアクティブに保つ
+        // ★修正: 上限時でも「押せるボタン」であることを視覚的に保証するため、
+        // 常に通常のアクティブカラー（cyan-600）に統一する。
+        btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50';
+
         if(currentConnections >= maxConnections) {
-            btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-slate-700 active:bg-slate-600 shadow-slate-900/50';
             btnConnect.innerText = window.APP_LANG.btnLimitAction;
         } else {
-            btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50';
             btnConnect.innerText = window.APP_LANG.btnConnect;
         }
 
