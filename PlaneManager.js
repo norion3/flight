@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Zファイティング完全解消と動的スケールの統一】
- * 履歴133に基づき、冒頭に誤って混入していた不要な import * as THREE を削除しました。
- * （これによりブラウザフリーズの原因となるThree.jsの二重ロードを完全に防止しています）
- * カメラ縮小時の飛行機の最大拡大率を 1.8 に保ち、マーカーとのバランスを統一しています。
+ * 【Zファイティング解消・スケール統一とサイズ比率の最適化】
+ * 履歴136に基づき、小型機が小さすぎて視認性が悪い問題を解決するため、
+ * スケール値を全体的に底上げし、極端なサイズ差を圧縮しました。
+ * 最大倍率はマーカーと統一して1.8倍に抑えています。
  */
 
 export class PlaneManager {
@@ -62,12 +62,13 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
         if (!routeData) return false;
 
-        let scale = 0.06;
+        // ★修正: 小型機の視認性を担保するため、ベーススケールを底上げし比率差を圧縮
+        let scale = 0.08;
         let speed = 0.20; 
-        if (sizeType === 'small') { scale = 0.04; speed = 0.20; }
-        else if (sizeType === 'medium') { scale = 0.06; speed = 0.18; }
-        else if (sizeType === 'large') { scale = 0.08; speed = 0.16; }
-        else if (sizeType === 'super') { scale = 0.11; speed = 0.14; }
+        if (sizeType === 'small') { scale = 0.06; speed = 0.20; }
+        else if (sizeType === 'medium') { scale = 0.08; speed = 0.18; }
+        else if (sizeType === 'large') { scale = 0.10; speed = 0.16; }
+        else if (sizeType === 'super') { scale = 0.12; speed = 0.14; }
 
         const mesh = new THREE.Mesh(this.baseGeometry, this.planeMaterial);
         mesh.scale.set(scale, scale, scale);

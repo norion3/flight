@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【連続購入の快適化】
- * 履歴104に基づき、飛行機を購入するたびにメニューが閉じてしまう仕様を撤廃しました。
- * メニューを開いたまま連続して機体を追加できます。
+ * 【UIの直感性向上と×ボタンの追加】
+ * 履歴136に基づき、空港情報カード（airport-info-card）にも購入メニューと同様の
+ * 「✕（閉じる）」ボタンを追加し、そのイベントをバインドしました。
+ * これにより、海をタップしなくても直感的にカードを閉じることが可能になりました。
  */
 export class UIManager {
     constructor() {
@@ -55,11 +56,19 @@ export class UIManager {
             this.fabBuy.style.transform = 'scale(1)';
         });
 
+        // ★修正: 空港情報ポップアップの「✕（閉じる）」ボタンの処理を追加
+        const btnCloseInfo = document.getElementById('btn-close-info');
+        if (btnCloseInfo) {
+            btnCloseInfo.addEventListener('click', () => {
+                this.hideAll();
+            });
+        }
+
         document.querySelectorAll('.buy-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const type = e.currentTarget.getAttribute('data-type');
                 if (this.onBuyPlane) this.onBuyPlane(type);
-                // ★修正: 購入後もメニューを閉じない（連続購入を可能にする）
+                // 購入後もメニューを閉じない（連続購入を可能にする）
             });
         });
     }
@@ -134,5 +143,3 @@ export class UIManager {
         this.fabBuy.style.transform = 'scale(1)'; // すべて隠れたらFAB復帰
     }
 }
-
-
