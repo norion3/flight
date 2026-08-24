@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路の発光表現の美観最適化】
- * 履歴133に基づき、加算合成の透明度を下げすぎたことによる「単線の視認性低下」を解消。
- * ベース色を少し濃いシアン（0x0ea5e9）にし、opacityを0.65に設定することで、
- * 「1本でも美しく見え、重なると眩く光る」デザイン工学的なベストバランスを適用しました。
+ * 【確実な空路削除とメモリ解放】
+ * 履歴141に基づき、線を削除するための removeRoute メソッドを追加しました。
+ * 削除の際は単に配列から抜くだけでなく、geometry.dispose() と material.dispose() を
+ * 確実に実行し、ブラウザのGPUメモリのパンクを防いでいます。
  */
 
 import { CONFIG } from './Config.js';
@@ -30,6 +30,12 @@ export class NetworkManager {
         return this.network[airportId] ? this.network[airportId].length : 0;
     }
 
+    // ★追加: 特定の2つの空港がすでに接続されているかを判定する
+    isConnected(fromId, toId) {
+        if (!this.network[fromId]) return false;
+        return this.network[fromId].some(dest => dest.id === toId);
+    }
+
     canConnect(fromData, toData) {
         if (fromData.id === toData.id) return false;
 
@@ -40,10 +46,7 @@ export class NetworkManager {
 
         if (fromCount >= fromMax || toCount >= toMax) return false;
 
-        if (this.network[fromData.id]) {
-            const alreadyConnected = this.network[fromData.id].some(dest => dest.id === toData.id);
-            if (alreadyConnected) return false;
-        }
+        if (this.isConnected(fromData.id, toData.id)) return false;
 
         return true;
     }
@@ -64,7 +67,6 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // ★修正: 色を濃いシアンにし、透明度を0.65にすることで、単線時の視認性と交差時の発光を両立。
         const material = new THREE.LineBasicMaterial({ 
             color: 0x0ea5e9, 
             transparent: true, 
@@ -73,6 +75,9 @@ export class NetworkManager {
         });
         
         const line = new THREE.Line(geometry, material);
+        // ★修正: 削除時に特定できるようuserDataに両端のIDをタグ付けする
+        line.userData = { fromId: fromData.id, toId: toData.id };
+        
         this.routeGroup.add(line);
 
         if (!this.network[fromData.id]) this.network[fromData.id] = [];
@@ -82,6 +87,41 @@ export class NetworkManager {
         
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
+
+        return true;
+    }
+
+    // ★追加: 空路を削除し、メモリを確実に解放する機能
+    removeRoute(fromData, toData) {
+        const fromId = fromData.id;
+        const toId = toData.id;
+        
+        // ネットワークデータ(配列)からの削除
+        if (this.network[fromId]) {
+            this.network[fromId] = this.network[fromId].filter(r => r.id !== toId);
+        }
+        if (this.network[toId]) {
+            this.network[toId] = this.network[toId].filter(r => r.id !== fromId);
+        }
+
+        // 3Dオブジェクト(Line)の検索と確実なDispose処理
+        const linesToRemove = [];
+        this.routeGroup.children.forEach(child => {
+            if (child.userData) {
+                const u = child.userData;
+                // A->B でも B->A でも同一の線として判定
+                if ((u.fromId === fromId && u.toId === toId) || (u.fromId === toId && u.toId === fromId)) {
+                    linesToRemove.push(child);
+                }
+            }
+        });
+
+        // 確実なメモリ解放(Dispose)
+        linesToRemove.forEach(line => {
+            this.routeGroup.remove(line);
+            if (line.geometry) line.geometry.dispose();
+            if (line.material) line.material.dispose();
+        });
 
         return true;
     }

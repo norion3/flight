@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Zファイティング解消・スケール統一とサイズ比率の最適化】
- * 履歴136に基づき、小型機が小さすぎて視認性が悪い問題を解決するため、
- * スケール値を全体的に底上げし、極端なサイズ差を圧縮しました。
- * 最大倍率はマーカーと統一して1.8倍に抑えています。
+ * 【機体ロスト回避とフェールセーフ（ステルス待機）の実装】
+ * 履歴141に基づき、空路が削除された際に、飛んでいた飛行機をロストさせずに
+ * 即座に別の空港へ再配置（ワープ）させる checkAndReassignPlanes を追加しました。
+ * 全ての空路が消えた際は非表示で待機し、新設時に wakeUpPlanes で復活する安全設計です。
  */
 
 export class PlaneManager {
@@ -18,7 +18,6 @@ export class PlaneManager {
 
         this.baseGeometry = this._createPlaneGeometry();
         
-        // メニュー色と統一し、不透明にしてZソートを安定化
         this.planeMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x34d399,      
             transparent: false,
@@ -62,7 +61,6 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
         if (!routeData) return false;
 
-        // ★修正: 小型機の視認性を担保するため、ベーススケールを底上げし比率差を圧縮
         let scale = 0.08;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.06; speed = 0.20; }
@@ -81,21 +79,78 @@ export class PlaneManager {
             currentRoute: routeData,
             progress: 0,
             baseSpeed: speed,
-            originalScale: scale // 動的スケーリングの基準値として保持
+            originalScale: scale 
         });
 
         return true;
     }
 
-    // 縮小時に飛行機が点になって見えなくなるのを防ぐ動的スケール処理
+    // ★追加: 空路削除時に呼ばれ、飛ぶ場所を失った飛行機を再配置する
+    checkAndReassignPlanes() {
+        this.planes.forEach(plane => {
+            if (!plane.currentRoute) {
+                this._reassignPlane(plane);
+                return;
+            }
+
+            // 現在飛んでいる空路が、ネットワーク上にまだ存在するか確認
+            const currentFromId = plane.currentAirportId;
+            const currentToId = plane.currentRoute.id;
+            
+            const routesFromHere = this.networkManager.network[currentFromId];
+            let routeStillExists = false;
+            
+            if (routesFromHere) {
+                routeStillExists = routesFromHere.some(r => r.id === currentToId);
+            }
+
+            // 飛んでいる空路が消されていたら、即座にワープ再配置
+            if (!routeStillExists) {
+                this._reassignPlane(plane);
+            }
+        });
+    }
+
+    // ★追加: 飛行機を別の有効な空路へワープさせる（空路ゼロならステルス待機）
+    _reassignPlane(plane) {
+        const spawnAirportId = this.networkManager.getRandomConnectedAirport();
+        if (!spawnAirportId) {
+            // 世界に空路が1本もない場合：エラーを防ぐため非表示(ステルス待機)にする
+            plane.mesh.visible = false;
+            plane.currentAirportId = null;
+            plane.currentRoute = null;
+            plane.progress = 0;
+            return;
+        }
+
+        const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
+        if (routeData) {
+            plane.mesh.visible = true; // 復活
+            plane.currentAirportId = spawnAirportId;
+            plane.currentRoute = routeData;
+            plane.progress = 0;
+        }
+    }
+
+    // ★追加: 新たに空路が開拓された際に、ステルス待機中の飛行機を戦線復帰させる
+    wakeUpPlanes() {
+        this.planes.forEach(plane => {
+            if (!plane.mesh.visible) {
+                this._reassignPlane(plane);
+            }
+        });
+    }
+
     updateScale(camera) {
         this.planes.forEach(plane => {
+            // ステルス待機中は処理スキップ
+            if (!plane.mesh.visible) return;
+
             const pos = new THREE.Vector3();
             plane.mesh.getWorldPosition(pos);
             const distance = camera.position.distanceTo(pos);
             
             let baseScale = distance / 10;
-            // 空港マーカーのスケール上限(1.8)と統一し、飛行機だけが巨大化する野暮ったさを防ぐ
             baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
             
             const finalScale = plane.originalScale * baseScale;
@@ -107,7 +162,8 @@ export class PlaneManager {
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
             
-            if (!plane.currentRoute) continue;
+            // ★修正: 空路がなくステルス待機中（null）の場合は更新処理をスキップ
+            if (!plane.currentRoute || !plane.mesh.visible) continue;
 
             const curve = plane.currentRoute.curve;
             const length = plane.currentRoute.length;
@@ -131,7 +187,6 @@ export class PlaneManager {
                 const tangent = curve.getTangentAt(plane.progress).normalize(); 
                 const up = position.clone().normalize(); 
                 
-                // Zファイティング解消のため、線の座標から法線(宇宙)方向へわずかに浮かせる(オフセット)
                 const offsetPosition = position.clone().add(up.clone().multiplyScalar(0.005));
                 plane.mesh.position.copy(offsetPosition);
 

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【究極のタップ判定と、不要コードの完全払拭】
- * 履歴133に基づき、2Dスクリーン判定への移行によって不要となった 
- * this.raycaster および this.mouse の生成処理を完全に削除し、メモリを洗練化しました。
- * 吸着範囲のベストバランス（45px）はそのまま維持しています。
+ * 【空路廃止のアクション統合とフェールセーフ連携】
+ * 履歴141に基づき、UIから送られてくる 'add'(開拓) または 'remove'(廃止) の
+ * アクションを統合処理するように改修しました。
+ * 処理完了後に PlaneManager へ通知し、機体のワープやステルス待機からの復帰を自動化しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -43,9 +43,19 @@ export class GameManager {
             this.resetState();
         };
 
-        this.uiManager.onRouteConfirmed = () => {
+        // ★修正: 開拓と廃止の統合アクション処理。実行後に飛行機の安全処理(ワープ/復活)を呼び出す
+        this.uiManager.onRouteActionConfirmed = (actionType) => {
             if (this.selectedOrigin && this.selectedDestination) {
-                this.networkManager.addRoute(this.selectedOrigin.userData.airportData, this.selectedDestination.userData.airportData);
+                const originData = this.selectedOrigin.userData.airportData;
+                const destData = this.selectedDestination.userData.airportData;
+
+                if (actionType === 'add') {
+                    this.networkManager.addRoute(originData, destData);
+                    this.planeManager.wakeUpPlanes(); // ステルス待機中の機体を復活させる
+                } else if (actionType === 'remove') {
+                    this.networkManager.removeRoute(originData, destData);
+                    this.planeManager.checkAndReassignPlanes(); // 飛ぶ場所を失った機体をワープさせる
+                }
             }
             this.resetState();
         };
@@ -172,8 +182,6 @@ export class GameManager {
         const widthHalf = window.innerWidth / 2;
         const heightHalf = window.innerHeight / 2;
 
-        // 吸着範囲を人間の指の標準的なタップ領域（約45ピクセル）に厳格に制限。
-        // これにより、空地(海など)をタップした際に遠くの空港を無理やり吸い込むキャンセル妨害を根絶。
         const maxDist = 45; 
         
         let bestHit = null;
@@ -183,24 +191,19 @@ export class GameManager {
             const pos = new THREE.Vector3();
             hitMesh.getWorldPosition(pos);
 
-            // 地球の裏側判定 (バックフェイスカリング)
             const cameraToMarker = this.camera.position.clone().sub(pos);
             const normal = pos.clone().normalize();
-            if (cameraToMarker.dot(normal) < 0) return; // 裏側を向いているため除外
+            if (cameraToMarker.dot(normal) < 0) return; 
 
-            // 3D座標を2Dスクリーン座標(NDC)に投影
             const proj = pos.clone().project(this.camera);
 
-            // NDC (-1 ~ 1) から 画面上のピクセル座標へ変換
             const screenX = (proj.x * widthHalf) + widthHalf;
             const screenY = -(proj.y * heightHalf) + heightHalf;
 
-            // タップ位置とのピクセル距離を計算
             const dx = tapX - screenX;
             const dy = tapY - screenY;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // 45pxの許容範囲内で、最も近いものを選択する
             if (dist < minDistance) {
                 minDistance = dist;
                 bestHit = hitMesh;
@@ -228,12 +231,20 @@ export class GameManager {
                 const originData = this.selectedOrigin.userData.airportData;
                 const destData = this.selectedDestination.userData.airportData;
 
-                if (this.networkManager.canConnect(originData, destData)) {
+                // ★修正: 接続状況を判定し、開拓か廃止かポップアップを分岐させる
+                const isConnected = this.networkManager.isConnected(originData.id, destData.id);
+
+                if (isConnected) {
                     this.airportManager.highlightMarker(this.selectedDestination);
-                    this.uiManager.showRouteConfirm(originData, destData);
+                    this.uiManager.showRouteConfirm(originData, destData, true); // 廃止モード
                 } else {
-                    this.uiManager.showToast(window.APP_LANG.toastLimit);
-                    this.resetState();
+                    if (this.networkManager.canConnect(originData, destData)) {
+                        this.airportManager.highlightMarker(this.selectedDestination);
+                        this.uiManager.showRouteConfirm(originData, destData, false); // 開拓モード
+                    } else {
+                        this.uiManager.showToast(window.APP_LANG.toastLimit);
+                        this.resetState();
+                    }
                 }
             } else {
                 this.resetState();
@@ -253,7 +264,6 @@ export class GameManager {
         const delta = this.clock.getDelta();
 
         this.airportManager.updateMarkerScale(this.camera);
-        // カメラ距離に応じて飛行機も動的スケーリングさせる
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
         
