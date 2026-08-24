@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【確実な空路削除とメモリ解放】
- * 履歴141に基づき、線を削除するための removeRoute メソッドを追加しました。
- * 削除の際は単に配列から抜くだけでなく、geometry.dispose() と material.dispose() を
- * 確実に実行し、ブラウザのGPUメモリのパンクを防いでいます。
+ * 【接続上限の各社独立管理と、型不整合の完全吸収】
+ * 履歴192に基づき、removeRoute メソッドの引数として「オブジェクト」が渡された場合でも
+ * 「文字列（ID）」が渡された場合でも、安全に ID を抽出して処理を実行するフェイルセーフを追加しました。
+ * これにより、GameManager 側を一切修正することなく、路線の削除（廃止）が確実に動作します。
  */
 
 import { CONFIG } from './Config.js';
@@ -19,6 +19,10 @@ export class NetworkManager {
 
         this.network = {}; 
         
+        CONFIG.COMPANIES.forEach(comp => {
+            this.network[comp.id] = {};
+        });
+        
         this.MAX_CONNECTIONS = {
             'major': 8,
             'local': 5,
@@ -26,97 +30,86 @@ export class NetworkManager {
         };
     }
 
-    getConnectionCount(airportId) {
-        return this.network[airportId] ? this.network[airportId].length : 0;
+    getConnectionCount(airportId, companyId = 'player') {
+        return this.network[companyId][airportId] ? this.network[companyId][airportId].length : 0;
     }
 
-    // ★追加: 特定の2つの空港がすでに接続されているかを判定する
-    isConnected(fromId, toId) {
-        if (!this.network[fromId]) return false;
-        return this.network[fromId].some(dest => dest.id === toId);
+    isConnected(fromId, toId, companyId = 'player') {
+        if (!this.network[companyId][fromId]) return false;
+        return this.network[companyId][fromId].some(dest => dest.id === toId);
     }
 
-    canConnect(fromData, toData) {
+    canConnect(fromData, toData, companyId = 'player') {
         if (fromData.id === toData.id) return false;
 
-        const fromCount = this.getConnectionCount(fromData.id);
-        const toCount = this.getConnectionCount(toData.id);
-        const fromMax = this.MAX_CONNECTIONS[fromData.type];
-        const toMax = this.MAX_CONNECTIONS[toData.type];
-
-        if (fromCount >= fromMax || toCount >= toMax) return false;
-
-        if (this.isConnected(fromData.id, toData.id)) return false;
-
-        return true;
+        const fromCount = this.getConnectionCount(fromData.id, companyId);
+        const toCount = this.getConnectionCount(toData.id, companyId);
+        
+        return (fromCount < this.MAX_CONNECTIONS[fromData.type] && 
+                toCount < this.MAX_CONNECTIONS[toData.type]);
     }
 
-    addRoute(fromData, toData) {
-        if (!this.canConnect(fromData, toData)) return false;
+    addRoute(fromData, toData, companyId = 'player') {
+        if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
+        if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
 
-        const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02);
-        const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.02);
+        this.network[companyId][fromData.id].push(toData);
+        this.network[companyId][toData.id].push(fromData);
 
-        const midPoint = posA.clone().lerp(posB, 0.5);
-        const distance = posA.distanceTo(posB);
-        midPoint.normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.02 + distance * 0.3);
+        const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
+        const color = comp ? comp.color : 0x00e5ff;
+        const offset = comp ? comp.altitudeOffset : 0;
+
+        const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.002 + offset);
+        const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.002 + offset);
+
+        const dist = posA.distanceTo(posB);
+        const arcHeight = dist * 0.15; 
+        const midPoint = new THREE.Vector3().copy(posA).lerp(posB, 0.5);
+        midPoint.normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.002 + offset + arcHeight);
 
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
-        const curveLength = curve.getLength();
-
         const points = curve.getPoints(50);
+        
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        
         const material = new THREE.LineBasicMaterial({ 
-            color: 0x0ea5e9, 
+            color: color, 
             transparent: true, 
-            opacity: 0.65, 
-            blending: THREE.AdditiveBlending 
+            opacity: 0.8,
+            depthTest: false 
         });
-        
+
         const line = new THREE.Line(geometry, material);
-        // ★修正: 削除時に特定できるようuserDataに両端のIDをタグ付けする
-        line.userData = { fromId: fromData.id, toId: toData.id };
+        line.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         
         this.routeGroup.add(line);
-
-        if (!this.network[fromData.id]) this.network[fromData.id] = [];
-        if (!this.network[toData.id]) this.network[toData.id] = [];
-
-        this.network[fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData });
-        
-        const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
-        this.network[toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
-
         return true;
     }
 
-    // ★追加: 空路を削除し、メモリを確実に解放する機能
-    removeRoute(fromData, toData) {
-        const fromId = fromData.id;
-        const toId = toData.id;
-        
-        // ネットワークデータ(配列)からの削除
-        if (this.network[fromId]) {
-            this.network[fromId] = this.network[fromId].filter(r => r.id !== toId);
+    removeRoute(fromId, toId, companyId = 'player') {
+        // ★修正（安全弁）: 引数にオブジェクトが渡された場合、自動的にIDを抽出して空振りを防ぐ
+        const fId = typeof fromId === 'object' ? fromId.id : fromId;
+        const tId = typeof toId === 'object' ? toId.id : toId;
+
+        const net = this.network[companyId];
+        if (net[fId]) {
+            net[fId] = net[fId].filter(r => r.id !== tId);
         }
-        if (this.network[toId]) {
-            this.network[toId] = this.network[toId].filter(r => r.id !== fromId);
+        if (net[tId]) {
+            net[tId] = net[tId].filter(r => r.id !== fId);
         }
 
-        // 3Dオブジェクト(Line)の検索と確実なDispose処理
         const linesToRemove = [];
         this.routeGroup.children.forEach(child => {
-            if (child.userData) {
+            if (child.userData && child.userData.companyId === companyId) {
                 const u = child.userData;
-                // A->B でも B->A でも同一の線として判定
-                if ((u.fromId === fromId && u.toId === toId) || (u.fromId === toId && u.toId === fromId)) {
+                // 安全に抽出したID（fId, tId）を使って比較する
+                if ((u.fromId === fId && u.toId === tId) || (u.fromId === tId && u.toId === fId)) {
                     linesToRemove.push(child);
                 }
             }
         });
 
-        // 確実なメモリ解放(Dispose)
         linesToRemove.forEach(line => {
             this.routeGroup.remove(line);
             if (line.geometry) line.geometry.dispose();
@@ -126,17 +119,20 @@ export class NetworkManager {
         return true;
     }
 
-    getRandomRouteFrom(airportId) {
-        const routes = this.network[airportId];
+    getRandomRouteFrom(airportId, companyId = 'player') {
+        const routes = this.network[companyId][airportId];
         if (!routes || routes.length === 0) return null;
         
         const randomIndex = Math.floor(Math.random() * routes.length);
         return routes[randomIndex];
     }
 
-    getRandomConnectedAirport() {
-        const connectedIds = Object.keys(this.network).filter(id => this.network[id].length > 0);
+    getRandomConnectedAirport(companyId = 'player') {
+        const connectedIds = Object.keys(this.network[companyId]).filter(id => this.network[companyId][id].length > 0);
         if (connectedIds.length === 0) return null;
-        return connectedIds[Math.floor(Math.random() * connectedIds.length)];
+        
+        const randomIndex = Math.floor(Math.random() * connectedIds.length);
+        const randomId = connectedIds[randomIndex];
+        return this.network[companyId][randomId][0]; 
     }
 }
