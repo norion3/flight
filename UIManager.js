@@ -1,76 +1,161 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ボタン色彩の適正化】
- * 履歴146に基づき、接続上限時におけるボタンの色をグレー(slate)から
- * 通常の青色(cyan)に戻しました。
- * 押せるボタンである以上、色を変えないことが最も自然で直感的なUIとなります。
+ * 【UI開閉権限の単一化】
+ * 履歴174に基づき、アクションボタン押下時にUIManagerが勝手にUIを隠す処理を排除しました。
+ * 画面を閉じるか維持するかの判断はすべて GameManager に委譲し、
+ * UIManager は純粋に「ボタンの見た目（開拓⇔廃止）のシームレスな切り替え」に徹します。
  */
+
 export class UIManager {
     constructor() {
-        this.infoCard = document.getElementById('airport-info-card');
-        this.routeCard = document.getElementById('route-confirm-card');
-        this.fabBuy = document.getElementById('fab-buy-plane');
-        this.buyMenu = document.getElementById('buy-plane-menu');
+        this.connectingModeCard = document.getElementById('connecting-mode-card');
+        this.routeConfirmCard = document.getElementById('route-confirm-card');
+        this.airportInfoCard = document.getElementById('airport-info-card');
+        this.buyPlaneMenu = document.getElementById('buy-plane-menu');
+        this.fabBuyPlane = document.getElementById('fab-buy-plane');
         this.toast = document.getElementById('toast-notification');
-        this.connectingCard = document.getElementById('connecting-mode-card'); 
-        this.toastTimeout = null;
 
-        this.onConnectRequested = null;
-        this.onRouteActionConfirmed = null; 
-        this.onRouteCanceled = null;
-        this.onBuyPlane = null;
+        // Airport Info
+        this.airportName = document.getElementById('airport-name');
+        this.airportCountry = document.getElementById('airport-country');
+        this.airportCode = document.getElementById('airport-code');
+        this.airportType = document.getElementById('airport-type');
+        this.airportConn = document.getElementById('airport-conn');
+        this.btnConnect = document.getElementById('btn-connect');
+        this.btnCloseInfo = document.getElementById('btn-close-info');
+
+        // Route Confirm
+        this.routeActionTitle = document.getElementById('route-action-title');
+        this.routeFrom = document.getElementById('route-from');
+        this.routeTo = document.getElementById('route-to');
+        this.btnCancelRoute = document.getElementById('btn-cancel-route');
+        this.btnActionRoute = document.getElementById('btn-action-route');
         
-        this.currentRouteAction = null; 
+        // Connecting Mode
+        this.btnCancelConnect = document.getElementById('btn-cancel-connect');
 
-        this._bindEvents();
+        // Buy Menu
+        this.btnCloseBuy = document.getElementById('btn-close-buy');
+        this.buyBtns = document.querySelectorAll('.buy-plane-btn');
+
+        this.toastTimeout = null;
+        this.currentActionType = 'add';
+
+        this.initEvents();
     }
 
-    _bindEvents() {
-        document.getElementById('btn-connect').addEventListener('click', () => {
-            if (this.onConnectRequested) this.onConnectRequested();
-        });
-
-        const cancelRoute = () => {
-            if (this.onRouteCanceled) this.onRouteCanceled();
-            this.hideRouteConfirm();
-            this.connectingCard.classList.remove('show');
-            this.fabBuy.style.transform = 'scale(1)'; 
-        };
-
-        document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
-        document.getElementById('btn-cancel-connect').addEventListener('click', cancelRoute);
-
-        document.getElementById('btn-action-route').addEventListener('click', () => {
-            if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
-            this.hideRouteConfirm();
-            this.connectingCard.classList.remove('show');
-            this.fabBuy.style.transform = 'scale(1)'; 
-        });
-
-        this.fabBuy.addEventListener('click', () => {
+    initEvents() {
+        this.btnCloseInfo.addEventListener('click', () => {
             this.hideAll();
-            this.buyMenu.classList.add('show');
-            this.fabBuy.style.transform = 'scale(0)'; 
+            if (this.onRouteCanceled) this.onRouteCanceled();
         });
 
-        document.getElementById('btn-close-buy').addEventListener('click', () => {
-            this.buyMenu.classList.remove('show');
-            this.fabBuy.style.transform = 'scale(1)';
+        this.btnCancelRoute.addEventListener('click', () => {
+            this.hideAll();
+            if (this.onRouteCanceled) this.onRouteCanceled();
         });
 
-        const btnCloseInfo = document.getElementById('btn-close-info');
-        if (btnCloseInfo) {
-            btnCloseInfo.addEventListener('click', () => {
+        this.btnCancelConnect.addEventListener('click', () => {
+            this.hideAll();
+            if (this.onRouteCanceled) this.onRouteCanceled();
+        });
+
+        this.btnCloseBuy.addEventListener('click', () => {
+            this.hideAll();
+        });
+
+        this.fabBuyPlane.addEventListener('click', () => {
+            this.hideAll();
+            this.buyPlaneMenu.classList.add('show');
+            this.fabBuyPlane.style.transform = 'scale(0)';
+        });
+
+        this.btnConnect.addEventListener('click', () => {
+            if (this.btnConnect.classList.contains('bg-cyan-600')) {
+                this.hideAll();
+                if (this.onConnectRequested) this.onConnectRequested();
+            } else {
+                this.showToast(window.APP_LANG.toastLimit);
+                // ★修正: 接続上限で「空路を整理する」モードへ移行
+                this.hideAll();
+                if (this.onConnectRequested) this.onConnectRequested();
+            }
+        });
+
+        this.btnActionRoute.addEventListener('click', () => {
+            // ★修正: UIを隠す処理（hideAll等）はここで行わない。GameManagerに一任する。
+            if (this.onRouteActionConfirmed) {
+                this.onRouteActionConfirmed(this.currentActionType);
+            }
+        });
+
+        this.buyBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.getAttribute('data-type');
+                if (this.onBuyPlane) this.onBuyPlane(type);
                 this.hideAll();
             });
+        });
+    }
+
+    hideAll() {
+        this.connectingModeCard.classList.remove('show');
+        this.routeConfirmCard.classList.remove('show');
+        this.airportInfoCard.classList.remove('show');
+        this.buyPlaneMenu.classList.remove('show');
+        this.fabBuyPlane.style.transform = 'scale(1)';
+    }
+
+    showAirportInfo(data, currentConnections, maxConnections) {
+        this.hideAll();
+        this.airportName.innerText = data.name;
+        this.airportCountry.innerText = data.country;
+        this.airportCode.innerText = data.id;
+        this.airportType.innerText = data.type.toUpperCase();
+        this.airportConn.innerText = `${currentConnections}/${maxConnections}`;
+
+        if (currentConnections < maxConnections) {
+            this.btnConnect.innerText = window.APP_LANG.btnConnect;
+            this.btnConnect.className = "w-full py-3 rounded-xl font-bold shadow-lg bg-cyan-600 active:bg-cyan-500 text-white transition-colors";
+        } else {
+            this.btnConnect.innerText = window.APP_LANG.btnLimitAction;
+            this.btnConnect.className = "w-full py-3 rounded-xl font-bold shadow-lg bg-slate-700 active:bg-cyan-700 text-cyan-300 transition-colors border border-cyan-800";
         }
 
-        document.querySelectorAll('.buy-plane-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const type = e.currentTarget.getAttribute('data-type');
-                if (this.onBuyPlane) this.onBuyPlane(type);
-            });
-        });
+        this.airportInfoCard.classList.add('show');
+        this.fabBuyPlane.style.transform = 'scale(0)';
+    }
+
+    setConnectingMode() {
+        this.hideAll();
+        this.connectingModeCard.classList.add('show');
+        this.fabBuyPlane.style.transform = 'scale(0)';
+    }
+
+    showRouteConfirm(originData, destData, isConnected) {
+        // ★修正: hideAll()を呼ばずにDOMのみを上書き更新することでシームレスな切り替えを実現する
+        this.airportInfoCard.classList.remove('show');
+        this.connectingModeCard.classList.remove('show');
+
+        this.routeFrom.innerText = originData.id;
+        this.routeTo.innerText = destData.id;
+
+        if (isConnected) {
+            this.currentActionType = 'remove';
+            this.btnActionRoute.innerText = window.APP_LANG.btnRemoveRoute;
+            this.btnActionRoute.className = "flex-1 py-3 rounded-xl font-bold shadow-lg bg-red-600 active:bg-red-500 text-white transition-colors";
+            this.routeActionTitle.innerText = window.APP_LANG.routeRemoveTitle;
+            this.routeActionTitle.className = "text-xs font-bold tracking-wider mb-2 text-red-400";
+        } else {
+            this.currentActionType = 'add';
+            this.btnActionRoute.innerText = window.APP_LANG.btnOpenRoute;
+            this.btnActionRoute.className = "flex-1 py-3 rounded-xl font-bold shadow-lg bg-cyan-600 active:bg-cyan-500 text-white transition-colors";
+            this.routeActionTitle.innerText = window.APP_LANG.routeOpenTitle;
+            this.routeActionTitle.className = "text-xs font-bold tracking-wider mb-2 text-cyan-400";
+        }
+
+        this.routeConfirmCard.classList.add('show');
+        this.fabBuyPlane.style.transform = 'scale(0)';
     }
 
     showToast(message) {
@@ -80,87 +165,6 @@ export class UIManager {
         if (this.toastTimeout) clearTimeout(this.toastTimeout);
         this.toastTimeout = setTimeout(() => {
             this.toast.classList.remove('toast-show');
-        }, 2000); 
-    }
-
-    showAirportInfo(data, currentConnections, maxConnections) {
-        this.hideAll();
-        document.getElementById('airport-name').innerText = data.name;
-        document.getElementById('airport-code').innerText = data.id;
-        document.getElementById('airport-country').innerText = data.country;
-        document.getElementById('airport-conn').innerText = `${currentConnections}/${maxConnections}`;
-        
-        const typeEl = document.getElementById('airport-type');
-        if (data.type === 'major') {
-            typeEl.innerText = window.APP_LANG.hubMajor;
-            typeEl.className = 'text-xs font-semibold text-yellow-400 uppercase tracking-wider';
-        } else if (data.type === 'local') {
-            typeEl.innerText = window.APP_LANG.hubLocal;
-            typeEl.className = 'text-xs font-semibold text-orange-400 uppercase tracking-wider';
-        } else {
-            typeEl.innerText = window.APP_LANG.hubFictional;
-            typeEl.className = 'text-xs font-semibold text-emerald-400 uppercase tracking-wider';
-        }
-
-        const btnConnect = document.getElementById('btn-connect');
-        btnConnect.classList.remove('hidden');
-        
-        // ★修正: 上限時でも「押せるボタン」であることを視覚的に保証するため、
-        // 常に通常のアクティブカラー（cyan-600）に統一する。
-        btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50';
-
-        if(currentConnections >= maxConnections) {
-            btnConnect.innerText = window.APP_LANG.btnLimitAction;
-        } else {
-            btnConnect.innerText = window.APP_LANG.btnConnect;
-        }
-
-        this.infoCard.classList.add('show');
-        this.fabBuy.style.transform = 'scale(0)'; 
-    }
-
-    setConnectingMode() {
-        this.infoCard.classList.remove('show');
-        this.connectingCard.classList.add('show');
-        this.fabBuy.style.transform = 'scale(0)'; 
-    }
-
-    showRouteConfirm(fromData, toData, isConnected) {
-        this.connectingCard.classList.remove('show');
-        document.getElementById('route-from').innerText = fromData.id;
-        document.getElementById('route-to').innerText = toData.id;
-
-        const titleEl = document.getElementById('route-action-title');
-        const btnAction = document.getElementById('btn-action-route');
-
-        this.currentRouteAction = isConnected ? 'remove' : 'add';
-
-        if (isConnected) {
-            titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
-            titleEl.className = "text-xs text-red-400 font-bold tracking-wider mb-2";
-            this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
-            btnAction.innerText = window.APP_LANG.btnRemoveRoute || "廃止する";
-            btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50";
-        } else {
-            titleEl.innerText = window.APP_LANG.routeOpenTitle || "空路開拓";
-            titleEl.className = "text-xs text-yellow-400 font-bold tracking-wider mb-2";
-            this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute show";
-            btnAction.innerText = window.APP_LANG.btnOpenRoute || "開拓する";
-            btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50";
-        }
-
-        this.fabBuy.style.transform = 'scale(0)'; 
-    }
-
-    hideRouteConfirm() {
-        this.routeCard.classList.remove('show');
-    }
-
-    hideAll() {
-        this.infoCard.classList.remove('show');
-        this.routeCard.classList.remove('show');
-        this.buyMenu.classList.remove('show');
-        this.connectingCard.classList.remove('show');
-        this.fabBuy.style.transform = 'scale(1)'; 
+        }, 2500);
     }
 }
