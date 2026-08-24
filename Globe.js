@@ -1,3 +1,12 @@
+/**
+ * AI可読性・先祖返り防止コメント:
+ * 【裏側透過による錯覚バグの根絶】
+ * 履歴148に基づき、地球儀のベースマテリアルの半透明設定を廃止し、
+ * transparent: false としました。
+ * これにより、裏側を飛んでいる飛行機が透けて見え「見えない空路をグレーの飛行機が飛ぶ」
+ * という強烈な視覚的錯覚を物理的にシャットアウトしています。
+ */
+
 import { CONFIG } from './Config.js';
 
 export class Globe {
@@ -9,28 +18,32 @@ export class Globe {
 
     buildBase() {
         const geometry = new THREE.SphereGeometry(CONFIG.GLOBE_RADIUS, 64, 64);
+        
+        // ★修正: 地球儀を完全不透明にし、裏側の飛行機が透けて見える錯覚を根絶
         const material = new THREE.MeshPhongMaterial({
-            color: CONFIG.COLORS.GLOBE_BASE,
-            transparent: true,
-            opacity: 0.95,
+            color: CONFIG.COLORS.OCEAN,
+            transparent: false, 
+            opacity: 1.0,
             shininess: 15
         });
-        const mesh = new THREE.Mesh(geometry, material);
-        this.group.add(mesh);
+        
+        const sphere = new THREE.Mesh(geometry, material);
+        this.group.add(sphere);
     }
 
-    buildCoastlines(pointsArray) {
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(pointsArray, 3));
-        const material = new THREE.PointsMaterial({
+    buildCoastlines(pointsArrays) {
+        const material = new THREE.LineBasicMaterial({
             color: CONFIG.COLORS.COASTLINE,
-            size: 0.02,
             transparent: true,
             opacity: 0.8
         });
-        const points = new THREE.Points(geometry, material);
-        this.group.add(points);
+
+        pointsArrays.forEach(points => {
+            if (points.length > 0) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geometry, material);
+                this.group.add(line);
+            }
+        });
     }
 }
-
-

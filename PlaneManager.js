@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【機体ロスト回避とフェールセーフ（ステルス待機）の実装】
- * 履歴141に基づき、空路が削除された際に、飛んでいた飛行機をロストさせずに
- * 即座に別の空港へ再配置（ワープ）させる checkAndReassignPlanes を追加しました。
- * 全ての空路が消えた際は非表示で待機し、新設時に wakeUpPlanes で復活する安全設計です。
+ * 【ご当地優先ワープロジックによるリアリティ向上】
+ * 履歴148に基づき、空路削除時の飛行機の再配置ロジック（_reassignPlane）を改修しました。
+ * 削除された際、いきなり世界中のランダムな空港へワープするのではなく、
+ * 「今いる空港から出ている別の路線」を優先して探し、乗り換えさせます。
+ * これにより、飛行機が目の前から突然消え去る違和感（バグっぽさ）を払拭しています。
  */
 
 export class PlaneManager {
@@ -85,7 +86,6 @@ export class PlaneManager {
         return true;
     }
 
-    // ★追加: 空路削除時に呼ばれ、飛ぶ場所を失った飛行機を再配置する
     checkAndReassignPlanes() {
         this.planes.forEach(plane => {
             if (!plane.currentRoute) {
@@ -93,7 +93,6 @@ export class PlaneManager {
                 return;
             }
 
-            // 現在飛んでいる空路が、ネットワーク上にまだ存在するか確認
             const currentFromId = plane.currentAirportId;
             const currentToId = plane.currentRoute.id;
             
@@ -104,18 +103,32 @@ export class PlaneManager {
                 routeStillExists = routesFromHere.some(r => r.id === currentToId);
             }
 
-            // 飛んでいる空路が消されていたら、即座にワープ再配置
             if (!routeStillExists) {
                 this._reassignPlane(plane);
             }
         });
     }
 
-    // ★追加: 飛行機を別の有効な空路へワープさせる（空路ゼロならステルス待機）
+    // ★修正: 目の前から突然消える不気味さを防ぐ「ご当地優先ワープロジック」
     _reassignPlane(plane) {
-        const spawnAirportId = this.networkManager.getRandomConnectedAirport();
-        if (!spawnAirportId) {
-            // 世界に空路が1本もない場合：エラーを防ぐため非表示(ステルス待機)にする
+        let nextRoute = null;
+        let spawnAirportId = plane.currentAirportId; // まずは今いる空港から探す
+
+        // 1. 今いる空港に、まだ別の空路が残っていれば優先的にそこへ乗り換える
+        if (spawnAirportId) {
+            nextRoute = this.networkManager.getRandomRouteFrom(spawnAirportId);
+        }
+
+        // 2. 今いる空港に別の路線が1本もなければ、やむを得ず世界中のランダムな空港へワープ
+        if (!nextRoute) {
+            spawnAirportId = this.networkManager.getRandomConnectedAirport();
+            if (spawnAirportId) {
+                nextRoute = this.networkManager.getRandomRouteFrom(spawnAirportId);
+            }
+        }
+
+        // 3. 世界中に空路が1本もない場合はステルス待機
+        if (!nextRoute) {
             plane.mesh.visible = false;
             plane.currentAirportId = null;
             plane.currentRoute = null;
@@ -123,16 +136,13 @@ export class PlaneManager {
             return;
         }
 
-        const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId);
-        if (routeData) {
-            plane.mesh.visible = true; // 復活
-            plane.currentAirportId = spawnAirportId;
-            plane.currentRoute = routeData;
-            plane.progress = 0;
-        }
+        // 新しいルートへ再配置
+        plane.mesh.visible = true;
+        plane.currentAirportId = spawnAirportId;
+        plane.currentRoute = nextRoute;
+        plane.progress = 0;
     }
 
-    // ★追加: 新たに空路が開拓された際に、ステルス待機中の飛行機を戦線復帰させる
     wakeUpPlanes() {
         this.planes.forEach(plane => {
             if (!plane.mesh.visible) {
@@ -143,7 +153,6 @@ export class PlaneManager {
 
     updateScale(camera) {
         this.planes.forEach(plane => {
-            // ステルス待機中は処理スキップ
             if (!plane.mesh.visible) return;
 
             const pos = new THREE.Vector3();
@@ -162,7 +171,6 @@ export class PlaneManager {
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
             
-            // ★修正: 空路がなくステルス待機中（null）の場合は更新処理をスキップ
             if (!plane.currentRoute || !plane.mesh.visible) continue;
 
             const curve = plane.currentRoute.curve;
