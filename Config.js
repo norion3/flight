@@ -8,13 +8,14 @@ export const CONFIG = {
     MAP_DATA_URL: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json',
     
     // ★追加: プレイヤーおよびライバル5社の定義
-    // color: 地球に映えるソリッドカラー / altitudeOffset: 線が重なった際のZファイティング(チラつき)防止用段差
+    // routeColor: 空路の色 / planeColor: 飛行機の色
+    // プレイヤーの色は元ファイルで指定されていた色（青線、緑機体）を尊重しています
     COMPANIES: [
-        { id: 'player', name: 'Player Airlines', color: 0x00e5ff, altitudeOffset: 0.000 },
-        { id: 'rival_eu', name: 'Euro Wings', color: 0xff00ff, altitudeOffset: 0.001 },
-        { id: 'rival_as', name: 'Asia Orient', color: 0xffd700, altitudeOffset: 0.002 },
-        { id: 'rival_af', name: 'Africa Star', color: 0xff4500, altitudeOffset: 0.003 },
-        { id: 'rival_am', name: 'Americas Air', color: 0x00fa9a, altitudeOffset: 0.004 },
-        { id: 'rival_oc', name: 'Oceania Fly', color: 0x9370db, altitudeOffset: 0.005 }
+        { id: 'player', name: 'Player Airlines', routeColor: 0x0ea5e9, planeColor: 0x34d399 },
+        { id: 'rival_eu', name: 'Euro Wings', routeColor: 0xff00ff, planeColor: 0xff00ff },
+        { id: 'rival_as', name: 'Asia Orient', routeColor: 0xffd700, planeColor: 0xffd700 },
+        { id: 'rival_af', name: 'Africa Star', routeColor: 0xff4500, planeColor: 0xff4500 },
+        { id: 'rival_am', name: 'Americas Air', routeColor: 0x00fa9a, planeColor: 0x00fa9a },
+        { id: 'rival_oc', name: 'Oceania Fly', routeColor: 0x9370db, planeColor: 0x9370db }
     ]
 };

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【独立した1分間隔タイマーと距離ベースの接続最適化】
- * 履歴193に基づき、各社が独立して正確に1分(60秒)間隔で行動するタイマーを実装しました。
- * また、接続先を探す際に完全ランダムではなく「起点から最も距離が近い空港」から順に
- * ソートして評価するように改修し、より美しくリアルなネットワーク発展を実現しています。
+ * 【のんびりライバルAIの実装】
+ * 履歴196に基づき新規追加。各社が独立して正確に1分(60秒)間隔で行動します。
+ * また、接続先を探す際に「起点から直線距離が最も近い空港」から順に評価し、
+ * 自然に広がっていくリアルなネットワーク構築を行います。
  */
 
 import { CONFIG } from './Config.js';
@@ -17,10 +17,9 @@ export class RivalManager {
         
         this.rivals = CONFIG.COMPANIES.filter(c => c.id !== 'player');
         
-        // ★修正: 全社共有タイマーを廃止し、会社ごとに独立したタイマーを管理する
+        // 全社一斉に動かないよう、最初のタイミングだけ0〜60秒の間でランダムにばらす
         this.timers = {};
         this.rivals.forEach(rival => {
-            // 初期化時にタイミングが重ならないよう、最初の行動だけランダムに0〜60秒ずらす
             this.timers[rival.id] = Math.random() * 60;
         });
 
@@ -40,6 +39,7 @@ export class RivalManager {
             const startId = startAirports[rival.id];
             let startNode = this.airportManager.getAirportById(startId);
             
+            // 安全弁: 指定拠点がデータに無い場合は適当な Major からスタート
             if (!startNode) {
                 const majors = this.airportManager.markers.map(m => m.userData.airportData).filter(d => d.type === 'major');
                 if (majors.length > 0) {
@@ -58,37 +58,39 @@ export class RivalManager {
     update(delta) {
         if (!this.isInitialized) return;
 
-        // ★修正: 会社ごとのタイマーを更新し、それぞれ1分(60秒)経過したら行動させる
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            
+            // 正確に1分(60秒)間隔で行動
             if (this.timers[rival.id] >= 60) {
-                this.timers[rival.id] = 0; // 確実に1分間隔にリセット
+                this.timers[rival.id] = 0; 
                 this.performAction(rival.id);
             }
         });
     }
 
     performAction(companyId) {
-        const connectedIds = Object.keys(this.networkManager.network[companyId]).filter(id => this.networkManager.network[companyId][id].length > 0);
+        const net = this.networkManager.network[companyId];
+        const connectedIds = Object.keys(net).filter(id => net[id].length > 0);
         if (connectedIds.length === 0) return;
 
+        // 70%の確率で空路開拓、30%の確率で飛行機購入
         if (Math.random() < 0.7) {
             const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
             const originNode = this.airportManager.getAirportById(originId);
             this.expandNetwork(companyId, originNode);
         } else {
-            this.planeManager.addPlane('small', companyId);
+            // ユーザー様の4種類の機体からランダムに購入
+            const types = ['small', 'medium', 'large', 'super'];
+            const randomType = types[Math.floor(Math.random() * types.length)];
+            this.planeManager.addPlane(randomType, companyId);
         }
     }
 
     expandNetwork(companyId, originNode) {
         const candidates = this.airportManager.markers.map(m => m.userData.airportData);
-        
-        // 起点の3D座標を取得
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
-        // ★修正: ランダムではなく「起点からの3D直線距離が近い順」に候補をソートする
+        // ★距離順ソート: 最も近い空港から優先して繋ぐ
         candidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
             const posB = Utils.latLonToVector3(b.lat, b.lon, CONFIG.GLOBE_RADIUS);
@@ -99,6 +101,7 @@ export class RivalManager {
             if (originNode.id === destNode.id) continue;
             if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) continue;
             
+            // 航続距離の制限チェック（1.25倍）
             const posDest = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);
             if (posOrigin.distanceTo(posDest) > CONFIG.GLOBE_RADIUS * 1.25) continue;
 

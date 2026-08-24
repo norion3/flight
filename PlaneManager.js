@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【飛行機消失バグの修正と透け防止】
- * 履歴193に基づき、updateループ内で ptIndex と nextIndex が同一になった際に
- * lookAt が破綻してオブジェクトが消失(NaN)するバグを修正しました。
- * また、depthTest: false を削除し、地球の裏側の飛行機が透けて見えないよう正しい奥行きを復元しています。
+ * 【オリジナルデザインの尊重と安全弁の追加】
+ * ユーザー添付ファイル（超大型機やスピード調整が含まれた完全版）をベースとしています。
+ * 形状やスピードのコードには一切触れず、会社ごとに色を変える処理と、
+ * 行列計算時にベクトルが0になって消失するバグ（NaNエラー）を防ぐ安全弁のみを追加しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -15,134 +15,207 @@ export class PlaneManager {
         this.globeGroup = globeGroup;
         this.networkManager = networkManager;
         
+        this.planes = [];
         this.planeGroup = new THREE.Group();
         this.globeGroup.add(this.planeGroup);
-        
-        this.planes = [];
+
+        this.baseGeometry = this._createPlaneGeometry();
     }
 
-    addPlane(type, companyId = 'player') {
-        const startAirport = this.networkManager.getRandomConnectedAirport(companyId);
-        if (!startAirport) return false;
-
-        const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
-        const color = comp ? comp.color : 0xffffff;
-        const offset = comp ? comp.altitudeOffset : 0;
-
-        const geometry = new THREE.BufferGeometry();
-        const vertices = new Float32Array([
-            0, 0.03, 0,
-            -0.02, -0.02, 0,
-            0.02, -0.02, 0
-        ]);
-        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    _createPlaneGeometry() {
+        const shape = new THREE.Shape();
         
-        // ★修正: depthTest: false を削除し、地球の裏側から透けないようにする
+        shape.moveTo(0, 0.5);
+        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
+        shape.lineTo(0.35, -0.1);
+        shape.lineTo(0.35, -0.2);
+        shape.lineTo(0.06, -0.15);
+        shape.lineTo(0.05, -0.35);
+        shape.lineTo(0.15, -0.45);
+        shape.lineTo(0.15, -0.5);
+        shape.lineTo(0.02, -0.48);
+        shape.lineTo(0, -0.5);
+        shape.lineTo(-0.02, -0.48);
+        shape.lineTo(-0.15, -0.5);
+        shape.lineTo(-0.15, -0.45);
+        shape.lineTo(-0.05, -0.35);
+        shape.lineTo(-0.06, -0.15);
+        shape.lineTo(-0.35, -0.2);
+        shape.lineTo(-0.35, -0.1);
+        shape.lineTo(-0.06, 0.1);
+        shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
+
+        const geometry = new THREE.ShapeGeometry(shape);
+        geometry.center();
+        
+        return geometry;
+    }
+
+    addPlane(sizeType, companyId = 'player') {
+        const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
+        if (!spawnAirportId) return false; 
+
+        const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
+        if (!routeData) return false;
+
+        let scale = 0.08;
+        let speed = 0.20; 
+        if (sizeType === 'small') { scale = 0.06; speed = 0.20; }
+        else if (sizeType === 'medium') { scale = 0.08; speed = 0.18; }
+        else if (sizeType === 'large') { scale = 0.10; speed = 0.16; }
+        else if (sizeType === 'super') { scale = 0.12; speed = 0.14; }
+
+        // ★修正: 会社ごとの色を適用したマテリアルを個別に作成
+        const compIndex = CONFIG.COMPANIES.findIndex(c => c.id === companyId);
+        const comp = CONFIG.COMPANIES[compIndex];
+        const planeColor = comp ? comp.planeColor : 0x34d399;
+        
         const material = new THREE.MeshBasicMaterial({ 
-            color: color, 
+            color: planeColor,      
+            transparent: false,
             side: THREE.DoubleSide
         });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        
-        mesh.userData = {
-            companyId: companyId,
-            type: type,
-            speed: type === 'small' ? 1.0 : type === 'medium' ? 1.2 : 1.5,
-            currentAirport: startAirport,
-            targetAirport: null,
-            progress: 0,
-            arcPoints: [],
-            altitudeOffset: offset
-        };
+
+        const mesh = new THREE.Mesh(this.baseGeometry, material);
+        mesh.scale.set(scale, scale, scale);
         
         this.planeGroup.add(mesh);
-        this.planes.push(mesh);
-        
-        this.assignNextTarget(mesh);
+
+        const altitudeOffset = Math.max(0, compIndex) * 0.0005;
+
+        this.planes.push({
+            mesh: mesh,
+            currentAirportId: spawnAirportId,
+            currentRoute: routeData,
+            progress: 0,
+            baseSpeed: speed,
+            originalScale: scale,
+            companyId: companyId,
+            altitudeOffset: altitudeOffset
+        });
+
         return true;
-    }
-
-    assignNextTarget(plane) {
-        const u = plane.userData;
-        const nextDest = this.networkManager.getRandomRouteFrom(u.currentAirport.id, u.companyId);
-        
-        if (!nextDest) {
-            u.targetAirport = null;
-            plane.visible = false;
-            return;
-        }
-
-        u.targetAirport = nextDest;
-        u.progress = 0;
-        plane.visible = true;
-
-        const posA = Utils.latLonToVector3(u.currentAirport.lat, u.currentAirport.lon, CONFIG.GLOBE_RADIUS + 0.005 + u.altitudeOffset);
-        const posB = Utils.latLonToVector3(u.targetAirport.lat, u.targetAirport.lon, CONFIG.GLOBE_RADIUS + 0.005 + u.altitudeOffset);
-
-        const dist = posA.distanceTo(posB);
-        const arcHeight = dist * 0.15;
-        const midPoint = new THREE.Vector3().copy(posA).lerp(posB, 0.5);
-        midPoint.normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.005 + u.altitudeOffset + arcHeight);
-
-        const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
-        u.arcPoints = curve.getPoints(50);
-    }
-
-    updateScale(camera) {
-        const dist = camera.position.length();
-        const scale = Math.max(0.5, Math.min(2.0, dist / 15));
-        this.planes.forEach(plane => {
-            plane.scale.set(scale, scale, scale);
-        });
-    }
-
-    update(delta) {
-        this.planes.forEach(plane => {
-            const u = plane.userData;
-            if (!u.targetAirport) return;
-
-            u.progress += (delta * 0.5 * u.speed); 
-            if (u.progress >= 1.0) {
-                u.currentAirport = u.targetAirport;
-                this.assignNextTarget(plane);
-            } else {
-                const ptIndex = Math.floor(u.progress * 50);
-                const nextIndex = Math.min(ptIndex + 1, 50);
-                
-                if (u.arcPoints[ptIndex] && u.arcPoints[nextIndex]) {
-                    plane.position.copy(u.arcPoints[ptIndex]);
-                    
-                    // ★修正: 自分自身と同じ座標を向いて消失(NaN化)するバグを防止する安全弁
-                    if (ptIndex !== nextIndex) {
-                        plane.lookAt(u.arcPoints[nextIndex]);
-                        plane.rotateX(Math.PI / 2);
-                    }
-                }
-            }
-        });
-    }
-
-    wakeUpPlanes(companyId = 'player') {
-        this.planes.forEach(plane => {
-            if (plane.userData.companyId === companyId && !plane.userData.targetAirport) {
-                this.assignNextTarget(plane);
-            }
-        });
     }
 
     checkAndReassignPlanes(companyId = 'player') {
         this.planes.forEach(plane => {
-            if (plane.userData.companyId === companyId) {
-                if (plane.userData.targetAirport) {
-                    const isStillConnected = this.networkManager.isConnected(plane.userData.currentAirport.id, plane.userData.targetAirport.id, companyId);
-                    if (!isStillConnected) {
-                        this.assignNextTarget(plane);
-                    }
-                } else {
-                    this.assignNextTarget(plane);
-                }
+            if (plane.companyId !== companyId) return;
+
+            if (!plane.currentRoute) {
+                this._reassignPlane(plane);
+                return;
+            }
+
+            const currentFromId = plane.currentAirportId;
+            const currentToId = plane.currentRoute.id;
+            
+            const routesFromHere = this.networkManager.network[companyId][currentFromId];
+            let routeStillExists = false;
+            
+            if (routesFromHere) {
+                routeStillExists = routesFromHere.some(r => r.id === currentToId);
+            }
+
+            if (!routeStillExists) {
+                this._reassignPlane(plane);
             }
         });
+    }
+
+    _reassignPlane(plane) {
+        let nextRoute = null;
+        let spawnAirportId = plane.currentAirportId; 
+
+        if (spawnAirportId) {
+            nextRoute = this.networkManager.getRandomRouteFrom(spawnAirportId, plane.companyId);
+        }
+
+        if (!nextRoute) {
+            spawnAirportId = this.networkManager.getRandomConnectedAirport(plane.companyId);
+            if (spawnAirportId) {
+                nextRoute = this.networkManager.getRandomRouteFrom(spawnAirportId, plane.companyId);
+            }
+        }
+
+        if (!nextRoute) {
+            plane.mesh.visible = false;
+            plane.currentAirportId = null;
+            plane.currentRoute = null;
+            plane.progress = 0;
+            return;
+        }
+
+        plane.mesh.visible = true;
+        plane.currentAirportId = spawnAirportId;
+        plane.currentRoute = nextRoute;
+        plane.progress = 0;
+    }
+
+    wakeUpPlanes(companyId = 'player') {
+        this.planes.forEach(plane => {
+            if (plane.companyId === companyId && !plane.mesh.visible) {
+                this._reassignPlane(plane);
+            }
+        });
+    }
+
+    updateScale(camera) {
+        this.planes.forEach(plane => {
+            if (!plane.mesh.visible) return;
+
+            const pos = new THREE.Vector3();
+            plane.mesh.getWorldPosition(pos);
+            const distance = camera.position.distanceTo(pos);
+            
+            let baseScale = distance / 10;
+            baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
+            
+            const finalScale = plane.originalScale * baseScale;
+            plane.mesh.scale.set(finalScale, finalScale, finalScale);
+        });
+    }
+
+    update(delta) {
+        for (let i = 0; i < this.planes.length; i++) {
+            const plane = this.planes[i];
+            
+            if (!plane.currentRoute || !plane.mesh.visible) continue;
+
+            const curve = plane.currentRoute.curve;
+            const length = plane.currentRoute.length;
+            
+            const speedFactor = plane.baseSpeed / length;
+            plane.progress += speedFactor * delta;
+
+            if (plane.progress >= 1.0) {
+                const nextAirportId = plane.currentRoute.id;
+                const nextRoute = this.networkManager.getRandomRouteFrom(nextAirportId, plane.companyId);
+                
+                if (nextRoute) {
+                    plane.currentAirportId = nextAirportId;
+                    plane.currentRoute = nextRoute;
+                    plane.progress = 0;
+                } else {
+                    plane.progress = 1.0; 
+                }
+            } else {
+                const position = curve.getPointAt(plane.progress);
+                const tangent = curve.getTangentAt(plane.progress).normalize(); 
+                const up = position.clone().normalize(); 
+                
+                // 元の 0.005 の浮かせ方に微小な会社ごとのオフセットを足す
+                const offsetPosition = position.clone().add(up.clone().multiplyScalar(0.005 + plane.altitudeOffset));
+                plane.mesh.position.copy(offsetPosition);
+
+                const right = new THREE.Vector3().crossVectors(tangent, up);
+                
+                // ★修正: 進行方向の接線(tangent)ベクトルが0になった時に行列計算が壊れるバグを防止する安全弁
+                if (right.lengthSq() > 0.000001) {
+                    right.normalize();
+                    const matrix = new THREE.Matrix4().makeBasis(right, tangent, up);
+                    plane.mesh.quaternion.setFromRotationMatrix(matrix);
+                }
+            }
+        }
     }
 }
