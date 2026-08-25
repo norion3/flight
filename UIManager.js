@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ボタン色彩の適正化および連続操作対応】
- * 履歴177の自己閉鎖処理削除に加え、履歴215に基づき、片手操作用のズームボタン連携を追加しました。
- * Tailwindのdisabled属性を用いて、限界値に達した際のエレガントなグレーアウトを実現しています。
+ * 【ボタンの排他制御・被り防止処理の追加】
+ * 履歴221に基づき、メッセージカード展開時に fab-buy-plane だけでなく 
+ * zoom-controls も同時に非表示(scale(0))にする連携処理を追加しました。
  */
 export class UIManager {
     constructor() {
@@ -13,9 +13,10 @@ export class UIManager {
         this.toast = document.getElementById('toast-notification');
         this.connectingCard = document.getElementById('connecting-mode-card'); 
         
-        // ★追加: ズームボタンの取得
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
+        // ★追加: ズームボタン全体を覆うコンテナを取得
+        this.zoomControls = document.getElementById('zoom-controls');
 
         this.toastTimeout = null;
 
@@ -23,8 +24,8 @@ export class UIManager {
         this.onRouteActionConfirmed = null; 
         this.onRouteCanceled = null;
         this.onBuyPlane = null;
-        this.onZoomIn = null; // ★追加
-        this.onZoomOut = null; // ★追加
+        this.onZoomIn = null;
+        this.onZoomOut = null;
         
         this.currentRouteAction = null; 
 
@@ -41,6 +42,7 @@ export class UIManager {
             this.hideRouteConfirm();
             this.connectingCard.classList.remove('show');
             this.fabBuy.style.transform = 'scale(1)'; 
+            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; // ★追加
         };
 
         document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
@@ -54,11 +56,13 @@ export class UIManager {
             this.hideAll();
             this.buyMenu.classList.add('show');
             this.fabBuy.style.transform = 'scale(0)'; 
+            if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
         });
 
         document.getElementById('btn-close-buy').addEventListener('click', () => {
             this.buyMenu.classList.remove('show');
             this.fabBuy.style.transform = 'scale(1)';
+            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; // ★追加
         });
 
         const btnCloseInfo = document.getElementById('btn-close-info');
@@ -75,7 +79,6 @@ export class UIManager {
             });
         });
 
-        // ★追加: ズームボタンのイベント登録
         if (this.btnZoomIn) {
             this.btnZoomIn.addEventListener('click', () => {
                 if (this.onZoomIn) this.onZoomIn();
@@ -88,7 +91,6 @@ export class UIManager {
         }
     }
 
-    // ★追加: ズームボタンのグレーアウト(disabled)状態を更新する
     updateZoomButtonsState(canZoomIn, canZoomOut) {
         if (this.btnZoomIn) this.btnZoomIn.disabled = !canZoomIn;
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
@@ -136,12 +138,14 @@ export class UIManager {
 
         this.infoCard.classList.add('show');
         this.fabBuy.style.transform = 'scale(0)'; 
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
     }
 
     setConnectingMode() {
         this.infoCard.classList.remove('show');
         this.connectingCard.classList.add('show');
         this.fabBuy.style.transform = 'scale(0)'; 
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
     }
 
     showRouteConfirm(fromData, toData, isConnected) {
@@ -169,6 +173,7 @@ export class UIManager {
         }
 
         this.fabBuy.style.transform = 'scale(0)'; 
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
     }
 
     hideRouteConfirm() {
@@ -181,5 +186,6 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         this.fabBuy.style.transform = 'scale(1)'; 
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; // ★追加
     }
 }

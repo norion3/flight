@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【連続操作時の起点ハイライトロック・完全版】に加え、
- * 履歴215に基づき、片手操作UX向上のための滑らかなズーム処理（ドット見え防止制限付き）を追加しました。
- * OrbitControls の change イベントを監視し、限界値到達時にリアルタイムでUIをグレーアウトさせます。
+ * 【グレーアウト判定のラグ解消】
+ * 履歴221に基づき、ズーム限界の判定を「カメラの現在位置」ではなく、
+ * 「ユーザーが到達しようとしている目標値（targetDistance）」ベースで行うよう修正し、
+ * ボタン操作に対するUI状態（グレーアウト）の即時反映を実現しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,7 +27,7 @@ export class GameManager {
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
 
-        this.targetDistance = null; // ★追加: 滑らかなズームアニメーション用
+        this.targetDistance = null; 
 
         this.initThree();
         this.globe = new Globe(this.scene);
@@ -84,7 +85,6 @@ export class GameManager {
             }
         };
 
-        // ★追加: UIからのズーム要求を受け取り、ターゲット距離を更新する
         this.uiManager.onZoomIn = () => this.zoomCamera(-4.0);
         this.uiManager.onZoomOut = () => this.zoomCamera(4.0);
 
@@ -140,13 +140,11 @@ export class GameManager {
         this.controls.rotateSpeed = 0.5;
         this.controls.zoomSpeed = 0.8;
         
-        // ★修正: ズームイン限界を 7.5 に設定し、大陸のドットが見えるのを防ぐ
         this.controls.minDistance = 7.5; 
         this.controls.maxDistance = 25.0;
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
-        // ★追加: ピンチ操作も含め、カメラ距離が変わるたびにUIのボタン状態(グレーアウト)を更新
         this.controls.addEventListener('change', () => this.checkZoomLimit());
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -157,21 +155,25 @@ export class GameManager {
         this.scene.add(dirLight);
     }
 
-    // ★追加: UIボタン操作時にターゲットの距離を設定する
     zoomCamera(deltaAmount) {
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         if (this.targetDistance === null) this.targetDistance = currentDist;
         
         this.targetDistance += deltaAmount;
         this.targetDistance = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, this.targetDistance));
+        
+        // ★追加: 目標値が更新された瞬間に判定を走らせることで、即座にボタンをグレーアウトさせる
+        this.checkZoomLimit(); 
     }
 
-    // ★追加: ズーム限界かどうかの判定とUI（グレーアウト）への伝達
+    // ★修正: アニメーションの完了を待たず、目標値(targetDistance)ベースでキビキビと判定する
     checkZoomLimit() {
-        const dist = this.camera.position.distanceTo(this.controls.target);
-        // 小数点誤差を考慮して 0.01 の余裕を見る
-        const canZoomIn = dist > this.controls.minDistance + 0.01;
-        const canZoomOut = dist < this.controls.maxDistance - 0.01;
+        const currentDist = this.camera.position.distanceTo(this.controls.target);
+        const target = this.targetDistance !== null ? this.targetDistance : currentDist;
+        
+        const canZoomIn = target > this.controls.minDistance + 0.01;
+        const canZoomOut = target < this.controls.maxDistance - 0.01;
+        
         this.uiManager.updateZoomButtonsState(canZoomIn, canZoomOut);
     }
 
@@ -187,7 +189,7 @@ export class GameManager {
             this.rivalManager.init();
             
             this.hideLoader();
-            this.checkZoomLimit(); // ★追加: 起動時にボタンの状態を同期
+            this.checkZoomLimit(); 
         } else {
             this.showError("Error", window.APP_LANG.errMapLoad);
         }
@@ -327,7 +329,6 @@ export class GameManager {
         
         const delta = this.clock.getDelta();
 
-        // ★追加: 滑らかなズームアニメーション処理
         if (this.targetDistance !== null) {
             const currentDist = this.camera.position.distanceTo(this.controls.target);
             const diff = this.targetDistance - currentDist;
@@ -335,11 +336,9 @@ export class GameManager {
             if (Math.abs(diff) < 0.01) {
                 this.targetDistance = null;
             } else {
-                // アニメーション速度 (10.0)
                 const step = diff * 10.0 * delta; 
                 const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
                 this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
-                // これを呼ぶことでchangeイベントが発火し、限界時のグレーアウト判定も走る
                 this.controls.update(); 
             }
         }
