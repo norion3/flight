@@ -43,6 +43,23 @@
         }
         window.addEventListener('resize', updateUIBottomMargin);
         window.addEventListener('DOMContentLoaded', updateUIBottomMargin);
+
+        // ★追加: ブラウザ自体の意図しないピンチズーム・ダブルタップ拡大を防止 (iOS Safari等対策)
+        document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
+
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                // UIボタン(＋/－等)の連打は許可するため、interactive-ui 以外でのダブルタップのみ防ぐ
+                if (!event.target.closest('.interactive-ui')) {
+                    event.preventDefault();
+                }
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
     </script>
 
     <script>
@@ -80,7 +97,9 @@
         }
         #webgl-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
         #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
-        .interactive-ui { pointer-events: auto; touch-action: manipulation; }
+        
+        /* ★修正: touch-action を manipulation から none に変更し、ピンチズームを完全封殺 */
+        .interactive-ui { pointer-events: auto; touch-action: none; }
         
         .bottom-sheet { 
             transform: translateY(200px); 
@@ -162,7 +181,6 @@
             </button>
         </div>
 
-        <!-- ★追加: 片手操作用ズームボタン（ソリッドなダークグレーで一貫性を維持し、限界時グレーアウト連携対応） -->
         <div class="interactive-ui absolute right-6 z-20 flex flex-col space-y-2" style="bottom: calc(var(--ui-bottom) + 80px);">
             <button id="btn-zoom-in" class="w-12 h-12 bg-slate-800 rounded-xl shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-white active:bg-slate-700 transition-all disabled:opacity-50 disabled:text-slate-500 disabled:border-slate-800 disabled:active:bg-slate-800">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
