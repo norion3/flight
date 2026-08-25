@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【明るさと分厚さの両立（マルチマテリアルによる擬似シャドウ）】
- * 履歴254に基づき、オリジナルのパス形状を完全に維持したまま、機体を分厚く立体化しました。
- * 宇宙空間で暗くならないよう光の計算(Standard)は使わず、
- * 「表面は元の鮮やかな色」「側面は少し暗くして影を表現した色」という2つの Basic マテリアルを
- * 配列として割り当てることで、環境光の暗さに影響されない鮮やかな分厚さを実現しています。
+ * 【明るさを保ったまま、デザイン工学的に最適な「分厚さ」を追求】
+ * 履歴255に基づき、マルチマテリアル（表面は鮮やかな色、側面は暗い色）の仕組みを維持したまま、
+ * ExtrudeGeometry の depth（厚み）を 0.06 から 0.12 へと倍増させました。
+ * これは全長に対して約12%の厚みであり、飛行機のスマートなシルエットを崩すことなく、
+ * 高級なアクリルバッジのような最高の重厚感と立体感を放つ、デザイン工学的な最適値です。
  */
 
 import { CONFIG } from './Config.js';
@@ -47,9 +47,9 @@ export class PlaneManager {
         shape.lineTo(-0.06, 0.1);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        // ★修正: しっかりと分厚くするための ExtrudeGeometry
+        // ★修正: デザイン工学に基づき、シルエットを崩さずに重厚感を極大化させる厚み(0.12)を設定
         const extrudeSettings = {
-            depth: 0.06,          // 機体を分厚くする
+            depth: 0.12,          // 厚みを前回の2倍に引き上げ、しっかりとした分厚さを表現
             bevelEnabled: true,   // エッジの面取り（アウトライン効果）
             bevelSegments: 2,
             steps: 1,
@@ -81,7 +81,7 @@ export class PlaneManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const planeColor = comp ? comp.planeColor : 0x34d399;
         
-        // ★修正: 「明るさ」と「分厚さ」を両立するマルチマテリアル設定
+        // ★維持: 「明るさ」と「分厚さ」を両立するマルチマテリアル設定
         const baseColor = new THREE.Color(planeColor);
         
         // 1. 表面・裏面用マテリアル（元の明るく鮮やかな色）
@@ -91,7 +91,7 @@ export class PlaneManager {
             side: THREE.DoubleSide
         });
         
-        // 2. 側面用マテリアル（光がない環境でも影・立体感を見せるため、元の色から少し明度を落とす）
+        // 2. 側面用マテリアル（厚みの部分。暗く沈ませない程度に影を表現する色）
         const sideColor = baseColor.clone().multiplyScalar(0.65); // 明るさを65%に設定
         const matSide = new THREE.MeshBasicMaterial({
             color: sideColor,
