@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【黄金比モジュール分割による究極の2Dシルエット】
- * 履歴245に基づき、機体を「頭部」「胴体」「翼前縁フェアリング」「翼端」「後縁フィレット」「尾翼」等
- * の独立した機能モジュールに解体し、それぞれに最適なハイブリッドパス（直線とベジェ曲線）を割り当てました。
- * 黄金比（1:1.618）から導かれた究極のプロポーション（スマートな胴体、ワイドな翼）を適用しています。
+ * 【オリジナルデザインの尊重と機体サイズの適正化】
+ * 履歴226に基づき、ユーザー様のご指摘を反映して飛行機のベーススケールを全体的に引き上げました。
+ * （小型: 0.09, 中型: 0.11, 大型: 0.13, 超大型: 0.15）
+ * これにより、俯瞰視点でも小型機がドット化せず美しいシルエットを維持し、混戦時も視認性が向上します。
  */
 
 import { CONFIG } from './Config.js';
@@ -25,44 +25,27 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
-        // 黄金比とモジュール分割に基づく究極のマスターパス (Y: 0.5 〜 -0.5, 胴体幅: 0.085)
         shape.moveTo(0, 0.5);
+        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
+        shape.lineTo(0.35, -0.1);
+        shape.lineTo(0.35, -0.2);
+        shape.lineTo(0.06, -0.15);
+        shape.lineTo(0.05, -0.35);
+        shape.lineTo(0.15, -0.45);
+        shape.lineTo(0.15, -0.5);
+        shape.lineTo(0.02, -0.48);
+        shape.lineTo(0, -0.5);
+        shape.lineTo(-0.02, -0.48);
+        shape.lineTo(-0.15, -0.5);
+        shape.lineTo(-0.15, -0.45);
+        shape.lineTo(-0.05, -0.35);
+        shape.lineTo(-0.06, -0.15);
+        shape.lineTo(-0.35, -0.2);
+        shape.lineTo(-0.35, -0.1);
+        shape.lineTo(-0.06, 0.1);
+        shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        // --- 右半分のシルエット ---
-        // A. 頭部モジュール
-        shape.bezierCurveTo(0.04, 0.5, 0.085, 0.42, 0.085, 0.3);        // レドームからキャビン前方への美しい流線型
-        // B. 胴体モジュール
-        shape.lineTo(0.085, 0.2);                                       // 胴体前部ストレート
-        // C. 翼周りモジュール
-        shape.bezierCurveTo(0.085, 0.15, 0.12, 0.12, 0.18, 0.08);       // 主翼前縁フェアリング（空気を逃がす付け根）
-        shape.lineTo(0.51, -0.15);                                      // 主翼前縁（黄金比配置の鋭い後退角）
-        shape.bezierCurveTo(0.53, -0.165, 0.53, -0.19, 0.51, -0.2);     // 翼端の複合R（平坦部と角の丸み）
-        shape.lineTo(0.18, -0.25);                                      // 主翼後縁（シャープな直線）
-        shape.bezierCurveTo(0.12, -0.26, 0.07, -0.29, 0.07, -0.35);     // 主翼後縁フィレット（渦を抑える長く深いえぐり）
-        // D. 胴体テーパーモジュール
-        shape.lineTo(0.05, -0.42);                                      // 後部キャビン（スマートなテーパー）
-        // E. 尾翼付近モジュール
-        shape.bezierCurveTo(0.05, -0.43, 0.08, -0.44, 0.12, -0.45);     // 尾翼前縁フェアリング
-        shape.lineTo(0.24, -0.48);                                      // 尾翼前縁
-        shape.bezierCurveTo(0.25, -0.485, 0.25, -0.5, 0.24, -0.5);      // 尾翼翼端の極小R
-        shape.lineTo(0, -0.5);                                          // 尾翼後端〜最後尾（完全な水平直線）
-
-        // --- 左半分のシルエット（完全対称） ---
-        shape.lineTo(-0.24, -0.5);
-        shape.bezierCurveTo(-0.25, -0.5, -0.25, -0.485, -0.24, -0.48);
-        shape.lineTo(-0.12, -0.45);
-        shape.bezierCurveTo(-0.08, -0.44, -0.05, -0.43, -0.05, -0.42);
-        shape.lineTo(-0.07, -0.35);
-        shape.bezierCurveTo(-0.07, -0.29, -0.12, -0.26, -0.18, -0.25);
-        shape.lineTo(-0.51, -0.2);
-        shape.bezierCurveTo(-0.53, -0.19, -0.53, -0.165, -0.51, -0.15);
-        shape.lineTo(-0.18, 0.08);
-        shape.bezierCurveTo(-0.12, 0.12, -0.085, 0.15, -0.085, 0.2);
-        shape.lineTo(-0.085, 0.3);
-        shape.bezierCurveTo(-0.085, 0.42, -0.04, 0.5, 0, 0.5);
-
-        // ギザギザを絶対に防ぐ高解像度分割 (curveSegments: 64)
-        const geometry = new THREE.ShapeGeometry(shape, 64);
+        const geometry = new THREE.ShapeGeometry(shape);
         geometry.center();
         
         return geometry;
@@ -75,6 +58,7 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
         if (!routeData) return false;
 
+        // ★修正: 飛行機のサイズ比率を全体的に上方修正し、小型機が小さくなりすぎないよう最適化
         let scale = 0.11;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
