@@ -51,7 +51,6 @@
             toastLimit: "接続上限です",
             toastOverDistance: "航続距離を超えています",
             errMapLoad: "地図データの取得に失敗しました。",
-            // ★修正: パターン1（主要空港 / 地方空港 / 中継空港）に完全統一
             hubMajor: "主要空港",
             hubLocal: "地方空港",
             hubFictional: "中継空港",
@@ -160,6 +159,16 @@
             </div>
             <button id="btn-connect" class="w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors">
                 Connect
+            </button>
+        </div>
+
+        <!-- ★追加: 片手操作用ズームボタン（ソリッドなダークグレーで一貫性を維持し、限界時グレーアウト連携対応） -->
+        <div class="interactive-ui absolute right-6 z-20 flex flex-col space-y-2" style="bottom: calc(var(--ui-bottom) + 80px);">
+            <button id="btn-zoom-in" class="w-12 h-12 bg-slate-800 rounded-xl shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-white active:bg-slate-700 transition-all disabled:opacity-50 disabled:text-slate-500 disabled:border-slate-800 disabled:active:bg-slate-800">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button id="btn-zoom-out" class="w-12 h-12 bg-slate-800 rounded-xl shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-white active:bg-slate-700 transition-all disabled:opacity-50 disabled:text-slate-500 disabled:border-slate-800 disabled:active:bg-slate-800">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
         </div>
 

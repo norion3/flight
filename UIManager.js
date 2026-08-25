@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【ボタン色彩の適正化および連続操作対応】
- * 履歴177に基づき、添付の正しいコードをベースとして、
- * 連続開拓・廃止時にカードを自動的に閉じないよう btn-action-route の自己閉鎖処理のみを削除しました。
+ * 履歴177の自己閉鎖処理削除に加え、履歴215に基づき、片手操作用のズームボタン連携を追加しました。
+ * Tailwindのdisabled属性を用いて、限界値に達した際のエレガントなグレーアウトを実現しています。
  */
 export class UIManager {
     constructor() {
@@ -12,12 +12,19 @@ export class UIManager {
         this.buyMenu = document.getElementById('buy-plane-menu');
         this.toast = document.getElementById('toast-notification');
         this.connectingCard = document.getElementById('connecting-mode-card'); 
+        
+        // ★追加: ズームボタンの取得
+        this.btnZoomIn = document.getElementById('btn-zoom-in');
+        this.btnZoomOut = document.getElementById('btn-zoom-out');
+
         this.toastTimeout = null;
 
         this.onConnectRequested = null;
         this.onRouteActionConfirmed = null; 
         this.onRouteCanceled = null;
         this.onBuyPlane = null;
+        this.onZoomIn = null; // ★追加
+        this.onZoomOut = null; // ★追加
         
         this.currentRouteAction = null; 
 
@@ -41,7 +48,6 @@ export class UIManager {
 
         document.getElementById('btn-action-route').addEventListener('click', () => {
             if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
-            // ★修正: 連続操作（お絵かき）を可能にするため、ここでの自動クローズ処理（hideRouteConfirm等）を削除
         });
 
         this.fabBuy.addEventListener('click', () => {
@@ -68,6 +74,24 @@ export class UIManager {
                 if (this.onBuyPlane) this.onBuyPlane(type);
             });
         });
+
+        // ★追加: ズームボタンのイベント登録
+        if (this.btnZoomIn) {
+            this.btnZoomIn.addEventListener('click', () => {
+                if (this.onZoomIn) this.onZoomIn();
+            });
+        }
+        if (this.btnZoomOut) {
+            this.btnZoomOut.addEventListener('click', () => {
+                if (this.onZoomOut) this.onZoomOut();
+            });
+        }
+    }
+
+    // ★追加: ズームボタンのグレーアウト(disabled)状態を更新する
+    updateZoomButtonsState(canZoomIn, canZoomOut) {
+        if (this.btnZoomIn) this.btnZoomIn.disabled = !canZoomIn;
+        if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
     showToast(message) {

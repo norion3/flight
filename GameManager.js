@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【連続操作時の起点ハイライトロック・完全版】
- * 履歴204に基づき、ファイル内に残留していた古い `highlightMarker` の呼び出しを完全に駆逐し、
- * すべて `clearHighlight` と `setHighlight` に置き換えました。
- * これにより is not a function エラーによるクラッシュが完全に解消されます。
+ * 【連続操作時の起点ハイライトロック・完全版】に加え、
+ * 履歴215に基づき、片手操作UX向上のための滑らかなズーム処理（ドット見え防止制限付き）を追加しました。
+ * OrbitControls の change イベントを監視し、限界値到達時にリアルタイムでUIをグレーアウトさせます。
  */
 
 import { CONFIG } from './Config.js';
@@ -27,6 +26,8 @@ export class GameManager {
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
 
+        this.targetDistance = null; // ★追加: 滑らかなズームアニメーション用
+
         this.initThree();
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
@@ -41,7 +42,6 @@ export class GameManager {
             this.state = STATE_CONNECTING;
             this.selectedOrigin = this.selectedHitMesh; 
             
-            // ★追加: 接続モードに入った瞬間、出発地をシアン色で固定（ロック）する
             this.airportManager.clearHighlight('all');
             this.airportManager.setHighlight(this.selectedOrigin, 'origin');
             
@@ -70,7 +70,7 @@ export class GameManager {
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
-                        this.airportManager.clearHighlight('dest'); // ★エラー時は目的地ハイライトのみ消す
+                        this.airportManager.clearHighlight('dest'); 
                         this.uiManager.setConnectingMode();
                     }
                 }
@@ -83,6 +83,10 @@ export class GameManager {
                 this.uiManager.showToast(window.APP_LANG.toastNoRoute);
             }
         };
+
+        // ★追加: UIからのズーム要求を受け取り、ターゲット距離を更新する
+        this.uiManager.onZoomIn = () => this.zoomCamera(-4.0);
+        this.uiManager.onZoomOut = () => this.zoomCamera(4.0);
 
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
@@ -102,7 +106,7 @@ export class GameManager {
         this.selectedOrigin = null;
         this.selectedDestination = null;
         this.selectedHitMesh = null;
-        this.airportManager.clearHighlight('all'); // ★古いメソッドを削除し、正しく全消去
+        this.airportManager.clearHighlight('all'); 
         this.uiManager.hideAll();
     }
 
@@ -135,10 +139,15 @@ export class GameManager {
         this.controls.dampingFactor = 0.04;
         this.controls.rotateSpeed = 0.5;
         this.controls.zoomSpeed = 0.8;
-        this.controls.minDistance = 5.5;
+        
+        // ★修正: ズームイン限界を 7.5 に設定し、大陸のドットが見えるのを防ぐ
+        this.controls.minDistance = 7.5; 
         this.controls.maxDistance = 25.0;
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
+
+        // ★追加: ピンチ操作も含め、カメラ距離が変わるたびにUIのボタン状態(グレーアウト)を更新
+        this.controls.addEventListener('change', () => this.checkZoomLimit());
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.scene.add(ambientLight);
@@ -146,6 +155,24 @@ export class GameManager {
         const dirLight = new THREE.DirectionalLight(CONFIG.COLORS.COASTLINE, 0.5);
         dirLight.position.set(10, 10, 10);
         this.scene.add(dirLight);
+    }
+
+    // ★追加: UIボタン操作時にターゲットの距離を設定する
+    zoomCamera(deltaAmount) {
+        const currentDist = this.camera.position.distanceTo(this.controls.target);
+        if (this.targetDistance === null) this.targetDistance = currentDist;
+        
+        this.targetDistance += deltaAmount;
+        this.targetDistance = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, this.targetDistance));
+    }
+
+    // ★追加: ズーム限界かどうかの判定とUI（グレーアウト）への伝達
+    checkZoomLimit() {
+        const dist = this.camera.position.distanceTo(this.controls.target);
+        // 小数点誤差を考慮して 0.01 の余裕を見る
+        const canZoomIn = dist > this.controls.minDistance + 0.01;
+        const canZoomOut = dist < this.controls.maxDistance - 0.01;
+        this.uiManager.updateZoomButtonsState(canZoomIn, canZoomOut);
     }
 
     async start() {
@@ -160,6 +187,7 @@ export class GameManager {
             this.rivalManager.init();
             
             this.hideLoader();
+            this.checkZoomLimit(); // ★追加: 起動時にボタンの状態を同期
         } else {
             this.showError("Error", window.APP_LANG.errMapLoad);
         }
@@ -233,7 +261,6 @@ export class GameManager {
                 this.selectedHitMesh = bestHit;
                 const data = bestHit.userData.airportData;
                 
-                // ★修正: アイドル状態は「目的地(白)」としてハイライトさせる
                 this.airportManager.clearHighlight('all');
                 this.airportManager.setHighlight(bestHit, 'dest');
                 
@@ -253,7 +280,6 @@ export class GameManager {
                 }
                 this.selectedDestination = bestHit;
                 
-                // ★修正: 目的地ハイライトだけを消して新しい目的地を白く光らせる（出発地のシアン色は消えない）
                 this.airportManager.clearHighlight('dest');
                 this.airportManager.setHighlight(this.selectedDestination, 'dest');
                 
@@ -263,7 +289,6 @@ export class GameManager {
                 const isConnected = this.networkManager.isConnected(originData.id, destData.id);
 
                 if (isConnected) {
-                    // ★エラー回避: uiManagerの呼び出しのみにする（古い highlightMarker は完全に削除）
                     this.uiManager.showRouteConfirm(originData, destData, true); 
                 } else {
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
@@ -274,15 +299,14 @@ export class GameManager {
                     if (distance > maxDistance) {
                         this.uiManager.showToast(window.APP_LANG.toastOverDistance);
                         this.selectedDestination = null;
-                        this.airportManager.clearHighlight('dest'); // ★エラー時は目的地ハイライトを消す
+                        this.airportManager.clearHighlight('dest'); 
                         this.uiManager.setConnectingMode();
                     } else if (this.networkManager.canConnect(originData, destData)) {
-                        // ★エラー回避: uiManagerの呼び出しのみにする（古い highlightMarker は完全に削除）
                         this.uiManager.showRouteConfirm(originData, destData, false); 
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
-                        this.airportManager.clearHighlight('dest'); // ★エラー時は目的地ハイライトを消す
+                        this.airportManager.clearHighlight('dest'); 
                         this.uiManager.setConnectingMode();
                     }
                 }
@@ -302,6 +326,23 @@ export class GameManager {
         requestAnimationFrame(this.animate.bind(this));
         
         const delta = this.clock.getDelta();
+
+        // ★追加: 滑らかなズームアニメーション処理
+        if (this.targetDistance !== null) {
+            const currentDist = this.camera.position.distanceTo(this.controls.target);
+            const diff = this.targetDistance - currentDist;
+            
+            if (Math.abs(diff) < 0.01) {
+                this.targetDistance = null;
+            } else {
+                // アニメーション速度 (10.0)
+                const step = diff * 10.0 * delta; 
+                const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
+                this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
+                // これを呼ぶことでchangeイベントが発火し、限界時のグレーアウト判定も走る
+                this.controls.update(); 
+            }
+        }
 
         this.airportManager.updateMarkerScale(this.camera);
         this.planeManager.updateScale(this.camera);
