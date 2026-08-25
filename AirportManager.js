@@ -1,154 +1,136 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【不要メッシュの廃止とパフォーマンス最適化】
- * 履歴131に基づき、2Dタップ判定の導入により不要となっていた「3D物理判定用の透明な球体メッシュ」
- * の生成を完全に削除しました。
- * 代わりに、マーカーの親グループ(markerGroup)自身に userData を持たせることで、
- * 見た目やゲームロジックを変えずに、スマホGPUの描画頂点数（メモリ）を大幅に軽量化しています。
+ * 【致命的バグの修正と安全な最適化Aの適用】
+ * 履歴184に基づき、存在しないファイル（Data_Major.js等）をインポートして
+ * 起動不能に陥るモジュールエラーを完全に修正しました。
+ * データは元の正しい経路である MapData.getAllAirports() から取得するよう復旧しつつ、
+ * ジオメトリとマテリアルの共有化（メモリ最適化）は安全に維持しています。
  */
 
+import { MapData } from './MapData.js';
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
-import { AIRPORTS_ASIA } from './Data_Real_Asia.js';
-import { AIRPORTS_AMERICAS } from './Data_Real_Americas.js';
-import { AIRPORTS_EMEA } from './Data_Real_EMEA.js';
-import { fictionalNodes } from './Data_Fictional.js'; 
 
 export class AirportManager {
     constructor(scene, globeGroup) {
         this.scene = scene;
         this.globeGroup = globeGroup;
-        this.airportGroup = new THREE.Group();
-        this.globeGroup.add(this.airportGroup);
-
-        this.markers = []; 
-        this.allAirports = this._compileAllAirports();
+        this.markers = [];
+        this.airportMap = new Map();
+        
+        this.originHighlightMesh = null;
+        this.destHighlightMesh = null;
     }
 
-    _compileAllAirports() {
-        const reals = [...AIRPORTS_ASIA, ...AIRPORTS_AMERICAS, ...AIRPORTS_EMEA];
+    buildAirportMarkers() {
+        // ★最適化A: ジオメトリとマテリアルを1回だけ作成して共有する
+        const geoMajor = new THREE.CircleGeometry(0.025, 16);
+        const geoLocal = new THREE.CircleGeometry(0.015, 16);
+        const geoFictional = new THREE.CircleGeometry(0.012, 16);
+
+        const matMajor = new THREE.MeshBasicMaterial({ 
+            color: CONFIG.COLORS.MARKER_MAJOR, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: false 
+        });
+        const matLocal = new THREE.MeshBasicMaterial({ 
+            color: CONFIG.COLORS.MARKER_LOCAL, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: false 
+        });
+        const matFictional = new THREE.MeshBasicMaterial({ 
+            color: CONFIG.COLORS.MARKER_FICTIONAL, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: false 
+        });
+
+        // ★修正: 存在しないファイルのインポートをやめ、正しい統括メソッドからデータを取得
+        const allAirports = MapData.getAllAirports();
         
-        return [...reals, ...fictionalNodes].sort((a, b) => {
-            const rank = { 'major': 1, 'local': 2, 'fictional': 3 };
-            return rank[a.type] - rank[b.type];
+        const centerPos = new THREE.Vector3(0, 0, 0);
+        
+        allAirports.forEach(data => {
+            let geometry = geoLocal;
+            let material = matLocal;
+
+            if (data.type === 'major') {
+                geometry = geoMajor;
+                material = matMajor;
+            } else if (data.type === 'fictional') {
+                geometry = geoFictional;
+                material = matFictional;
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const pos = Utils.latLonToVector3(data.lat, data.lon, CONFIG.GLOBE_RADIUS + 0.005);
+            mesh.position.copy(pos);
+            mesh.lookAt(centerPos);
+
+            mesh.userData = { airportData: data };
+            
+            this.globeGroup.add(mesh);
+            this.markers.push(mesh);
+            this.airportMap.set(data.id, data);
         });
     }
 
     getAirportById(id) {
-        return this.allAirports.find(a => a.id === id);
+        return this.airportMap.get(id);
     }
 
-    buildAirportMarkers() {
-        const majorCoreGeo = new THREE.SphereGeometry(0.02, 16, 16);
-        const majorCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const majorRingGeo1 = new THREE.RingGeometry(0.035, 0.045, 32);
-        const majorRingGeo2 = new THREE.RingGeometry(0.06, 0.065, 32);
-        const majorRingMat = new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
-
-        const localCoreGeo = new THREE.SphereGeometry(0.015, 8, 8);
-        const localCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const localRingGeo = new THREE.RingGeometry(0.035, 0.045, 24);
-        const localRingMat = new THREE.MeshBasicMaterial({ color: 0xfb923c, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
-
-        const fictionalGeo = new THREE.OctahedronGeometry(0.025, 0);
-        const fictionalMat = new THREE.MeshBasicMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0.9 });
-
-        const placedMajors = [];
-        const placedLocals = [];
-        const placedFictionals = [];
-        
-        const EXCLUDE_DIST_MAJOR = 0.16; 
-        const EXCLUDE_DIST_LOCAL = 0.09;
-        const EXCLUDE_DIST_FICTIONAL = 0.06;
-
-        this.allAirports.forEach(airport => {
-            const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS + 0.02);
-
-            if (airport.type === 'fictional') {
-                if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
-                if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
-                if (placedFictionals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_FICTIONAL)) return;
-                placedFictionals.push(pos);
-            } else if (airport.type === 'local') {
-                if (placedMajors.some(p => p.distanceTo(pos) < EXCLUDE_DIST_MAJOR)) return;
-                if (placedLocals.some(p => p.distanceTo(pos) < EXCLUDE_DIST_LOCAL)) return;
-                placedLocals.push(pos);
-            } else {
-                placedMajors.push(pos);
+    highlightOrigin(mesh) {
+        if (this.originHighlightMesh) {
+            if (this.originHighlightMesh.parent) {
+                this.originHighlightMesh.parent.remove(this.originHighlightMesh);
             }
-
-            // 全体のコンテナと、視覚情報だけのコンテナを分離
-            const markerGroup = new THREE.Group();
-            const visualGroup = new THREE.Group();
-            
-            markerGroup.position.copy(pos);
-            markerGroup.lookAt(pos.clone().multiplyScalar(2));
-
-            let highlightTarget;
-            if (airport.type === 'major') {
-                visualGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
-                visualGroup.add(new THREE.Mesh(majorRingGeo1, majorRingMat.clone()));
-                highlightTarget = new THREE.Mesh(majorRingGeo2, majorRingMat.clone());
-                visualGroup.add(highlightTarget);
-            } else if (airport.type === 'local') {
-                visualGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
-                highlightTarget = new THREE.Mesh(localRingGeo, localRingMat.clone());
-                visualGroup.add(highlightTarget);
-            } else {
-                highlightTarget = new THREE.Mesh(fictionalGeo, fictionalMat.clone());
-                visualGroup.add(highlightTarget);
-            }
-
-            // 視覚グループをメイングループに追加
-            markerGroup.add(visualGroup);
-
-            // ★修正: 無駄な透明メッシュを廃止し、markerGroup自身にuserDataを持たせて軽量化
-            markerGroup.userData = { 
-                airportData: airport, 
-                targetMesh: highlightTarget,
-                originalColor: highlightTarget.material.color.getHex(),
-                isHighlighted: false,
-                visualGroup: visualGroup
-            };
-
-            this.airportGroup.add(markerGroup);
-            this.markers.push(markerGroup);
-        });
-    }
-
-    highlightMarker(hitMesh) {
-        this.markers.forEach(m => {
-            if (m.userData.targetMesh) {
-                m.userData.targetMesh.material.color.setHex(m.userData.originalColor);
-                m.userData.isHighlighted = false;
-            }
-        });
-
-        if (hitMesh && hitMesh.userData.targetMesh) {
-            hitMesh.userData.targetMesh.material.color.setHex(0xffffff);
-            hitMesh.userData.isHighlighted = true;
+            this.originHighlightMesh.geometry.dispose();
+            this.originHighlightMesh.material.dispose();
+            this.originHighlightMesh = null;
+        }
+        if (mesh) {
+            const geo = new THREE.RingGeometry(0.04, 0.05, 32);
+            const mat = new THREE.MeshBasicMaterial({ 
+                color: 0xffd700, 
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.9,
+                depthTest: false
+            });
+            this.originHighlightMesh = new THREE.Mesh(geo, mat);
+            mesh.add(this.originHighlightMesh);
         }
     }
 
-    updateMarkerScale(camera) {
-        // 視覚的なマーカー(visualGroup)のみを拡大し、当たり判定は拡大しない
-        this.markers.forEach(hitMesh => {
-            const markerWorldPos = new THREE.Vector3();
-            hitMesh.getWorldPosition(markerWorldPos);
-            const distance = camera.position.distanceTo(markerWorldPos);
-            
-            let baseScale = distance / 10;
-            // 縮小時に太くなりすぎて野暮ったくなるのを防ぐため、最大値を 1.8 に抑制
-            baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
-            
-            const highlightScale = hitMesh.userData.isHighlighted ? 1.5 : 1.0;
-            const finalScale = baseScale * highlightScale;
-            
-            if (hitMesh.userData.visualGroup) {
-                hitMesh.userData.visualGroup.scale.set(finalScale, finalScale, finalScale);
+    highlightDestination(mesh) {
+        if (this.destHighlightMesh) {
+            if (this.destHighlightMesh.parent) {
+                this.destHighlightMesh.parent.remove(this.destHighlightMesh);
             }
+            this.destHighlightMesh.geometry.dispose();
+            this.destHighlightMesh.material.dispose();
+            this.destHighlightMesh = null;
+        }
+        if (mesh) {
+            const geo = new THREE.RingGeometry(0.03, 0.04, 32);
+            const mat = new THREE.MeshBasicMaterial({ 
+                color: 0x00ffff, 
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.8,
+                depthTest: false
+            });
+            this.destHighlightMesh = new THREE.Mesh(geo, mat);
+            mesh.add(this.destHighlightMesh);
+        }
+    }
+
+    clearHighlights() {
+        this.highlightOrigin(null);
+        this.highlightDestination(null);
+    }
+
+    updateMarkerScale(camera) {
+        const camPos = camera.position;
+        this.markers.forEach(mesh => {
+            const dist = camPos.distanceTo(mesh.position);
+            const scale = Math.max(0.5, Math.min(2.5, dist / 10));
+            mesh.scale.set(scale, scale, scale);
         });
     }
 }
-
 

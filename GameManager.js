@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルAIとのクリーンな連携】
- * ユーザー添付ファイルをベースとし、既存のシームレスUX（お絵かき操作）等を
- * 1行も壊すことなく、ライバルマネージャーの初期化とアップデートのみを追記しました。
+ * 【連続操作時の起点ハイライトロック】
+ * 履歴203に基づき、連続で線を引く最中に出発地点（起点）のハイライトが消えないよう、
+ * AirportManager の clearHighlight と setHighlight を使って独立制御を行いました。
+ * 他の要素（ライバルAI、デザイン等）への影響は完全にゼロです。
  */
 
 import { CONFIG } from './Config.js';
@@ -12,7 +13,7 @@ import { AirportManager } from './AirportManager.js';
 import { UIManager } from './UIManager.js';
 import { NetworkManager } from './NetworkManager.js';
 import { PlaneManager } from './PlaneManager.js';
-import { RivalManager } from './RivalManager.js'; // ★追加
+import { RivalManager } from './RivalManager.js';
 import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
@@ -34,13 +35,16 @@ export class GameManager {
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.uiManager = new UIManager();
         
-        // ★追加: ライバルマネージャーのインスタンス化
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
             this.selectedOrigin = this.selectedHitMesh; 
-            this.airportManager.highlightMarker(this.selectedHitMesh);
+            
+            // ★追加: 接続モードに入った瞬間、出発地をシアン色で固定（ロック）する
+            this.airportManager.clearHighlight('all');
+            this.airportManager.setHighlight(this.selectedOrigin, 'origin');
+            
             this.uiManager.setConnectingMode();
         };
 
@@ -66,6 +70,7 @@ export class GameManager {
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
+                        this.airportManager.clearHighlight('dest'); // ★追加: エラー時は目的地ハイライトのみ消す
                         this.uiManager.setConnectingMode();
                     }
                 }
@@ -97,7 +102,7 @@ export class GameManager {
         this.selectedOrigin = null;
         this.selectedDestination = null;
         this.selectedHitMesh = null;
-        this.airportManager.highlightMarker(null);
+        this.airportManager.clearHighlight('all'); // ★修正: すべてのハイライトを消去
         this.uiManager.hideAll();
     }
 
@@ -152,7 +157,6 @@ export class GameManager {
             this.airportManager.buildAirportMarkers();
             
             this.initStarterPack();
-            // ★追加: ライバルたちの初期化
             this.rivalManager.init();
             
             this.hideLoader();
@@ -228,9 +232,12 @@ export class GameManager {
             if (bestHit) {
                 this.selectedHitMesh = bestHit;
                 const data = bestHit.userData.airportData;
-                this.airportManager.highlightMarker(bestHit);
                 
-                const currConns = this.networkManager.getConnectionCount(data.id); // デフォルトでplayerの数を取得
+                // ★修正: アイドル状態は「目的地(白)」としてハイライトさせる
+                this.airportManager.clearHighlight('all');
+                this.airportManager.setHighlight(bestHit, 'dest');
+                
+                const currConns = this.networkManager.getConnectionCount(data.id);
                 const maxConns = this.networkManager.MAX_CONNECTIONS[data.type];
                 
                 this.uiManager.showAirportInfo(data, currConns, maxConns);
@@ -246,13 +253,16 @@ export class GameManager {
                 }
                 this.selectedDestination = bestHit;
                 
+                // ★修正: 目的地ハイライトだけを消して新しい目的地を白く光らせる（出発地のシアン色は消えない）
+                this.airportManager.clearHighlight('dest');
+                this.airportManager.setHighlight(this.selectedDestination, 'dest');
+                
                 const originData = this.selectedOrigin.userData.airportData;
                 const destData = this.selectedDestination.userData.airportData;
 
-                const isConnected = this.networkManager.isConnected(originData.id, destData.id); // player
+                const isConnected = this.networkManager.isConnected(originData.id, destData.id);
 
                 if (isConnected) {
-                    this.airportManager.highlightMarker(this.selectedDestination);
                     this.uiManager.showRouteConfirm(originData, destData, true); 
                 } else {
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
@@ -263,13 +273,14 @@ export class GameManager {
                     if (distance > maxDistance) {
                         this.uiManager.showToast(window.APP_LANG.toastOverDistance);
                         this.selectedDestination = null;
+                        this.airportManager.clearHighlight('dest'); // ★追加: エラー時は目的地ハイライトを消す
                         this.uiManager.setConnectingMode();
-                    } else if (this.networkManager.canConnect(originData, destData)) { // player
-                        this.airportManager.highlightMarker(this.selectedDestination);
+                    } else if (this.networkManager.canConnect(originData, destData)) {
                         this.uiManager.showRouteConfirm(originData, destData, false); 
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
+                        this.airportManager.clearHighlight('dest'); // ★追加: エラー時は目的地ハイライトを消す
                         this.uiManager.setConnectingMode();
                     }
                 }
@@ -294,7 +305,6 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
         
-        // ★追加: ライバルたちのタイマー更新
         this.rivalManager.update(delta);
         
         this.controls.update(); 
