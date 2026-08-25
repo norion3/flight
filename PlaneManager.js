@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【オリジナルデザインの尊重と安全弁の追加】
- * ユーザー添付ファイル（超大型機やスピード調整が含まれた完全版）をベースとしています。
- * 形状やスピードのコードには一切触れず、会社ごとに色を変える処理と、
- * 行列計算時にベクトルが0になって消失するバグ（NaNエラー）を防ぐ安全弁のみを追加しました。
+ * 【オリジナルデザインの尊重と機体サイズの適正化】
+ * 履歴226に基づき、ユーザー様のご指摘を反映して飛行機のベーススケールを全体的に引き上げました。
+ * （小型: 0.09, 中型: 0.11, 大型: 0.13, 超大型: 0.15）
+ * これにより、俯瞰視点でも小型機がドット化せず美しいシルエットを維持し、混戦時も視認性が向上します。
  */
 
 import { CONFIG } from './Config.js';
@@ -58,14 +58,14 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
         if (!routeData) return false;
 
-        let scale = 0.08;
+        // ★修正: 飛行機のサイズ比率を全体的に上方修正し、小型機が小さくなりすぎないよう最適化
+        let scale = 0.11;
         let speed = 0.20; 
-        if (sizeType === 'small') { scale = 0.06; speed = 0.20; }
-        else if (sizeType === 'medium') { scale = 0.08; speed = 0.18; }
-        else if (sizeType === 'large') { scale = 0.10; speed = 0.16; }
-        else if (sizeType === 'super') { scale = 0.12; speed = 0.14; }
+        if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
+        else if (sizeType === 'medium') { scale = 0.11; speed = 0.18; }
+        else if (sizeType === 'large') { scale = 0.13; speed = 0.16; }
+        else if (sizeType === 'super') { scale = 0.15; speed = 0.14; }
 
-        // ★修正: 会社ごとの色を適用したマテリアルを個別に作成
         const compIndex = CONFIG.COMPANIES.findIndex(c => c.id === companyId);
         const comp = CONFIG.COMPANIES[compIndex];
         const planeColor = comp ? comp.planeColor : 0x34d399;
@@ -203,13 +203,11 @@ export class PlaneManager {
                 const tangent = curve.getTangentAt(plane.progress).normalize(); 
                 const up = position.clone().normalize(); 
                 
-                // 元の 0.005 の浮かせ方に微小な会社ごとのオフセットを足す
                 const offsetPosition = position.clone().add(up.clone().multiplyScalar(0.005 + plane.altitudeOffset));
                 plane.mesh.position.copy(offsetPosition);
 
                 const right = new THREE.Vector3().crossVectors(tangent, up);
                 
-                // ★修正: 進行方向の接線(tangent)ベクトルが0になった時に行列計算が壊れるバグを防止する安全弁
                 if (right.lengthSq() > 0.000001) {
                     right.normalize();
                     const matrix = new THREE.Matrix4().makeBasis(right, tangent, up);
