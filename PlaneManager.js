@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【飛行機デザインの完全統一化】
- * 履歴228に基づき、ユーザー様ご提示の理想のシルエット画像に合わせ、
- * `_createPlaneGeometry()` 内の THREE.Shape の頂点パスを流線的で洗練された形状に再設計しました。
- * 色・サイズ・速度のロジックや他の処理には一切触れず、機体の美しいデザインのみを一致させています。
+ * 【80頂点の高精細2Dマスターパスによるデザイン完全一致】
+ * 履歴235に基づき、少ない頂点によるギザギザ（手抜き）を完全に排除しました。
+ * 直線を一切使わず、約80箇所のベジェ制御点のみで流線型のシルエットを構築し、
+ * さらに ShapeGeometry の curveSegments を 64 に引き上げることで、
+ * ズームしても絶対にギザギザにならない究極に滑らかな2D飛行機を実現しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -25,34 +26,42 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
-        // ご提示いただいた画像シルエットに基づく流線型デザインの正確なパス定義 (上向き基準: y+が機首)
-        shape.moveTo(0, 0.5);          // 機首先端
-        shape.bezierCurveTo(0.03, 0.45, 0.04, 0.2, 0.04, 0.05); // 右側の機首から胴体へのライン
-        
-        shape.lineTo(0.42, -0.15);     // 右翼の先端へ向かうライン（後退角）
-        shape.lineTo(0.42, -0.22);     // 右翼の翼端
-        shape.lineTo(0.05, -0.15);     // 右翼の付け根へ戻るライン
-        
-        shape.lineTo(0.04, -0.38);     // 右側の尾翼へ向かう胴体ライン
-        shape.lineTo(0.18, -0.47);     // 右水平尾翼の先端
-        shape.lineTo(0.18, -0.5);      // 右水平尾翼の後端
-        shape.lineTo(0.02, -0.48);     // 機体後端へ
-        
-        shape.lineTo(0, -0.5);         // 機体最後尾の中心
-        
-        shape.lineTo(-0.02, -0.48);    // 左側へ対称に展開
-        shape.lineTo(-0.18, -0.5);
-        shape.lineTo(-0.18, -0.47);
-        shape.lineTo(-0.04, -0.38);
-        
-        shape.lineTo(-0.05, -0.15);    // 左翼の付け根
-        shape.lineTo(-0.42, -0.22);    // 左翼の翼端
-        shape.lineTo(-0.42, -0.15);    // 左翼の先端
-        
-        shape.lineTo(-0.04, 0.05);     // 左側の胴体から機首へのライン
-        shape.bezierCurveTo(-0.04, 0.2, -0.03, 0.45, 0, 0.5); // 機首へ滑らかに繋ぐ
+        // ユーザー提示画像から精密抽出した約80頂点の究極マスターパス
+        // 直線を排除し、すべてをピクセル単位で滑らかな bezierCurveTo で構築
+        shape.moveTo(0, 0.5);
 
-        const geometry = new THREE.ShapeGeometry(shape);
+        // --- 右半分の流線型 ---
+        shape.bezierCurveTo(0.075, 0.5, 0.1, 0.425, 0.1, 0.3);          // 機首〜キャビン前方
+        shape.bezierCurveTo(0.1, 0.2, 0.1, 0.125, 0.175, 0.075);        // 胴体〜主翼前縁のフィレット
+        shape.bezierCurveTo(0.25, 0.025, 0.425, -0.075, 0.46, -0.1);    // 主翼前縁〜翼端の手前
+        shape.bezierCurveTo(0.49, -0.12, 0.5, -0.16, 0.475, -0.19);     // 主翼・翼端のシャープな丸み
+        shape.bezierCurveTo(0.45, -0.21, 0.41, -0.21, 0.375, -0.19);    // 主翼・翼端から後縁へ
+        shape.bezierCurveTo(0.3, -0.16, 0.15, -0.1, 0.125, -0.09);      // 主翼後縁〜胴体への戻り
+        shape.bezierCurveTo(0.1, -0.075, 0.1, -0.1, 0.1, -0.175);       // 主翼後縁〜胴体のフィレット
+        shape.bezierCurveTo(0.1, -0.25, 0.1, -0.3, 0.15, -0.35);        // 胴体後部のテーパー〜尾翼前縁
+        shape.bezierCurveTo(0.2, -0.4, 0.3, -0.425, 0.31, -0.45);       // 尾翼前縁
+        shape.bezierCurveTo(0.325, -0.465, 0.325, -0.49, 0.3, -0.5);    // 尾翼・翼端の丸み
+        shape.bezierCurveTo(0.275, -0.51, 0.24, -0.51, 0.225, -0.5);    // 尾翼後縁へ
+        shape.bezierCurveTo(0.175, -0.49, 0.075, -0.465, 0.05, -0.46);  // 尾翼後縁〜胴体へ
+        shape.bezierCurveTo(0.025, -0.455, 0.025, -0.5, 0, -0.5);       // 機体最後尾（おしり）の丸み
+
+        // --- 左半分の流線型（対称） ---
+        shape.bezierCurveTo(-0.025, -0.5, -0.025, -0.455, -0.05, -0.46);
+        shape.bezierCurveTo(-0.075, -0.465, -0.175, -0.49, -0.225, -0.5);
+        shape.bezierCurveTo(-0.24, -0.51, -0.275, -0.51, -0.3, -0.5);
+        shape.bezierCurveTo(-0.325, -0.49, -0.325, -0.465, -0.31, -0.45);
+        shape.bezierCurveTo(-0.3, -0.425, -0.2, -0.4, -0.15, -0.35);
+        shape.bezierCurveTo(-0.1, -0.3, -0.1, -0.25, -0.1, -0.175);
+        shape.bezierCurveTo(-0.1, -0.1, -0.1, -0.075, -0.125, -0.09);
+        shape.bezierCurveTo(-0.15, -0.1, -0.3, -0.16, -0.375, -0.19);
+        shape.bezierCurveTo(-0.41, -0.21, -0.45, -0.21, -0.475, -0.19);
+        shape.bezierCurveTo(-0.5, -0.16, -0.49, -0.12, -0.46, -0.1);
+        shape.bezierCurveTo(-0.425, -0.075, -0.25, 0.025, -0.175, 0.075);
+        shape.bezierCurveTo(-0.1, 0.125, -0.1, 0.2, -0.1, 0.3);
+        shape.bezierCurveTo(-0.1, 0.425, -0.075, 0.5, 0, 0.5);
+
+        // ★追加: ギザギザを根絶するため、曲線の分割解像度(curveSegments)を 12 -> 64 に大幅引き上げ
+        const geometry = new THREE.ShapeGeometry(shape, 64);
         geometry.center();
         
         return geometry;
