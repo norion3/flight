@@ -190,9 +190,9 @@
             </button>
         </div>
 
-        <!-- ★修正: 黄金比とデザイン工学に基づく究極のマスターパス（UI同期） -->
+        <!-- ★修正: 黄金比モジュール分割による究極のSVGパス（PlaneManagerと完全同期） -->
         <button id="fab-buy-plane" class="interactive-ui absolute right-4 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 z-20 transition-transform origin-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 13.5 2 14.2 3.5 14.2 5.5 L 14.2 9 C 14.2 10 14.5 10.5 15.5 11 L 22.5 14.5 C 23.5 15 23.5 16 22.5 16.5 L 14.5 18 C 13.8 18.2 13.6 18.8 13.6 19.5 L 13 20.8 L 17 21.6 C 17.5 21.8 17.5 22 17 22 L 12 22 L 7 22 C 6.5 22 6.5 21.8 7 21.6 L 11 20.8 L 10.4 19.5 C 10.4 18.8 10.2 18.2 9.5 18 L 1.5 16.5 C 0.5 16 0.5 15 1.5 14.5 L 8.5 11 C 9.5 10.5 9.8 10 9.8 9 L 9.8 5.5 C 9.8 3.5 10.5 2 12 2 Z"/></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 12.8 2 13.7 3.6 13.7 6 L 13.7 8 C 13.7 9 14.4 9.6 15.6 10.4 L 22.2 15 C 22.6 15.3 22.6 15.8 22.2 16 L 15.6 17 C 14.4 17.2 13.4 17.8 13.4 19 L 13 20.4 C 13 20.6 13.6 20.8 14.4 21 L 16.8 21.6 C 17 21.7 17 22 16.8 22 L 12 22 L 7.2 22 C 7 22 7 21.7 7.2 21.6 L 9.6 21 C 10.4 20.8 11 20.6 11 20.4 L 10.6 19 C 10.6 17.8 9.6 17.2 8.4 17 L 1.8 16 C 1.4 15.8 1.4 15.3 1.8 15 L 8.4 10.4 C 9.6 9.6 10.3 9 10.3 8 L 10.3 6 C 10.3 3.6 11.2 2 12 2 Z"/></svg>
         </button>
 
         <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-5 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30">
@@ -201,28 +201,28 @@
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
             <div class="grid grid-cols-4 gap-2">
-                <!-- ★修正: メニュー内のアイコンもすべて究極のマスターパスに完全同期 -->
+                <!-- ★修正: メニュー内の全アイコンも究極のマスターパスに完全同期 -->
                 <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="small">
                     <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 13.5 2 14.2 3.5 14.2 5.5 L 14.2 9 C 14.2 10 14.5 10.5 15.5 11 L 22.5 14.5 C 23.5 15 23.5 16 22.5 16.5 L 14.5 18 C 13.8 18.2 13.6 18.8 13.6 19.5 L 13 20.8 L 17 21.6 C 17.5 21.8 17.5 22 17 22 L 12 22 L 7 22 C 6.5 22 6.5 21.8 7 21.6 L 11 20.8 L 10.4 19.5 C 10.4 18.8 10.2 18.2 9.5 18 L 1.5 16.5 C 0.5 16 0.5 15 1.5 14.5 L 8.5 11 C 9.5 10.5 9.8 10 9.8 9 L 9.8 5.5 C 9.8 3.5 10.5 2 12 2 Z"/></svg></span>
+                        <span class="text-emerald-400"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 12.8 2 13.7 3.6 13.7 6 L 13.7 8 C 13.7 9 14.4 9.6 15.6 10.4 L 22.2 15 C 22.6 15.3 22.6 15.8 22.2 16 L 15.6 17 C 14.4 17.2 13.4 17.8 13.4 19 L 13 20.4 C 13 20.6 13.6 20.8 14.4 21 L 16.8 21.6 C 17 21.7 17 22 16.8 22 L 12 22 L 7.2 22 C 7 22 7 21.7 7.2 21.6 L 9.6 21 C 10.4 20.8 11 20.6 11 20.4 L 10.6 19 C 10.6 17.8 9.6 17.2 8.4 17 L 1.8 16 C 1.4 15.8 1.4 15.3 1.8 15 L 8.4 10.4 C 9.6 9.6 10.3 9 10.3 8 L 10.3 6 C 10.3 3.6 11.2 2 12 2 Z"/></svg></span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">小型機</span>
                 </button>
                 <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="medium">
                     <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 13.5 2 14.2 3.5 14.2 5.5 L 14.2 9 C 14.2 10 14.5 10.5 15.5 11 L 22.5 14.5 C 23.5 15 23.5 16 22.5 16.5 L 14.5 18 C 13.8 18.2 13.6 18.8 13.6 19.5 L 13 20.8 L 17 21.6 C 17.5 21.8 17.5 22 17 22 L 12 22 L 7 22 C 6.5 22 6.5 21.8 7 21.6 L 11 20.8 L 10.4 19.5 C 10.4 18.8 10.2 18.2 9.5 18 L 1.5 16.5 C 0.5 16 0.5 15 1.5 14.5 L 8.5 11 C 9.5 10.5 9.8 10 9.8 9 L 9.8 5.5 C 9.8 3.5 10.5 2 12 2 Z"/></svg></span>
+                        <span class="text-emerald-400"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 12.8 2 13.7 3.6 13.7 6 L 13.7 8 C 13.7 9 14.4 9.6 15.6 10.4 L 22.2 15 C 22.6 15.3 22.6 15.8 22.2 16 L 15.6 17 C 14.4 17.2 13.4 17.8 13.4 19 L 13 20.4 C 13 20.6 13.6 20.8 14.4 21 L 16.8 21.6 C 17 21.7 17 22 16.8 22 L 12 22 L 7.2 22 C 7 22 7 21.7 7.2 21.6 L 9.6 21 C 10.4 20.8 11 20.6 11 20.4 L 10.6 19 C 10.6 17.8 9.6 17.2 8.4 17 L 1.8 16 C 1.4 15.8 1.4 15.3 1.8 15 L 8.4 10.4 C 9.6 9.6 10.3 9 10.3 8 L 10.3 6 C 10.3 3.6 11.2 2 12 2 Z"/></svg></span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">中型機</span>
                 </button>
                 <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="large">
                     <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 13.5 2 14.2 3.5 14.2 5.5 L 14.2 9 C 14.2 10 14.5 10.5 15.5 11 L 22.5 14.5 C 23.5 15 23.5 16 22.5 16.5 L 14.5 18 C 13.8 18.2 13.6 18.8 13.6 19.5 L 13 20.8 L 17 21.6 C 17.5 21.8 17.5 22 17 22 L 12 22 L 7 22 C 6.5 22 6.5 21.8 7 21.6 L 11 20.8 L 10.4 19.5 C 10.4 18.8 10.2 18.2 9.5 18 L 1.5 16.5 C 0.5 16 0.5 15 1.5 14.5 L 8.5 11 C 9.5 10.5 9.8 10 9.8 9 L 9.8 5.5 C 9.8 3.5 10.5 2 12 2 Z"/></svg></span>
+                        <span class="text-emerald-400"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 12.8 2 13.7 3.6 13.7 6 L 13.7 8 C 13.7 9 14.4 9.6 15.6 10.4 L 22.2 15 C 22.6 15.3 22.6 15.8 22.2 16 L 15.6 17 C 14.4 17.2 13.4 17.8 13.4 19 L 13 20.4 C 13 20.6 13.6 20.8 14.4 21 L 16.8 21.6 C 17 21.7 17 22 16.8 22 L 12 22 L 7.2 22 C 7 22 7 21.7 7.2 21.6 L 9.6 21 C 10.4 20.8 11 20.6 11 20.4 L 10.6 19 C 10.6 17.8 9.6 17.2 8.4 17 L 1.8 16 C 1.4 15.8 1.4 15.3 1.8 15 L 8.4 10.4 C 9.6 9.6 10.3 9 10.3 8 L 10.3 6 C 10.3 3.6 11.2 2 12 2 Z"/></svg></span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">大型機</span>
                 </button>
                 <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="super">
                     <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 13.5 2 14.2 3.5 14.2 5.5 L 14.2 9 C 14.2 10 14.5 10.5 15.5 11 L 22.5 14.5 C 23.5 15 23.5 16 22.5 16.5 L 14.5 18 C 13.8 18.2 13.6 18.8 13.6 19.5 L 13 20.8 L 17 21.6 C 17.5 21.8 17.5 22 17 22 L 12 22 L 7 22 C 6.5 22 6.5 21.8 7 21.6 L 11 20.8 L 10.4 19.5 C 10.4 18.8 10.2 18.2 9.5 18 L 1.5 16.5 C 0.5 16 0.5 15 1.5 14.5 L 8.5 11 C 9.5 10.5 9.8 10 9.8 9 L 9.8 5.5 C 9.8 3.5 10.5 2 12 2 Z"/></svg></span>
+                        <span class="text-emerald-400"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M 12 2 C 12.8 2 13.7 3.6 13.7 6 L 13.7 8 C 13.7 9 14.4 9.6 15.6 10.4 L 22.2 15 C 22.6 15.3 22.6 15.8 22.2 16 L 15.6 17 C 14.4 17.2 13.4 17.8 13.4 19 L 13 20.4 C 13 20.6 13.6 20.8 14.4 21 L 16.8 21.6 C 17 21.7 17 22 16.8 22 L 12 22 L 7.2 22 C 7 22 7 21.7 7.2 21.6 L 9.6 21 C 10.4 20.8 11 20.6 11 20.4 L 10.6 19 C 10.6 17.8 9.6 17.2 8.4 17 L 1.8 16 C 1.4 15.8 1.4 15.3 1.8 15 L 8.4 10.4 C 9.6 9.6 10.3 9 10.3 8 L 10.3 6 C 10.3 3.6 11.2 2 12 2 Z"/></svg></span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">超大型</span>
                 </button>
