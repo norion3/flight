@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【起点と目的地のハイライト独立管理】
- * 履歴204に基づき、ハイライト状態を isOrigin と isDest に分離しました。
- * 3Dメッシュを新しく追加する重い処理には先祖返りせず、既存のエコな「色書き換え処理」
- * のみを利用し、起点（シアン色）と目的地（白色）を同時に美しく光らせる仕組みを実現しています。
+ * 【起点と目的地のハイライト独立管理】に加え、
+ * 履歴223に基づき、地球儀の裏側に回ったマーカーの光が透けるのを防ぐため、
+ * updateMarkerScale 内にベクトルの内積を用いた「動的カリング」を追加しました。
+ * 見えないマーカーは visible = false にしてスケール計算もスキップすることで、高速スワイプ時のGPU負荷を下げています。
  */
 
 import { CONFIG } from './Config.js';
@@ -149,6 +149,17 @@ export class AirportManager {
         this.markers.forEach(hitMesh => {
             const markerWorldPos = new THREE.Vector3();
             hitMesh.getWorldPosition(markerWorldPos);
+            
+            // ★追加: カメラから見て裏側に回ったマーカーを非表示(カリング)して透けを防止し、GPU負荷を下げる
+            const cameraToMarker = camera.position.clone().sub(markerWorldPos);
+            const normal = markerWorldPos.clone().normalize();
+            if (cameraToMarker.dot(normal) < 0) {
+                hitMesh.visible = false;
+                return; // 見えない時はスケール計算もスキップしてさらに軽量化
+            } else {
+                hitMesh.visible = true;
+            }
+
             const distance = camera.position.distanceTo(markerWorldPos);
             
             let baseScale = distance / 10;
