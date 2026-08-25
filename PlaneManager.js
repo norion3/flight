@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【オリジナルデザインの尊重と機体サイズの適正化】
- * 履歴226に基づき、ユーザー様のご指摘を反映して飛行機のベーススケールを全体的に引き上げました。
- * （小型: 0.09, 中型: 0.11, 大型: 0.13, 超大型: 0.15）
- * これにより、俯瞰視点でも小型機がドット化せず美しいシルエットを維持し、混戦時も視認性が向上します。
+ * 【オリジナルデザインの維持と、光・微立体化による質感向上】
+ * 履歴252に基づき、パスの形状（オリジナル）には一切手を加えず、マテリアルとジオメトリのみをアップデートしました。
+ * ExtrudeGeometry によるごくわずかな厚みと面取り（ベベル）、
+ * および MeshStandardMaterial による光の反射（metalness/roughness）を適用し、
+ * のっぺりとした板から、高級感のあるバッジのような美しい微立体へと昇華させています。
  */
 
 import { CONFIG } from './Config.js';
@@ -25,6 +26,7 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
+        // オリジナルのパス座標を完全に維持（変更なし）
         shape.moveTo(0, 0.5);
         shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
         shape.lineTo(0.35, -0.1);
@@ -45,8 +47,18 @@ export class PlaneManager {
         shape.lineTo(-0.06, 0.1);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        const geometry = new THREE.ShapeGeometry(shape);
-        geometry.center();
+        // ★修正: 平面(ShapeGeometry)から、ごく僅かな厚みと丸みを持つ微立体(ExtrudeGeometry)へ変更
+        const extrudeSettings = {
+            depth: 0.015,         // ごくわずかな厚み
+            bevelEnabled: true,   // エッジの面取りを有効化
+            bevelSegments: 3,     // 面取りの滑らかさ
+            steps: 1,
+            bevelSize: 0.01,      // 面取りの幅（ハイライトが乗る部分）
+            bevelThickness: 0.01  // 面取りの深さ
+        };
+
+        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        geometry.center(); // 厚みを持たせた後も中心を合わせる
         
         return geometry;
     }
@@ -58,7 +70,6 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
         if (!routeData) return false;
 
-        // ★修正: 飛行機のサイズ比率を全体的に上方修正し、小型機が小さくなりすぎないよう最適化
         let scale = 0.11;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
@@ -70,9 +81,12 @@ export class PlaneManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const planeColor = comp ? comp.planeColor : 0x34d399;
         
-        const material = new THREE.MeshBasicMaterial({ 
+        // ★修正: ベタ塗り(Basic)から、光の影響を受ける Standard マテリアルへ変更し質感を付与
+        const material = new THREE.MeshStandardMaterial({ 
             color: planeColor,      
             transparent: false,
+            metalness: 0.3,       // わずかな金属感（環境光を反射しやすくする）
+            roughness: 0.4,       // ツヤの鋭さ（ハイライトを綺麗に乗せる）
             side: THREE.DoubleSide
         });
 
