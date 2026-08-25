@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【オリジナルデザインの尊重と機体サイズの適正化】
- * 履歴226に基づき、ユーザー様のご指摘を反映して飛行機のベーススケールを全体的に引き上げました。
- * （小型: 0.09, 中型: 0.11, 大型: 0.13, 超大型: 0.15）
- * これにより、俯瞰視点でも小型機がドット化せず美しいシルエットを維持し、混戦時も視認性が向上します。
+ * 【オリジナル構造の維持とデザイン学的チューニング】
+ * 履歴248に基づき、大規模なリファクタリング（複雑なパーツ分割や頂点増）は行わず、
+ * オリジナルの「約18頂点の1筆書き」という軽量でシンプルな構造を完全に維持しています。
+ * その上で、航空力学を無視した「デザイン学的なミニマリズム（記号的抽象化）」を適用し、
+ * 主翼のシャープな後退角と、尾翼のフラットな底面を座標の数値調整のみで実現しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -25,24 +26,22 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
+        // オリジナルの構造（1筆書き）を維持しつつ、記号的に最も美しくなるよう座標をチューニング
         shape.moveTo(0, 0.5);
-        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
-        shape.lineTo(0.35, -0.1);
-        shape.lineTo(0.35, -0.2);
-        shape.lineTo(0.06, -0.15);
-        shape.lineTo(0.05, -0.35);
-        shape.lineTo(0.15, -0.45);
-        shape.lineTo(0.15, -0.5);
-        shape.lineTo(0.02, -0.48);
-        shape.lineTo(0, -0.5);
-        shape.lineTo(-0.02, -0.48);
-        shape.lineTo(-0.15, -0.5);
-        shape.lineTo(-0.15, -0.45);
+        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.15); // 機首の柔らかな曲線
+        shape.lineTo(0.4, -0.1);                                // 主翼前縁（シャープな後退角）
+        shape.lineTo(0.4, -0.15);                               // 翼端
+        shape.lineTo(0.06, -0.25);                              // 主翼後縁（後方へ流すことでスピード感を強調）
+        shape.lineTo(0.05, -0.35);                              // 胴体後部（わずかに細く絞る）
+        shape.lineTo(0.2, -0.45);                               // 尾翼前縁
+        shape.lineTo(0.2, -0.5);                                // 尾翼後端
+        shape.lineTo(-0.2, -0.5);                               // 尾翼底面（スパッと水平に切り落とす）
+        shape.lineTo(-0.2, -0.45);                              // --- 以下、左側（完全対称） ---
         shape.lineTo(-0.05, -0.35);
-        shape.lineTo(-0.06, -0.15);
-        shape.lineTo(-0.35, -0.2);
-        shape.lineTo(-0.35, -0.1);
-        shape.lineTo(-0.06, 0.1);
+        shape.lineTo(-0.06, -0.25);
+        shape.lineTo(-0.4, -0.15);
+        shape.lineTo(-0.4, -0.1);
+        shape.lineTo(-0.06, 0.15);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
         const geometry = new THREE.ShapeGeometry(shape);
@@ -58,7 +57,6 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
         if (!routeData) return false;
 
-        // ★修正: 飛行機のサイズ比率を全体的に上方修正し、小型機が小さくなりすぎないよう最適化
         let scale = 0.11;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
