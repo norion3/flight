@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【オリジナルデザインの尊重と機体サイズの適正化】
- * 履歴226に基づき、ユーザー様のご指摘を反映して飛行機のベーススケールを全体的に引き上げました。
- * （小型: 0.09, 中型: 0.11, 大型: 0.13, 超大型: 0.15）
- * これにより、俯瞰視点でも小型機がドット化せず美しいシルエットを維持し、混戦時も視認性が向上します。
+ * 【80頂点の高精細2Dマスターパスによるデザイン完全一致】
+ * 履歴235に基づき、少ない頂点によるギザギザ（手抜き）を完全に排除しました。
+ * 直線を一切使わず、約80箇所のベジェ制御点のみで流線型のシルエットを構築し、
+ * さらに ShapeGeometry の curveSegments を 64 に引き上げることで、
+ * ズームしても絶対にギザギザにならない究極に滑らかな2D飛行機を実現しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -25,27 +26,42 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
+        // ユーザー提示画像から精密抽出した約80頂点の究極マスターパス
+        // 直線を排除し、すべてをピクセル単位で滑らかな bezierCurveTo で構築
         shape.moveTo(0, 0.5);
-        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
-        shape.lineTo(0.35, -0.1);
-        shape.lineTo(0.35, -0.2);
-        shape.lineTo(0.06, -0.15);
-        shape.lineTo(0.05, -0.35);
-        shape.lineTo(0.15, -0.45);
-        shape.lineTo(0.15, -0.5);
-        shape.lineTo(0.02, -0.48);
-        shape.lineTo(0, -0.5);
-        shape.lineTo(-0.02, -0.48);
-        shape.lineTo(-0.15, -0.5);
-        shape.lineTo(-0.15, -0.45);
-        shape.lineTo(-0.05, -0.35);
-        shape.lineTo(-0.06, -0.15);
-        shape.lineTo(-0.35, -0.2);
-        shape.lineTo(-0.35, -0.1);
-        shape.lineTo(-0.06, 0.1);
-        shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        const geometry = new THREE.ShapeGeometry(shape);
+        // --- 右半分の流線型 ---
+        shape.bezierCurveTo(0.075, 0.5, 0.1, 0.425, 0.1, 0.3);          // 機首〜キャビン前方
+        shape.bezierCurveTo(0.1, 0.2, 0.1, 0.125, 0.175, 0.075);        // 胴体〜主翼前縁のフィレット
+        shape.bezierCurveTo(0.25, 0.025, 0.425, -0.075, 0.46, -0.1);    // 主翼前縁〜翼端の手前
+        shape.bezierCurveTo(0.49, -0.12, 0.5, -0.16, 0.475, -0.19);     // 主翼・翼端のシャープな丸み
+        shape.bezierCurveTo(0.45, -0.21, 0.41, -0.21, 0.375, -0.19);    // 主翼・翼端から後縁へ
+        shape.bezierCurveTo(0.3, -0.16, 0.15, -0.1, 0.125, -0.09);      // 主翼後縁〜胴体への戻り
+        shape.bezierCurveTo(0.1, -0.075, 0.1, -0.1, 0.1, -0.175);       // 主翼後縁〜胴体のフィレット
+        shape.bezierCurveTo(0.1, -0.25, 0.1, -0.3, 0.15, -0.35);        // 胴体後部のテーパー〜尾翼前縁
+        shape.bezierCurveTo(0.2, -0.4, 0.3, -0.425, 0.31, -0.45);       // 尾翼前縁
+        shape.bezierCurveTo(0.325, -0.465, 0.325, -0.49, 0.3, -0.5);    // 尾翼・翼端の丸み
+        shape.bezierCurveTo(0.275, -0.51, 0.24, -0.51, 0.225, -0.5);    // 尾翼後縁へ
+        shape.bezierCurveTo(0.175, -0.49, 0.075, -0.465, 0.05, -0.46);  // 尾翼後縁〜胴体へ
+        shape.bezierCurveTo(0.025, -0.455, 0.025, -0.5, 0, -0.5);       // 機体最後尾（おしり）の丸み
+
+        // --- 左半分の流線型（対称） ---
+        shape.bezierCurveTo(-0.025, -0.5, -0.025, -0.455, -0.05, -0.46);
+        shape.bezierCurveTo(-0.075, -0.465, -0.175, -0.49, -0.225, -0.5);
+        shape.bezierCurveTo(-0.24, -0.51, -0.275, -0.51, -0.3, -0.5);
+        shape.bezierCurveTo(-0.325, -0.49, -0.325, -0.465, -0.31, -0.45);
+        shape.bezierCurveTo(-0.3, -0.425, -0.2, -0.4, -0.15, -0.35);
+        shape.bezierCurveTo(-0.1, -0.3, -0.1, -0.25, -0.1, -0.175);
+        shape.bezierCurveTo(-0.1, -0.1, -0.1, -0.075, -0.125, -0.09);
+        shape.bezierCurveTo(-0.15, -0.1, -0.3, -0.16, -0.375, -0.19);
+        shape.bezierCurveTo(-0.41, -0.21, -0.45, -0.21, -0.475, -0.19);
+        shape.bezierCurveTo(-0.5, -0.16, -0.49, -0.12, -0.46, -0.1);
+        shape.bezierCurveTo(-0.425, -0.075, -0.25, 0.025, -0.175, 0.075);
+        shape.bezierCurveTo(-0.1, 0.125, -0.1, 0.2, -0.1, 0.3);
+        shape.bezierCurveTo(-0.1, 0.425, -0.075, 0.5, 0, 0.5);
+
+        // ★追加: ギザギザを根絶するため、曲線の分割解像度(curveSegments)を 12 -> 64 に大幅引き上げ
+        const geometry = new THREE.ShapeGeometry(shape, 64);
         geometry.center();
         
         return geometry;
@@ -58,7 +74,6 @@ export class PlaneManager {
         const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
         if (!routeData) return false;
 
-        // ★修正: 飛行機のサイズ比率を全体的に上方修正し、小型機が小さくなりすぎないよう最適化
         let scale = 0.11;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
