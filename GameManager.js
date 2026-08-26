@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【グレーアウト判定のラグ解消】
- * 履歴221に基づき、ズーム限界の判定を「カメラの現在位置」ではなく、
- * 「ユーザーが到達しようとしている目標値（targetDistance）」ベースで行うよう修正し、
- * ボタン操作に対するUI状態（グレーアウト）の即時反映を実現しました。
+ * 【フリート管理UIとバックエンドの連携】
+ * 履歴290に基づき、新しく実装された売却機能および所持数のリアルタイムカウントをUIに反映するため、
+ * GameManager 側から UIManager と PlaneManager を繋ぐイベントフックを実装しました。
+ * パネルが開いた瞬間(onFleetMenuOpen)、購入時(onBuyPlane)、売却時(onSellPlane)のそれぞれのタイミングで
+ * 最新の稼働数を取得し、UIの数とボタンの非活性状態を同期させています。
  */
 
 import { CONFIG } from './Config.js';
@@ -78,10 +79,29 @@ export class GameManager {
             }
         };
 
+        // ★追加: フリート管理パネルが開かれた時、現在の所持数を取得してUIを更新する
+        this.uiManager.onFleetMenuOpen = () => {
+            const counts = this.planeManager.getPlaneCounts('player');
+            this.uiManager.updateFleetPanel(counts);
+        };
+
+        // ★修正: 購入成功後、UIの所持数表示を更新する
         this.uiManager.onBuyPlane = (type) => {
             const success = this.planeManager.addPlane(type);
             if (!success) {
                 this.uiManager.showToast(window.APP_LANG.toastNoRoute);
+            } else {
+                const counts = this.planeManager.getPlaneCounts('player');
+                this.uiManager.updateFleetPanel(counts);
+            }
+        };
+
+        // ★追加: 売却処理を実行し、成功後にUIの所持数表示を更新する
+        this.uiManager.onSellPlane = (type) => {
+            const success = this.planeManager.sellPlane(type);
+            if (success) {
+                const counts = this.planeManager.getPlaneCounts('player');
+                this.uiManager.updateFleetPanel(counts);
             }
         };
 
@@ -162,11 +182,9 @@ export class GameManager {
         this.targetDistance += deltaAmount;
         this.targetDistance = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, this.targetDistance));
         
-        // ★追加: 目標値が更新された瞬間に判定を走らせることで、即座にボタンをグレーアウトさせる
         this.checkZoomLimit(); 
     }
 
-    // ★修正: アニメーションの完了を待たず、目標値(targetDistance)ベースでキビキビと判定する
     checkZoomLimit() {
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         const target = this.targetDistance !== null ? this.targetDistance : currentDist;
@@ -205,6 +223,7 @@ export class GameManager {
         if (hnd && cts) this.networkManager.addRoute(hnd, cts);
         if (hnd && fuk) this.networkManager.addRoute(hnd, fuk);
 
+        // PlaneManager側の仕様変更に対応し、sizeTypeを渡して初期化
         this.planeManager.addPlane('small');
         this.planeManager.addPlane('small');
     }

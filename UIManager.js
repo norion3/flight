@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ボタンの排他制御・被り防止処理の追加】
- * 履歴221に基づき、メッセージカード展開時に fab-buy-plane だけでなく 
- * zoom-controls も同時に非表示(scale(0))にする連携処理を追加しました。
+ * 【機体管理（フリートマネジメント）パネルのUI制御】
+ * 履歴290に基づき、単なる「購入メニュー」を「フリート管理パネル」へ昇華させました。
+ * パネルを開く際（onFleetMenuOpen）に PlaneManager から最新の機体数を取得し、
+ * updateFleetPanel メソッドによって各サイズの稼働数と売却ボタンの非活性状態(disabled)を
+ * 動的に更新・制御する処理を追加しています。
  */
 export class UIManager {
     constructor() {
@@ -15,7 +17,6 @@ export class UIManager {
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
-        // ★追加: ズームボタン全体を覆うコンテナを取得
         this.zoomControls = document.getElementById('zoom-controls');
 
         this.toastTimeout = null;
@@ -23,7 +24,11 @@ export class UIManager {
         this.onConnectRequested = null;
         this.onRouteActionConfirmed = null; 
         this.onRouteCanceled = null;
+        
+        this.onFleetMenuOpen = null; // ★追加
         this.onBuyPlane = null;
+        this.onSellPlane = null;     // ★追加
+        
         this.onZoomIn = null;
         this.onZoomOut = null;
         
@@ -42,7 +47,7 @@ export class UIManager {
             this.hideRouteConfirm();
             this.connectingCard.classList.remove('show');
             this.fabBuy.style.transform = 'scale(1)'; 
-            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; // ★追加
+            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; 
         };
 
         document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
@@ -53,16 +58,17 @@ export class UIManager {
         });
 
         this.fabBuy.addEventListener('click', () => {
+            if (this.onFleetMenuOpen) this.onFleetMenuOpen(); // ★追加: パネル展開時にカウント更新を要求
             this.hideAll();
             this.buyMenu.classList.add('show');
             this.fabBuy.style.transform = 'scale(0)'; 
-            if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
+            if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
         });
 
         document.getElementById('btn-close-buy').addEventListener('click', () => {
             this.buyMenu.classList.remove('show');
             this.fabBuy.style.transform = 'scale(1)';
-            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; // ★追加
+            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; 
         });
 
         const btnCloseInfo = document.getElementById('btn-close-info');
@@ -79,6 +85,14 @@ export class UIManager {
             });
         });
 
+        // ★追加: 売却ボタンのイベントリスナー
+        document.querySelectorAll('.sell-plane-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const type = e.currentTarget.getAttribute('data-type');
+                if (this.onSellPlane) this.onSellPlane(type);
+            });
+        });
+
         if (this.btnZoomIn) {
             this.btnZoomIn.addEventListener('click', () => {
                 if (this.onZoomIn) this.onZoomIn();
@@ -89,6 +103,20 @@ export class UIManager {
                 if (this.onZoomOut) this.onZoomOut();
             });
         }
+    }
+
+    // ★追加: フリート管理パネルの情報を最新の機体数で更新する
+    updateFleetPanel(counts) {
+        ['small', 'medium', 'large', 'super'].forEach(type => {
+            const countEl = document.getElementById(`count-${type}`);
+            if (countEl) countEl.innerText = counts[type] || 0;
+            
+            const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
+            if (sellBtn) {
+                // 所持数が0なら売却ボタンを非活性(disabled)にする
+                sellBtn.disabled = (counts[type] === 0);
+            }
+        });
     }
 
     updateZoomButtonsState(canZoomIn, canZoomOut) {
@@ -138,14 +166,14 @@ export class UIManager {
 
         this.infoCard.classList.add('show');
         this.fabBuy.style.transform = 'scale(0)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
     }
 
     setConnectingMode() {
         this.infoCard.classList.remove('show');
         this.connectingCard.classList.add('show');
         this.fabBuy.style.transform = 'scale(0)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
     }
 
     showRouteConfirm(fromData, toData, isConnected) {
@@ -173,7 +201,7 @@ export class UIManager {
         }
 
         this.fabBuy.style.transform = 'scale(0)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; // ★追加
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
     }
 
     hideRouteConfirm() {
@@ -186,6 +214,6 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         this.fabBuy.style.transform = 'scale(1)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; // ★追加
+        if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; 
     }
 }

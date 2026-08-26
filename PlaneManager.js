@@ -1,13 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【確率的セパレーション（航空管制）による完璧な分散ルーティング】
- * 履歴282に基づき、最後尾の機体の進行度(progress)を調べ、重み付きランダムで進入させる分散ロジックを実装済み。
- * 【正確な地平線カリングのマージン適用】
- * 履歴285に基づき、視直径(horizonCos)による正確なカリングでポッピングを防止済み。
- * 【滑らかな旋回と重厚感の調整】
- * 履歴288に基づき、ルート切り替え時の旋回ターンをより現実の航空機らしくするため、
- * 球面線形補間(slerp)の係数を 10.0 から 3.5 へと大幅に下げました。
- * これにより、機体がゆっくりと優雅にターンするようになり、重厚感が劇的に増しています。
+ * 【機体管理（売却）機能と安全な解体処理の追加】
+ * 履歴290に基づき、フリート（機体）の所持数を管理し、増減させる機能を追加しました。
+ * 1. 機体生成時(`addPlane`)に `sizeType` を記憶させ、`getPlaneCounts` でリアルタイムな所持数をカウントします。
+ * 2. 売却時(`sellPlane`)には、見えなくするだけでなく必ず `planeGroup.remove` を行い、
+ * Three.jsの `geometry.dispose()` と `material.dispose()` を実行してメモリリーク（処理落ち）を完全に防いでいます。
  */
 
 import { CONFIG } from './Config.js';
@@ -121,6 +118,47 @@ export class PlaneManager {
         return routes[routes.length - 1];
     }
 
+    // ★追加: プレイヤーが所有する機体をサイズごとにカウントして返す
+    getPlaneCounts(companyId = 'player') {
+        const counts = { small: 0, medium: 0, large: 0, super: 0 };
+        this.planes.forEach(plane => {
+            if (plane.companyId === companyId && counts[plane.sizeType] !== undefined) {
+                counts[plane.sizeType]++;
+            }
+        });
+        return counts;
+    }
+
+    // ★追加: 指定したサイズの機体を1機だけ安全に売却（解体）する
+    sellPlane(sizeType, companyId = 'player') {
+        // 配列の後ろから検索することで、直近生成されたものなどを消しやすくする
+        for (let i = this.planes.length - 1; i >= 0; i--) {
+            const plane = this.planes[i];
+            if (plane.companyId === companyId && plane.sizeType === sizeType) {
+                
+                // 1. 3D空間(Group)から取り除く
+                this.planeGroup.remove(plane.mesh);
+                
+                // 2. メモリリークを防ぐため、Geometry と Material を完全に破棄(Dispose)する
+                if (plane.mesh.geometry) plane.mesh.geometry.dispose();
+                if (plane.mesh.material) {
+                    // 機体は複数マテリアル（配列）を使用しているため、ループして破棄
+                    if (Array.isArray(plane.mesh.material)) {
+                        plane.mesh.material.forEach(m => m.dispose());
+                    } else {
+                        plane.mesh.material.dispose();
+                    }
+                }
+                
+                // 3. 管理配列から削除
+                this.planes.splice(i, 1);
+                
+                return true; // 売却成功
+            }
+        }
+        return false; // 売却する機体が無かった
+    }
+
     addPlane(sizeType, companyId = 'player') {
         const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
         if (!spawnAirportId) return false; 
@@ -169,7 +207,8 @@ export class PlaneManager {
             baseSpeed: speed,
             originalScale: scale,
             companyId: companyId,
-            altitudeOffset: altitudeOffset
+            altitudeOffset: altitudeOffset,
+            sizeType: sizeType // ★追加: 売却やカウントの識別に使うためサイズを記憶する
         });
 
         return true;
@@ -310,7 +349,6 @@ export class PlaneManager {
                     const targetMatrix = new THREE.Matrix4().makeBasis(right, tangent, trueUp);
                     const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(targetMatrix);
                     
-                    // ★修正: 補間係数を 10.0 から 3.5 へ落とし、ゆっくりと重厚感のある旋回ターンにする
                     plane.mesh.quaternion.slerp(targetQuaternion, 3.5 * delta);
                 }
             }

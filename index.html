@@ -190,60 +190,112 @@
             </button>
         </div>
 
-        <!-- ★修正: 3Dモデルに完全同期させた「隙間拡大・弾丸型エンジン」を持つSVGパス -->
         <button id="fab-buy-plane" class="interactive-ui absolute right-4 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 z-20 transition-transform origin-center">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
             </svg>
         </button>
 
-        <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-5 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold text-white">飛行機を購入</h2>
+        <!-- ★修正: 黄金比とF型視線誘導に基づく、リストビュー型のフリート（機体）管理パネルへ刷新 -->
+        <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30 w-full max-w-md">
+            <div class="flex justify-between items-center mb-4 px-1">
+                <h2 class="text-lg font-bold text-white">フリート管理</h2>
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
-            <div class="grid grid-cols-4 gap-2">
-                <!-- ★修正: メニュー内のアイコンもすべて「隙間拡大・弾丸型エンジン」に統一 -->
-                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="small">
-                    <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400">
+            
+            <div class="flex flex-col gap-3">
+                <!-- 小型機 -->
+                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 shadow-inner">
+                    <div class="flex-1 flex items-center gap-3">
+                        <div class="text-emerald-400 w-8 flex justify-center">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
                             </svg>
-                        </span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-slate-200">小型機 <span class="text-[10px] text-slate-400 ml-1">Small</span></div>
+                            <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-small" class="text-white font-bold text-sm">0</span> 機</div>
+                        </div>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">小型機</span>
-                </button>
-                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="medium">
-                    <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400">
+                    <div class="w-[110px] flex flex-col gap-2">
+                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors" data-type="small">
+                            購入 <span class="font-mono text-emerald-200 ml-1">$ 10M</span>
+                        </button>
+                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none" data-type="small" disabled>
+                            売却 <span class="font-mono text-rose-300 ml-1">$ 5M</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 中型機 -->
+                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 shadow-inner">
+                    <div class="flex-1 flex items-center gap-3">
+                        <div class="text-emerald-400 w-8 flex justify-center">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
                             </svg>
-                        </span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-slate-200">中型機 <span class="text-[10px] text-slate-400 ml-1">Medium</span></div>
+                            <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-medium" class="text-white font-bold text-sm">0</span> 機</div>
+                        </div>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">中型機</span>
-                </button>
-                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="large">
-                    <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400">
+                    <div class="w-[110px] flex flex-col gap-2">
+                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors" data-type="medium">
+                            購入 <span class="font-mono text-emerald-200 ml-1">$ 25M</span>
+                        </button>
+                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none" data-type="medium" disabled>
+                            売却 <span class="font-mono text-rose-300 ml-1">$ 12M</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 大型機 -->
+                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 shadow-inner">
+                    <div class="flex-1 flex items-center gap-3">
+                        <div class="text-emerald-400 w-8 flex justify-center">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
                             </svg>
-                        </span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-slate-200">大型機 <span class="text-[10px] text-slate-400 ml-1">Large</span></div>
+                            <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-large" class="text-white font-bold text-sm">0</span> 機</div>
+                        </div>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">大型機</span>
-                </button>
-                <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="super">
-                    <div class="flex-1 flex items-center justify-center">
-                        <span class="text-emerald-400">
+                    <div class="w-[110px] flex flex-col gap-2">
+                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors" data-type="large">
+                            購入 <span class="font-mono text-emerald-200 ml-1">$ 50M</span>
+                        </button>
+                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none" data-type="large" disabled>
+                            売却 <span class="font-mono text-rose-300 ml-1">$ 25M</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 超大型機 -->
+                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 shadow-inner">
+                    <div class="flex-1 flex items-center gap-3">
+                        <div class="text-emerald-400 w-8 flex justify-center">
                             <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
                             </svg>
-                        </span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-slate-200">超大型 <span class="text-[10px] text-slate-400 ml-1">Super</span></div>
+                            <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-super" class="text-white font-bold text-sm">0</span> 機</div>
+                        </div>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-200 tracking-wide mt-1">超大型</span>
-                </button>
+                    <div class="w-[110px] flex flex-col gap-2">
+                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors" data-type="super">
+                            購入 <span class="font-mono text-emerald-200 ml-1">$100M</span>
+                        </button>
+                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[11px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none" data-type="super" disabled>
+                            売却 <span class="font-mono text-rose-300 ml-1">$ 50M</span>
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
