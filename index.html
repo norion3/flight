@@ -191,10 +191,10 @@
             </button>
         </div>
 
-        <!-- ★修正: 3Dモデルに完全同期させた「胴体寄せの大口径エンジン装飾付き」のSVGパス -->
+        <!-- ★修正: 隙間ゼロ・黄金比幅・後退角を持つソリッドなジャンボジェットSVGパス -->
         <button id="fab-buy-plane" class="interactive-ui absolute right-4 w-16 h-16 bg-emerald-500 rounded-full shadow-xl shadow-emerald-900/50 flex items-center justify-center text-slate-900 active:scale-95 z-20 transition-transform origin-center">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M 21 16 V 14 L 16.4 11.125 V 7.5 H 14 V 9.625 L 13 9 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 9 L 9 9.625 V 7.5 H 6.6 V 11.125 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
+                <path d="M 21 16 V 14 L 16 11.625 V 8.4 L 13 7.7 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 7.7 L 7 8.4 V 11.625 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
             </svg>
         </button>
 
@@ -204,12 +204,12 @@
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
             <div class="grid grid-cols-4 gap-2">
-                <!-- ★修正: メニュー内のアイコンもすべて「大口径・胴体寄せエンジン」のパスに統一 -->
+                <!-- ★修正: メニュー内のアイコンもすべて「隙間ゼロのソリッド・ジャンボジェット」に統一 -->
                 <button class="buy-plane-btn flex flex-col items-center justify-between bg-slate-800 p-2 rounded-xl active:bg-slate-700 border border-transparent active:border-emerald-500 h-20 transition-colors" data-type="small">
                     <div class="flex-1 flex items-center justify-center">
                         <span class="text-emerald-400">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 21 16 V 14 L 16.4 11.125 V 7.5 H 14 V 9.625 L 13 9 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 9 L 9 9.625 V 7.5 H 6.6 V 11.125 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
+                                <path d="M 21 16 V 14 L 16 11.625 V 8.4 L 13 7.7 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 7.7 L 7 8.4 V 11.625 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
                             </svg>
                         </span>
                     </div>
@@ -219,7 +219,7 @@
                     <div class="flex-1 flex items-center justify-center">
                         <span class="text-emerald-400">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 21 16 V 14 L 16.4 11.125 V 7.5 H 14 V 9.625 L 13 9 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 9 L 9 9.625 V 7.5 H 6.6 V 11.125 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
+                                <path d="M 21 16 V 14 L 16 11.625 V 8.4 L 13 7.7 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 7.7 L 7 8.4 V 11.625 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
                             </svg>
                         </span>
                     </div>
@@ -229,7 +229,7 @@
                     <div class="flex-1 flex items-center justify-center">
                         <span class="text-emerald-400">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 21 16 V 14 L 16.4 11.125 V 7.5 H 14 V 9.625 L 13 9 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 9 L 9 9.625 V 7.5 H 6.6 V 11.125 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
+                                <path d="M 21 16 V 14 L 16 11.625 V 8.4 L 13 7.7 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 7.7 L 7 8.4 V 11.625 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
                             </svg>
                         </span>
                     </div>
@@ -239,7 +239,7 @@
                     <div class="flex-1 flex items-center justify-center">
                         <span class="text-emerald-400">
                             <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 21 16 V 14 L 16.4 11.125 V 7.5 H 14 V 9.625 L 13 9 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 9 L 9 9.625 V 7.5 H 6.6 V 11.125 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
+                                <path d="M 21 16 V 14 L 16 11.625 V 8.4 L 13 7.7 V 3.5 c 0 -0.83 -0.67 -1.5 -1.5 -1.5 S 10 2.67 10 3.5 V 7.7 L 7 8.4 V 11.625 L 2 14 V 16 l 8 -2.5 V 19 l -2 1.5 V 22 l 3.5 -1 l 3.5 1 V 20.5 L 13 19 V 13.5 l 8 2.5 z"/>
                             </svg>
                         </span>
                     </div>
