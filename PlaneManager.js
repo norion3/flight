@@ -1,12 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【動的カリングによる裏透け防止と、アクティブ判定の分離】
- * 履歴276に基づき、ベクトルの内積を用いた表裏判定を updateScale 内に実装し、
- * 裏側に回った飛行機を visible = false にして透けバグを完全に解消しました。
- * ※これに伴い、従来の「visible が false なら処理をスキップ・再配置する」というロジックを
- * 「currentRoute が null なら処理をスキップ・再配置する」というロジックに修正し、
- * 裏側でカリング（非表示）されていても見えない場所で飛び続けるよう安全に分離しました。
- * もちろん、弾丸型エンジンや厚みなどの美しいプロポーションは100%維持しています。
+ * 【同陣営飛行機の分散ルーティング（重なり防止）の実装】
+ * 履歴277に基づき、確率の偏りで飛行機が同じルートに密集するのを防ぐため、
+ * ランダム選択から「一番空いているルートを選ぶ」分散アルゴリズム（_getLeastCrowdedRoute）へ変更しました。
+ * 他社の飛行機は無視して「自陣営」のみをカウントすることで、フリーズや処理落ちを完璧に回避しつつ、
+ * マップ全体に機体が美しくクモの巣状に散開するようになります。
+ * （※弾丸型エンジンやカリングなどの視覚的な最適化は100%維持しています。）
  */
 
 import { CONFIG } from './Config.js';
@@ -85,11 +84,47 @@ export class PlaneManager {
         return geometry;
     }
 
+    // ★追加: 自分と同じ陣営の飛行機をカウントし、一番空いているルートを選ぶ分散アルゴリズム
+    _getLeastCrowdedRoute(airportId, companyId) {
+        const routes = this.networkManager.network[companyId][airportId];
+        if (!routes || routes.length === 0) return null;
+
+        const routeCounts = {};
+        routes.forEach(r => routeCounts[r.id] = 0);
+
+        // 同陣営の飛行機が現在どのルートを飛んでいるかカウントする
+        this.planes.forEach(plane => {
+            if (plane.companyId === companyId && plane.currentRoute && plane.currentAirportId === airportId) {
+                const toId = plane.currentRoute.id;
+                if (routeCounts[toId] !== undefined) {
+                    routeCounts[toId]++;
+                }
+            }
+        });
+
+        let minCount = Infinity;
+        let bestRoutes = [];
+        
+        routes.forEach(route => {
+            const count = routeCounts[route.id];
+            if (count < minCount) {
+                minCount = count;
+                bestRoutes = [route];
+            } else if (count === minCount) {
+                bestRoutes.push(route);
+            }
+        });
+
+        // 最も空いているルートの中からランダムに選択（同数の場合はばらける）
+        return bestRoutes[Math.floor(Math.random() * bestRoutes.length)];
+    }
+
     addPlane(sizeType, companyId = 'player') {
         const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
         if (!spawnAirportId) return false; 
 
-        const routeData = this.networkManager.getRandomRouteFrom(spawnAirportId, companyId);
+        // ★修正: ランダムではなく分散アルゴリズムを使用
+        const routeData = this._getLeastCrowdedRoute(spawnAirportId, companyId);
         if (!routeData) return false;
 
         let scale = 0.11;
@@ -169,13 +204,15 @@ export class PlaneManager {
         let spawnAirportId = plane.currentAirportId; 
 
         if (spawnAirportId) {
-            nextRoute = this.networkManager.getRandomRouteFrom(spawnAirportId, plane.companyId);
+            // ★修正: ランダムではなく分散アルゴリズムを使用
+            nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
         }
 
         if (!nextRoute) {
             spawnAirportId = this.networkManager.getRandomConnectedAirport(plane.companyId);
             if (spawnAirportId) {
-                nextRoute = this.networkManager.getRandomRouteFrom(spawnAirportId, plane.companyId);
+                // ★修正: ランダムではなく分散アルゴリズムを使用
+                nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
             }
         }
 
@@ -187,7 +224,6 @@ export class PlaneManager {
             return;
         }
 
-        // visibleはカリングでも制御されるが、アクティブになった証として一旦trueにする
         plane.mesh.visible = true; 
         plane.currentAirportId = spawnAirportId;
         plane.currentRoute = nextRoute;
@@ -196,7 +232,6 @@ export class PlaneManager {
 
     wakeUpPlanes(companyId = 'player') {
         this.planes.forEach(plane => {
-            // ★修正: visibleフラグでの判定を禁止し、確実にルートの有無(currentRoute)だけで待機判定を行う
             if (plane.companyId === companyId && !plane.currentRoute) {
                 this._reassignPlane(plane);
             }
@@ -205,7 +240,6 @@ export class PlaneManager {
 
     updateScale(camera) {
         this.planes.forEach(plane => {
-            // ルートが無い（待機中）場合は非表示にして処理スキップ
             if (!plane.currentRoute) {
                 plane.mesh.visible = false;
                 return;
@@ -214,13 +248,12 @@ export class PlaneManager {
             const pos = new THREE.Vector3();
             plane.mesh.getWorldPosition(pos);
             
-            // ★追加: 動的カリングによる裏透け防止とGPU負荷の軽減
-            // 地球の中心からの法線ベクトルとカメラベクトルの内積で表裏を判定
+            // 動的カリングによる裏透け防止
             const cameraToPlane = camera.position.clone().sub(pos);
             const normal = pos.clone().normalize();
             if (cameraToPlane.dot(normal) < 0) {
                 plane.mesh.visible = false;
-                return; // 見えない時はスケール計算をスキップ
+                return; 
             } else {
                 plane.mesh.visible = true;
             }
@@ -239,7 +272,6 @@ export class PlaneManager {
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
             
-            // ★修正: 裏側にいてカリング(visible=false)されていても、位置の更新は続ける
             if (!plane.currentRoute) continue;
 
             const curve = plane.currentRoute.curve;
@@ -250,7 +282,8 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
-                const nextRoute = this.networkManager.getRandomRouteFrom(nextAirportId, plane.companyId);
+                // ★修正: ランダムではなく分散アルゴリズムを使用し、到着時に空いている空路を選ぶ
+                const nextRoute = this._getLeastCrowdedRoute(nextAirportId, plane.companyId);
                 
                 if (nextRoute) {
                     plane.currentAirportId = nextAirportId;
