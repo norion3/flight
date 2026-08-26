@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【明るさを保ったまま、デザイン工学的に最適な「分厚さ」を追求】
- * 履歴255に基づき、マルチマテリアル（表面は鮮やかな色、側面は暗い色）の仕組みを維持したまま、
- * ExtrudeGeometry の depth（厚み）を 0.06 から 0.12 へと倍増させました。
- * これは全長に対して約12%の厚みであり、飛行機のスマートなシルエットを崩すことなく、
- * 高級なアクリルバッジのような最高の重厚感と立体感を放つ、デザイン工学的な最適値です。
+ * 【オリジナルを100%保護した主翼前縁エンジン装飾の追加】
+ * 履歴260に基づき、オリジナルの2D平面（ShapeGeometry）とベタ塗り色（MeshBasicMaterial）を一切変更せず、
+ * 主翼前縁の直線パス上に、エンジンとなる四角い凸形状の頂点を両翼それぞれ2基ずつ（計4基）追加しました。
+ * 他の部位の形状やゲームバランスには全く影響を与えずに、ジャンボジェットのシルエットを実現しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,10 +25,26 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
-        // ユーザー提示のオリジナルパス座標を完全に維持（変更なし）
+        // オリジナルのパス構造を維持しつつ、主翼前縁にエンジンの頂点を追加
         shape.moveTo(0, 0.5);
         shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1);
-        shape.lineTo(0.35, -0.1);
+        
+        // --- 右翼前縁（エンジン追加） ---
+        // 内側エンジン
+        shape.lineTo(0.13, 0.052);  // 付け根からエンジン内側
+        shape.lineTo(0.13, 0.12);   // 前方に突き出す
+        shape.lineTo(0.16, 0.12);   // エンジンの幅
+        shape.lineTo(0.16, 0.031);  // 前縁ラインに戻る
+        
+        // 外側エンジン
+        shape.lineTo(0.24, -0.024); // 第2エンジン内側
+        shape.lineTo(0.24, 0.04);   // 前方に突き出す
+        shape.lineTo(0.27, 0.04);   // エンジンの幅
+        shape.lineTo(0.27, -0.045); // 前縁ラインに戻る
+        
+        shape.lineTo(0.35, -0.1);   // 右翼端
+        // -----------------------------
+        
         shape.lineTo(0.35, -0.2);
         shape.lineTo(0.06, -0.15);
         shape.lineTo(0.05, -0.35);
@@ -43,22 +58,28 @@ export class PlaneManager {
         shape.lineTo(-0.05, -0.35);
         shape.lineTo(-0.06, -0.15);
         shape.lineTo(-0.35, -0.2);
-        shape.lineTo(-0.35, -0.1);
+        shape.lineTo(-0.35, -0.1);  // 左翼端
+        
+        // --- 左翼前縁（エンジン追加、完全対称） ---
+        // 外側エンジン
+        shape.lineTo(-0.27, -0.045); 
+        shape.lineTo(-0.27, 0.04);   
+        shape.lineTo(-0.24, 0.04);   
+        shape.lineTo(-0.24, -0.024); 
+        
+        // 内側エンジン
+        shape.lineTo(-0.16, 0.031);  
+        shape.lineTo(-0.16, 0.12);   
+        shape.lineTo(-0.13, 0.12);   
+        shape.lineTo(-0.13, 0.052);  
+        // -----------------------------
+
         shape.lineTo(-0.06, 0.1);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        // ★修正: デザイン工学に基づき、シルエットを崩さずに重厚感を極大化させる厚み(0.12)を設定
-        const extrudeSettings = {
-            depth: 0.12,          // 厚みを前回の2倍に引き上げ、しっかりとした分厚さを表現
-            bevelEnabled: true,   // エッジの面取り（アウトライン効果）
-            bevelSegments: 2,
-            steps: 1,
-            bevelSize: 0.005,
-            bevelThickness: 0.005
-        };
-
-        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        geometry.center(); // 厚みを持たせた後も中心を合わせる
+        // 厚みづけは行わず、オリジナルの完全な2D平面を維持
+        const geometry = new THREE.ShapeGeometry(shape);
+        geometry.center();
         
         return geometry;
     }
@@ -81,26 +102,14 @@ export class PlaneManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const planeColor = comp ? comp.planeColor : 0x34d399;
         
-        // ★維持: 「明るさ」と「分厚さ」を両立するマルチマテリアル設定
-        const baseColor = new THREE.Color(planeColor);
-        
-        // 1. 表面・裏面用マテリアル（元の明るく鮮やかな色）
-        const matFront = new THREE.MeshBasicMaterial({ 
-            color: baseColor,      
-            transparent: false,
-            side: THREE.DoubleSide
-        });
-        
-        // 2. 側面用マテリアル（厚みの部分。暗く沈ませない程度に影を表現する色）
-        const sideColor = baseColor.clone().multiplyScalar(0.65); // 明るさを65%に設定
-        const matSide = new THREE.MeshBasicMaterial({
-            color: sideColor,
+        // 色を変えず、視認性が最高に良いオリジナルの MeshBasicMaterial（ベタ塗り）を維持
+        const material = new THREE.MeshBasicMaterial({ 
+            color: planeColor,      
             transparent: false,
             side: THREE.DoubleSide
         });
 
-        // ジオメトリにマテリアルの配列を渡す（インデックス0が表裏、インデックス1が側面になる）
-        const mesh = new THREE.Mesh(this.baseGeometry, [matFront, matSide]);
+        const mesh = new THREE.Mesh(this.baseGeometry, material);
         mesh.scale.set(scale, scale, scale);
         
         this.planeGroup.add(mesh);
