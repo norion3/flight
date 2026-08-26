@@ -196,15 +196,16 @@
             </svg>
         </button>
 
-        <!-- ★修正: 黄金比とF型視線誘導に基づく、リストビュー型のフリート（機体）管理パネルへ刷新 -->
+        <!-- ★修正: 専門用語の「フリート管理」をやめ、直感的なアクションを表すタイトルに変更 -->
         <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30 w-full max-w-md">
             <div class="flex justify-between items-center mb-4 px-1">
-                <h2 class="text-lg font-bold text-white">フリート管理</h2>
+                <h2 class="text-lg font-bold text-white">機体の購入・売却</h2>
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
             
             <div class="flex flex-col gap-3">
                 <!-- 小型機 -->
+                <!-- ★修正: 不要なノイズとなっていた英語表記（Small等）を削除し、スッキリとしたUIに -->
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 shadow-inner">
                     <div class="flex-1 flex items-center gap-3">
                         <div class="text-emerald-400 w-8 flex justify-center">
@@ -213,7 +214,7 @@
                             </svg>
                         </div>
                         <div>
-                            <div class="text-sm font-bold text-slate-200">小型機 <span class="text-[10px] text-slate-400 ml-1">Small</span></div>
+                            <div class="text-sm font-bold text-slate-200">小型機</div>
                             <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-small" class="text-white font-bold text-sm">0</span> 機</div>
                         </div>
                     </div>
@@ -236,7 +237,7 @@
                             </svg>
                         </div>
                         <div>
-                            <div class="text-sm font-bold text-slate-200">中型機 <span class="text-[10px] text-slate-400 ml-1">Medium</span></div>
+                            <div class="text-sm font-bold text-slate-200">中型機</div>
                             <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-medium" class="text-white font-bold text-sm">0</span> 機</div>
                         </div>
                     </div>
@@ -259,7 +260,7 @@
                             </svg>
                         </div>
                         <div>
-                            <div class="text-sm font-bold text-slate-200">大型機 <span class="text-[10px] text-slate-400 ml-1">Large</span></div>
+                            <div class="text-sm font-bold text-slate-200">大型機</div>
                             <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-large" class="text-white font-bold text-sm">0</span> 機</div>
                         </div>
                     </div>
@@ -282,7 +283,8 @@
                             </svg>
                         </div>
                         <div>
-                            <div class="text-sm font-bold text-slate-200">超大型 <span class="text-[10px] text-slate-400 ml-1">Super</span></div>
+                            <!-- ★修正: 表記揺れを防ぐため「超大型機」へ統一 -->
+                            <div class="text-sm font-bold text-slate-200">超大型機</div>
                             <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-super" class="text-white font-bold text-sm">0</span> 機</div>
                         </div>
                     </div>
