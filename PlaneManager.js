@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【同陣営飛行機の分散ルーティング（重なり防止）の実装】
- * 履歴277に基づき、確率の偏りで飛行機が同じルートに密集するのを防ぐため、
- * ランダム選択から「一番空いているルートを選ぶ」分散アルゴリズム（_getLeastCrowdedRoute）へ変更しました。
- * 他社の飛行機は無視して「自陣営」のみをカウントすることで、フリーズや処理落ちを完璧に回避しつつ、
- * マップ全体に機体が美しくクモの巣状に散開するようになります。
- * （※弾丸型エンジンやカリングなどの視覚的な最適化は100%維持しています。）
+ * 【距離（密度）を考慮した究極の分散ルーティングの実装】
+ * 履歴279に基づき、短いルートで右往左往（ピンポン）してしまう現象を解消するため、
+ * 経路選択アルゴリズムを「機体の絶対数」から「機体密度（(機体数+1) / 距離）」の評価へと進化させました。
+ * これにより、空いているルートの中でも「より長いルート」が優先的に選ばれるようになり、
+ * 機体がマップの隅々までダイナミックかつ均等に分散して飛ぶようになります。
+ * （※機体の美しい弾丸型プロポーションや、カリングによる軽量化は100%維持しています。）
  */
 
 import { CONFIG } from './Config.js';
@@ -84,7 +84,7 @@ export class PlaneManager {
         return geometry;
     }
 
-    // ★追加: 自分と同じ陣営の飛行機をカウントし、一番空いているルートを選ぶ分散アルゴリズム
+    // ★修正: 単なる機体数ではなく「機体密度（混雑度）」を計算してルートを選ぶ
     _getLeastCrowdedRoute(airportId, companyId) {
         const routes = this.networkManager.network[companyId][airportId];
         if (!routes || routes.length === 0) return null;
@@ -92,7 +92,6 @@ export class PlaneManager {
         const routeCounts = {};
         routes.forEach(r => routeCounts[r.id] = 0);
 
-        // 同陣営の飛行機が現在どのルートを飛んでいるかカウントする
         this.planes.forEach(plane => {
             if (plane.companyId === companyId && plane.currentRoute && plane.currentAirportId === airportId) {
                 const toId = plane.currentRoute.id;
@@ -102,20 +101,27 @@ export class PlaneManager {
             }
         });
 
-        let minCount = Infinity;
+        let minDensity = Infinity;
         let bestRoutes = [];
         
         routes.forEach(route => {
             const count = routeCounts[route.id];
-            if (count < minCount) {
-                minCount = count;
+            
+            // ★進化ポイント: 機体密度 = (機体数 + 1) / ルートの長さ
+            // +1 をすることで、0機の場合でも「距離が長いルート」の密度が下がり、優先して選ばれるようになる
+            // これにより短いルートでの右往左往が防がれ、遠くへ散らばるようになる
+            const density = (count + 1) / route.length;
+            
+            // 浮動小数点の計算誤差を考慮した判定（極小の差は同じ密度とみなす）
+            if (density < minDensity - 0.0001) {
+                minDensity = density;
                 bestRoutes = [route];
-            } else if (count === minCount) {
+            } else if (Math.abs(density - minDensity) <= 0.0001) {
                 bestRoutes.push(route);
             }
         });
 
-        // 最も空いているルートの中からランダムに選択（同数の場合はばらける）
+        // 最も密度が低い（空いている）ルートの中からランダムに選択
         return bestRoutes[Math.floor(Math.random() * bestRoutes.length)];
     }
 
@@ -123,7 +129,6 @@ export class PlaneManager {
         const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
         if (!spawnAirportId) return false; 
 
-        // ★修正: ランダムではなく分散アルゴリズムを使用
         const routeData = this._getLeastCrowdedRoute(spawnAirportId, companyId);
         if (!routeData) return false;
 
@@ -204,14 +209,12 @@ export class PlaneManager {
         let spawnAirportId = plane.currentAirportId; 
 
         if (spawnAirportId) {
-            // ★修正: ランダムではなく分散アルゴリズムを使用
             nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
         }
 
         if (!nextRoute) {
             spawnAirportId = this.networkManager.getRandomConnectedAirport(plane.companyId);
             if (spawnAirportId) {
-                // ★修正: ランダムではなく分散アルゴリズムを使用
                 nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
             }
         }
@@ -282,7 +285,6 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
-                // ★修正: ランダムではなく分散アルゴリズムを使用し、到着時に空いている空路を選ぶ
                 const nextRoute = this._getLeastCrowdedRoute(nextAirportId, plane.companyId);
                 
                 if (nextRoute) {
