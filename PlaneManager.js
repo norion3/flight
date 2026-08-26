@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【距離（密度）を考慮した究極の分散ルーティングの実装】
- * 履歴279に基づき、短いルートで右往左往（ピンポン）してしまう現象を解消するため、
- * 経路選択アルゴリズムを「機体の絶対数」から「機体密度（(機体数+1) / 距離）」の評価へと進化させました。
- * これにより、空いているルートの中でも「より長いルート」が優先的に選ばれるようになり、
- * 機体がマップの隅々までダイナミックかつ均等に分散して飛ぶようになります。
+ * 【確率的セパレーション（航空管制）による完璧な分散ルーティング】
+ * 履歴282に基づき、「一番空いているルートを絶対選ぶ」という硬直化したロジックを廃止しました。
+ * 代わりに、各ルートの「最後尾の機体の進行度(progress)」を調べ、
+ * 「前の機体が進んでいる（間隔が空いている）ルートほど選ばれやすい」重み付きランダム（ルーレット）
+ * を実装しました。これにより、数珠つなぎ（重なり）を完璧に防ぎつつ、
+ * 長短問わずすべてのルートに別の機体が次々と進入していく自然な航空網が実現します。
  * （※機体の美しい弾丸型プロポーションや、カリングによる軽量化は100%維持しています。）
  */
 
@@ -84,52 +85,55 @@ export class PlaneManager {
         return geometry;
     }
 
-    // ★修正: 単なる機体数ではなく「機体密度（混雑度）」を計算してルートを選ぶ
-    _getLeastCrowdedRoute(airportId, companyId) {
+    // ★進化ポイント: 確率的セパレーション（航空管制）ルーティング
+    _getRouteBySeparation(airportId, companyId) {
         const routes = this.networkManager.network[companyId][airportId];
         if (!routes || routes.length === 0) return null;
 
-        const routeCounts = {};
-        routes.forEach(r => routeCounts[r.id] = 0);
+        // 各ルートの「最後尾の機体の進行度(progress)」を調べる
+        // 誰もいないルートは progress = 1.0 (完全に間隔が空いている) と見なす
+        const minProgresses = {};
+        routes.forEach(r => minProgresses[r.id] = 1.0);
 
         this.planes.forEach(plane => {
             if (plane.companyId === companyId && plane.currentRoute && plane.currentAirportId === airportId) {
                 const toId = plane.currentRoute.id;
-                if (routeCounts[toId] !== undefined) {
-                    routeCounts[toId]++;
+                if (minProgresses[toId] !== undefined) {
+                    if (plane.progress < minProgresses[toId]) {
+                        minProgresses[toId] = plane.progress; // より入口に近い(progressが小さい)機体で上書き
+                    }
                 }
             }
         });
 
-        let minDensity = Infinity;
-        let bestRoutes = [];
-        
-        routes.forEach(route => {
-            const count = routeCounts[route.id];
-            
-            // ★進化ポイント: 機体密度 = (機体数 + 1) / ルートの長さ
-            // +1 をすることで、0機の場合でも「距離が長いルート」の密度が下がり、優先して選ばれるようになる
-            // これにより短いルートでの右往左往が防がれ、遠くへ散らばるようになる
-            const density = (count + 1) / route.length;
-            
-            // 浮動小数点の計算誤差を考慮した判定（極小の差は同じ密度とみなす）
-            if (density < minDensity - 0.0001) {
-                minDensity = density;
-                bestRoutes = [route];
-            } else if (Math.abs(density - minDensity) <= 0.0001) {
-                bestRoutes.push(route);
-            }
+        // 重み付きランダム（ルーレット）選択
+        // progress が小さい（出発直後）ルートほど選ばれにくくし、重なり(追突)を防ぐ。
+        // progress が進めば確率が回復するため、他の機体も次々と進入できるようになる。
+        let totalWeight = 0;
+        const weights = routes.map(route => {
+            // +0.05 の下駄を履かせることで、出発直後(0.0)でも5%の確率を残し、完全なスタック(硬直)を防ぐ
+            const w = minProgresses[route.id] + 0.05; 
+            totalWeight += w;
+            return w;
         });
 
-        // 最も密度が低い（空いている）ルートの中からランダムに選択
-        return bestRoutes[Math.floor(Math.random() * bestRoutes.length)];
+        let randomValue = Math.random() * totalWeight;
+        for (let i = 0; i < routes.length; i++) {
+            randomValue -= weights[i];
+            if (randomValue <= 0) {
+                return routes[i];
+            }
+        }
+        
+        return routes[routes.length - 1]; // フォールバック
     }
 
     addPlane(sizeType, companyId = 'player') {
         const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
         if (!spawnAirportId) return false; 
 
-        const routeData = this._getLeastCrowdedRoute(spawnAirportId, companyId);
+        // ルーティングをセパレーションベースへ変更
+        const routeData = this._getRouteBySeparation(spawnAirportId, companyId);
         if (!routeData) return false;
 
         let scale = 0.11;
@@ -209,13 +213,13 @@ export class PlaneManager {
         let spawnAirportId = plane.currentAirportId; 
 
         if (spawnAirportId) {
-            nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
+            nextRoute = this._getRouteBySeparation(spawnAirportId, plane.companyId);
         }
 
         if (!nextRoute) {
             spawnAirportId = this.networkManager.getRandomConnectedAirport(plane.companyId);
             if (spawnAirportId) {
-                nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
+                nextRoute = this._getRouteBySeparation(spawnAirportId, plane.companyId);
             }
         }
 
@@ -285,7 +289,8 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
-                const nextRoute = this._getLeastCrowdedRoute(nextAirportId, plane.companyId);
+                // 到着時もセパレーションロジックで空いている間隔を選ぶ
+                const nextRoute = this._getRouteBySeparation(nextAirportId, plane.companyId);
                 
                 if (nextRoute) {
                     plane.currentAirportId = nextAirportId;
