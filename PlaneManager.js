@@ -1,11 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【隙間の拡大と、弾丸型（ノーズコーン）エンジンの実装】
- * 履歴271に基づき、ダサかった長方形のエンジンを脱却しました。
- * 胴体とエンジンの隙間を明確に広げ（X=0.10スタート）、エンジンの前方に頂点を1つ追加して
- * 空気を切り裂くような「弾丸型（先端が少し尖った形）」にすることで、
- * ジェットエンジンらしい空気力学的なかっこよさを極限まで高めています。
- * ※厚みや質感は一切触れずに100%維持しています。
+ * 【動的カリングによる裏透け防止と、アクティブ判定の分離】
+ * 履歴276に基づき、ベクトルの内積を用いた表裏判定を updateScale 内に実装し、
+ * 裏側に回った飛行機を visible = false にして透けバグを完全に解消しました。
+ * ※これに伴い、従来の「visible が false なら処理をスキップ・再配置する」というロジックを
+ * 「currentRoute が null なら処理をスキップ・再配置する」というロジックに修正し、
+ * 裏側でカリング（非表示）されていても見えない場所で飛び続けるよう安全に分離しました。
+ * もちろん、弾丸型エンジンや厚みなどの美しいプロポーションは100%維持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -30,20 +31,20 @@ export class PlaneManager {
         shape.moveTo(0, 0.5);
         shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1); 
         
-        // --- 右翼前縁（隙間を広げ、弾丸型に尖らせたエンジン） ---
-        shape.lineTo(0.10, 0.072);    // 胴体から離れ、隙間を明確に広げる
-        shape.lineTo(0.10, 0.12);     // エンジン内側前方
-        shape.lineTo(0.13, 0.14);     // ★エンジン先端（とんがりを追加し弾丸型にする）
-        shape.lineTo(0.16, 0.12);     // エンジン外側前方
-        shape.lineTo(0.16, 0.031);    // エンジン外側後方（主翼前縁に戻る）
-        shape.lineTo(0.35, -0.1);     // 翼端へ
+        // --- 右翼前縁（隙間拡大・弾丸型エンジン） ---
+        shape.lineTo(0.10, 0.072);    
+        shape.lineTo(0.10, 0.12);     
+        shape.lineTo(0.13, 0.14);     // 先端の尖り
+        shape.lineTo(0.16, 0.12);     
+        shape.lineTo(0.16, 0.031);    
+        shape.lineTo(0.35, -0.1);     
         // -----------------------------
         
         shape.lineTo(0.35, -0.2);
         shape.lineTo(0.06, -0.15);
         shape.lineTo(0.05, -0.35);    
         
-        // 尾翼（短縮された美しいバランスを維持）
+        // 尾翼（短縮・バランス最適化）
         shape.lineTo(0.12, -0.45);    
         shape.lineTo(0.12, -0.5);     
         shape.lineTo(0.02, -0.48);    
@@ -55,12 +56,12 @@ export class PlaneManager {
         shape.lineTo(-0.05, -0.35);
         shape.lineTo(-0.06, -0.15);
         shape.lineTo(-0.35, -0.2);
-        shape.lineTo(-0.35, -0.1);    // 左翼端
+        shape.lineTo(-0.35, -0.1);    
         
-        // --- 左翼前縁（完全対称の弾丸型エンジン） ---
+        // --- 左翼前縁（完全対称） ---
         shape.lineTo(-0.16, 0.031);  
         shape.lineTo(-0.16, 0.12);   
-        shape.lineTo(-0.13, 0.14);   // ★左エンジンの先端
+        shape.lineTo(-0.13, 0.14);   // 先端の尖り
         shape.lineTo(-0.10, 0.12);   
         shape.lineTo(-0.10, 0.072);  
         // -----------------------------
@@ -68,7 +69,7 @@ export class PlaneManager {
         shape.lineTo(-0.06, 0.1);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        // ★維持: 重厚感を極大化させる厚み(0.12)
+        // 厚み(0.12)とベベルの維持
         const extrudeSettings = {
             depth: 0.12,          
             bevelEnabled: true,
@@ -102,7 +103,6 @@ export class PlaneManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const planeColor = comp ? comp.planeColor : 0x34d399;
         
-        // ★維持: 「明るさ」と「分厚さ」を両立するマルチマテリアル設定
         const baseColor = new THREE.Color(planeColor);
         
         const matFront = new THREE.MeshBasicMaterial({ 
@@ -187,7 +187,8 @@ export class PlaneManager {
             return;
         }
 
-        plane.mesh.visible = true;
+        // visibleはカリングでも制御されるが、アクティブになった証として一旦trueにする
+        plane.mesh.visible = true; 
         plane.currentAirportId = spawnAirportId;
         plane.currentRoute = nextRoute;
         plane.progress = 0;
@@ -195,7 +196,8 @@ export class PlaneManager {
 
     wakeUpPlanes(companyId = 'player') {
         this.planes.forEach(plane => {
-            if (plane.companyId === companyId && !plane.mesh.visible) {
+            // ★修正: visibleフラグでの判定を禁止し、確実にルートの有無(currentRoute)だけで待機判定を行う
+            if (plane.companyId === companyId && !plane.currentRoute) {
                 this._reassignPlane(plane);
             }
         });
@@ -203,10 +205,26 @@ export class PlaneManager {
 
     updateScale(camera) {
         this.planes.forEach(plane => {
-            if (!plane.mesh.visible) return;
+            // ルートが無い（待機中）場合は非表示にして処理スキップ
+            if (!plane.currentRoute) {
+                plane.mesh.visible = false;
+                return;
+            }
 
             const pos = new THREE.Vector3();
             plane.mesh.getWorldPosition(pos);
+            
+            // ★追加: 動的カリングによる裏透け防止とGPU負荷の軽減
+            // 地球の中心からの法線ベクトルとカメラベクトルの内積で表裏を判定
+            const cameraToPlane = camera.position.clone().sub(pos);
+            const normal = pos.clone().normalize();
+            if (cameraToPlane.dot(normal) < 0) {
+                plane.mesh.visible = false;
+                return; // 見えない時はスケール計算をスキップ
+            } else {
+                plane.mesh.visible = true;
+            }
+
             const distance = camera.position.distanceTo(pos);
             
             let baseScale = distance / 10;
@@ -221,7 +239,8 @@ export class PlaneManager {
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
             
-            if (!plane.currentRoute || !plane.mesh.visible) continue;
+            // ★修正: 裏側にいてカリング(visible=false)されていても、位置の更新は続ける
+            if (!plane.currentRoute) continue;
 
             const curve = plane.currentRoute.curve;
             const length = plane.currentRoute.length;
