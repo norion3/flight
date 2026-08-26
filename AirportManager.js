@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【起点と目的地のハイライト独立管理】に加え、
- * 履歴223に基づき、地球儀の裏側に回ったマーカーの光が透けるのを防ぐため「動的カリング」を適用しています。
- * 履歴285にて、カメラのズームイン時にマーカーが地平線の手前で消滅（ポッピング）するのを防ぐため、
- * 視直径ベース(horizonCos)の正確な地平線判定に修正し、自然な回り込み描画を実現しました。
+ * 履歴287にて、プレイヤーの陣営色（エメラルド）とハイライト色（シアン）がバッティングして
+ * 視認性が落ちていた問題を解消するため、起点(origin)を「純白」、目的地(dest)を「ゴールド」へ変更し、
+ * 高級感のあるUIと直感的な操作性を両立させました。
+ * （※視直径ベースの正確な地平線カリングは100%維持しています。）
  */
 
 import { CONFIG } from './Config.js';
@@ -120,11 +121,13 @@ export class AirportManager {
             
             if (m.userData.targetMesh) {
                 if (m.userData.isOrigin) {
-                    m.userData.targetMesh.material.color.setHex(0x00e5ff); // シアンで維持
+                    // ★修正: 起点(選択中)のハイライトを純白にして目立たせる
+                    m.userData.targetMesh.material.color.setHex(0xffffff); 
                 } else if (m.userData.isDest) {
-                    m.userData.targetMesh.material.color.setHex(0xffffff); // 白で維持
+                    // ★修正: 目的地(接続候補)のハイライトをゴールドにする
+                    m.userData.targetMesh.material.color.setHex(0xffd700); 
                 } else {
-                    m.userData.targetMesh.material.color.setHex(m.userData.originalColor); // 元の色に戻す
+                    m.userData.targetMesh.material.color.setHex(m.userData.originalColor); 
                 }
             }
         });
@@ -135,15 +138,16 @@ export class AirportManager {
         
         if (type === 'origin') {
             hitMesh.userData.isOrigin = true;
-            hitMesh.userData.targetMesh.material.color.setHex(0x00e5ff);
+            // ★修正: 起点(選択中)のハイライトを純白にして目立たせる
+            hitMesh.userData.targetMesh.material.color.setHex(0xffffff);
         } else if (type === 'dest') {
             hitMesh.userData.isDest = true;
-            hitMesh.userData.targetMesh.material.color.setHex(0xffffff);
+            // ★修正: 目的地(接続候補)のハイライトをゴールドにする
+            hitMesh.userData.targetMesh.material.color.setHex(0xffd700);
         }
     }
 
     updateMarkerScale(camera) {
-        // ★追加: カメラの距離から正確な地平線の限界値(horizonCos)を計算
         const R = CONFIG.GLOBE_RADIUS;
         const distC = camera.position.length();
         const horizonCos = R / distC;
@@ -153,8 +157,6 @@ export class AirportManager {
             const markerWorldPos = new THREE.Vector3();
             hitMesh.getWorldPosition(markerWorldPos);
             
-            // ★修正: ズーム距離に依存しない正確な地平線カリング
-            // 地球の中心からの方向ベクトル同士の内積で判定し、-0.05のマージンを持たせる
             const dirP = markerWorldPos.clone().normalize();
             
             if (dirC.dot(dirP) < horizonCos - 0.05) {
