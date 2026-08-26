@@ -4,10 +4,10 @@
  * 履歴282に基づき、最後尾の機体の進行度(progress)を調べ、重み付きランダムで進入させる分散ロジックを実装済み。
  * 【正確な地平線カリングのマージン適用】
  * 履歴285に基づき、視直径(horizonCos)による正確なカリングでポッピングを防止済み。
- * 【滑らかな旋回アニメーションの導入】
- * 履歴287に基づき、機体がルートを切り替える際の「ロボットのような瞬間的な方向転換」を防ぐため、
- * 目標の姿勢(Matrix4 -> Quaternion)に対して、機体の現在の姿勢を slerp (球面線形補間) させる処理に変更しました。
- * これにより、ルートの切り替わり等で角度が大きく変わる際に、現実の航空機のような美しい旋回（ターン）を行います。
+ * 【滑らかな旋回と重厚感の調整】
+ * 履歴288に基づき、ルート切り替え時の旋回ターンをより現実の航空機らしくするため、
+ * 球面線形補間(slerp)の係数を 10.0 から 3.5 へと大幅に下げました。
+ * これにより、機体がゆっくりと優雅にターンするようになり、重厚感が劇的に増しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -306,16 +306,12 @@ export class PlaneManager {
                 
                 if (right.lengthSq() > 0.000001) {
                     right.normalize();
-                    // 進行方向(tangent)と地球の法線(up)から、真の上方向(trueUp)を再計算して完全な直交基底を作る（裏返り防止）
                     const trueUp = new THREE.Vector3().crossVectors(right, tangent).normalize();
                     const targetMatrix = new THREE.Matrix4().makeBasis(right, tangent, trueUp);
                     const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(targetMatrix);
                     
-                    // ★進化ポイント: ロボット旋回の解消（球面線形補間: Slerp）
-                    // 計算された目標の角度に対して即座に値を書き換えるのではなく、
-                    // 現在の角度から目標の角度へ向かって「毎フレーム滑らかに回転させる（追従させる）」ことで、
-                    // ルート切り替え時のパキッとした動きをなくし、現実の航空機のような美しい旋回ターンを実現する。
-                    plane.mesh.quaternion.slerp(targetQuaternion, 10.0 * delta);
+                    // ★修正: 補間係数を 10.0 から 3.5 へ落とし、ゆっくりと重厚感のある旋回ターンにする
+                    plane.mesh.quaternion.slerp(targetQuaternion, 3.5 * delta);
                 }
             }
         }
