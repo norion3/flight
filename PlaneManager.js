@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ネガティブスペース(隙間)の排除と黄金比エンジンの実装】
- * 履歴265に基づき、厚みやマルチマテリアルの設計は100%維持しつつ、
- * エンジンを胴体に完全に密着(隙間ゼロ)させ、主翼幅の黄金分割比(38.2%)の幅を持たせました。
- * さらにエンジン前縁にエアロダイナミクス(斜めの後退角)をつけることで、
- * アイコンデザインとして最もソリッドで洗練されたジャンボジェットのシルエットを実現しています。
+ * 【プロポーションの最適化（隙間、縦幅短縮、尾翼短縮）】
+ * 履歴267・268に基づき、厚み(depth:0.12)とマルチマテリアル設計は完全に保護しつつ、
+ * ① 胴体(X=0.06)とエンジン(X=0.08)の間にわずかな隙間を開け、メカニカルなかっこよさを復活させました。
+ * ② エンジンの前方への突き出し(Y)を抑え、縦に長すぎないコンパクトで太い大口径エンジンにしました。
+ * ③ 主翼との対比を考慮し、尾翼の横幅を(X=0.15)から(X=0.12)へ短縮してシャープなシルエットにしました。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,44 +26,49 @@ export class PlaneManager {
     _createPlaneGeometry() {
         const shape = new THREE.Shape();
         
-        // オリジナルのパス構造を維持
         shape.moveTo(0, 0.5);
-        // エンジン内側（Y=0.18）まで胴体のカーブを繋ぐ
-        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.18);
+        shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1); 
         
-        // --- 右翼前縁（隙間ゼロ・黄金比幅・後退角エンジン） ---
-        shape.lineTo(0.17, 0.15);     // エンジン前縁（斜め後退角）
-        shape.lineTo(0.17, 0.024);    // エンジン外側ライン（前縁の直線に戻る）
+        // --- 右翼前縁（微小な隙間を持たせ、突き出しを抑えた大口径エンジン） ---
+        shape.lineTo(0.08, 0.086);    // 胴体から離れ、わずかな隙間を開ける
+        shape.lineTo(0.08, 0.13);     // エンジン内側（前方への突き出しを抑え短くコンパクトに）
+        shape.lineTo(0.18, 0.13);     // エンジンの幅（大口径）
+        shape.lineTo(0.18, 0.017);    // エンジン外側から主翼前縁に戻る
         shape.lineTo(0.35, -0.1);     // 翼端へ
         // -----------------------------
         
         shape.lineTo(0.35, -0.2);
         shape.lineTo(0.06, -0.15);
-        shape.lineTo(0.05, -0.35);
-        shape.lineTo(0.15, -0.45);
-        shape.lineTo(0.15, -0.5);
-        shape.lineTo(0.02, -0.48);
+        shape.lineTo(0.05, -0.35);    // 胴体後部
+        
+        // ★修正: 尾翼の横への飛び出しを短くし（0.15 -> 0.12）、バランスを最適化
+        shape.lineTo(0.12, -0.45);    // 尾翼前縁
+        shape.lineTo(0.12, -0.5);     // 尾翼後端
+        shape.lineTo(0.02, -0.48);    // 最後尾の切り欠き
         shape.lineTo(0, -0.5);
+        
         shape.lineTo(-0.02, -0.48);
-        shape.lineTo(-0.15, -0.5);
-        shape.lineTo(-0.15, -0.45);
+        shape.lineTo(-0.12, -0.5);
+        shape.lineTo(-0.12, -0.45);
         shape.lineTo(-0.05, -0.35);
         shape.lineTo(-0.06, -0.15);
         shape.lineTo(-0.35, -0.2);
-        shape.lineTo(-0.35, -0.1);  // 左翼端
+        shape.lineTo(-0.35, -0.1);    // 左翼端
         
-        // --- 左翼前縁（双発機シルエット：完全対称） ---
-        shape.lineTo(-0.17, 0.024);  // 翼端からエンジン外側へ
-        shape.lineTo(-0.17, 0.15);   // エンジン外側前縁へ前方に突き出し
-        shape.lineTo(-0.06, 0.18);   // エンジン前縁（斜め後退角）で胴体に密着
+        // --- 左翼前縁（完全対称） ---
+        shape.lineTo(-0.18, 0.017);  
+        shape.lineTo(-0.18, 0.13);   
+        shape.lineTo(-0.08, 0.13);   
+        shape.lineTo(-0.08, 0.086);  
         // -----------------------------
 
+        shape.lineTo(-0.06, 0.1);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        // ★維持: デザイン工学に基づき、重厚感を極大化させる厚み(0.12)
+        // ★維持: 重厚感を極大化させる厚み(0.12)
         const extrudeSettings = {
             depth: 0.12,          
-            bevelEnabled: true,   // エッジの面取り（アウトライン効果）
+            bevelEnabled: true,
             bevelSegments: 2,
             steps: 1,
             bevelSize: 0.005,
@@ -71,7 +76,7 @@ export class PlaneManager {
         };
 
         const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        geometry.center(); // 厚みを持たせた後も中心を合わせる
+        geometry.center(); 
         
         return geometry;
     }
@@ -97,14 +102,14 @@ export class PlaneManager {
         // ★維持: 「明るさ」と「分厚さ」を両立するマルチマテリアル設定
         const baseColor = new THREE.Color(planeColor);
         
-        // 1. 表面・裏面用マテリアル（元の明るく鮮やかな色）
+        // 1. 表面・裏面用マテリアル
         const matFront = new THREE.MeshBasicMaterial({ 
             color: baseColor,      
             transparent: false,
             side: THREE.DoubleSide
         });
         
-        // 2. 側面用マテリアル（厚みの部分。暗く沈ませない程度に影を表現する色）
+        // 2. 側面用マテリアル（影を表現）
         const sideColor = baseColor.clone().multiplyScalar(0.65); 
         const matSide = new THREE.MeshBasicMaterial({
             color: sideColor,
@@ -112,7 +117,6 @@ export class PlaneManager {
             side: THREE.DoubleSide
         });
 
-        // ジオメトリにマテリアルの配列を渡す（インデックス0が表裏、インデックス1が側面になる）
         const mesh = new THREE.Mesh(this.baseGeometry, [matFront, matSide]);
         mesh.scale.set(scale, scale, scale);
         
