@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【接続上限の各社独立管理と、白飛び・Zファイティング対策】
- * ユーザー添付ファイルをベースとし、this.network を会社ごとに階層化しました。
- * 加算合成(AdditiveBlending)は白飛びを防ぐため削除し、
- * 線が重なった際のチラつきを防ぐため、元の高さ(0.02)に対して会社ごとにミクロン単位のオフセットを加えています。
+ * 【純白ブレンドによる空路の視認性向上（発光表現）】
+ * 履歴274に基づき、半透明（opacity: 0.65）の空気感は100%維持したまま、
+ * 各陣営の原色（routeColor）に対して、プログラム内で純白（0xffffff）を20%ブレンドする処理を追加しました。
+ * これにより、裏透けや白飛びなどのバグを引き起こすことなく、暗い赤や青の線がネオンのように美しく発光して見えるようになります。
  */
 
 import { CONFIG } from './Config.js';
@@ -19,7 +19,6 @@ export class NetworkManager {
 
         this.network = {}; 
         
-        // ★修正: 会社ごとに独立したネットワーク辞書を初期化
         CONFIG.COMPANIES.forEach(comp => {
             this.network[comp.id] = {};
         });
@@ -62,7 +61,7 @@ export class NetworkManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const routeColor = comp ? comp.routeColor : 0x0ea5e9;
         
-        // ★修正: ユーザー設定の元の高さ(0.02)を尊重しつつ、Zファイティング防止の微小オフセットを加える
+        // Zファイティング防止の微小オフセット
         const offset = Math.max(0, compIndex) * 0.0002;
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
@@ -78,9 +77,13 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // ★修正: 白飛び防止のため AdditiveBlending を削除し、ソリッドな描画へ変更
+        // ★修正: 原色に「20%の純白」をブレンドして発光感（明度）を引き上げる
+        const baseColor = new THREE.Color(routeColor);
+        const neonColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.2);
+        
+        // 透明度(0.65)を維持したまま、発光色を適用する
         const material = new THREE.LineBasicMaterial({ 
-            color: routeColor, 
+            color: neonColor, 
             transparent: true, 
             opacity: 0.65 
         });
