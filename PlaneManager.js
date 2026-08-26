@@ -1,12 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【確率的セパレーション（航空管制）による完璧な分散ルーティング】
- * 履歴282に基づき、「一番空いているルートを絶対選ぶ」という硬直化したロジックを廃止しました。
- * 代わりに、各ルートの「最後尾の機体の進行度(progress)」を調べ、
- * 「前の機体が進んでいる（間隔が空いている）ルートほど選ばれやすい」重み付きランダム（ルーレット）
- * を実装しました。これにより、数珠つなぎ（重なり）を完璧に防ぎつつ、
- * 長短問わずすべてのルートに別の機体が次々と進入していく自然な航空網が実現します。
- * （※機体の美しい弾丸型プロポーションや、カリングによる軽量化は100%維持しています。）
+ * 【「0機平等」のハイブリッド密度評価による究極の分散ルーティング】
+ * 履歴281に基づき、経路選択アルゴリズムを「0機なら密度0」「1機以上なら密度＝機体数/距離」のハイブリッド式に変更し、
+ * マップ全体に短距離・長距離問わず機体が美しくばらけて飛ぶようになっています。
+ * 【カリングのポッピング防止】
+ * 履歴283に基づき、動的カリングの判定においてベクトルを正規化し -0.15 のマージンを設定することで、
+ * 飛行機が地球の裏側に完全に隠れ切るまで自然に描画され続けるように修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -85,55 +84,51 @@ export class PlaneManager {
         return geometry;
     }
 
-    // ★進化ポイント: 確率的セパレーション（航空管制）ルーティング
-    _getRouteBySeparation(airportId, companyId) {
+    _getLeastCrowdedRoute(airportId, companyId) {
         const routes = this.networkManager.network[companyId][airportId];
         if (!routes || routes.length === 0) return null;
 
-        // 各ルートの「最後尾の機体の進行度(progress)」を調べる
-        // 誰もいないルートは progress = 1.0 (完全に間隔が空いている) と見なす
-        const minProgresses = {};
-        routes.forEach(r => minProgresses[r.id] = 1.0);
+        const routeCounts = {};
+        routes.forEach(r => routeCounts[r.id] = 0);
 
         this.planes.forEach(plane => {
             if (plane.companyId === companyId && plane.currentRoute && plane.currentAirportId === airportId) {
                 const toId = plane.currentRoute.id;
-                if (minProgresses[toId] !== undefined) {
-                    if (plane.progress < minProgresses[toId]) {
-                        minProgresses[toId] = plane.progress; // より入口に近い(progressが小さい)機体で上書き
-                    }
+                if (routeCounts[toId] !== undefined) {
+                    routeCounts[toId]++;
                 }
             }
         });
 
-        // 重み付きランダム（ルーレット）選択
-        // progress が小さい（出発直後）ルートほど選ばれにくくし、重なり(追突)を防ぐ。
-        // progress が進めば確率が回復するため、他の機体も次々と進入できるようになる。
-        let totalWeight = 0;
-        const weights = routes.map(route => {
-            // +0.05 の下駄を履かせることで、出発直後(0.0)でも5%の確率を残し、完全なスタック(硬直)を防ぐ
-            const w = minProgresses[route.id] + 0.05; 
-            totalWeight += w;
-            return w;
+        let minDensity = Infinity;
+        let bestRoutes = [];
+        
+        routes.forEach(route => {
+            const count = routeCounts[route.id];
+            
+            let density;
+            if (count === 0) {
+                density = 0;
+            } else {
+                density = count / route.length;
+            }
+            
+            if (density < minDensity - 0.0001) {
+                minDensity = density;
+                bestRoutes = [route];
+            } else if (Math.abs(density - minDensity) <= 0.0001) {
+                bestRoutes.push(route);
+            }
         });
 
-        let randomValue = Math.random() * totalWeight;
-        for (let i = 0; i < routes.length; i++) {
-            randomValue -= weights[i];
-            if (randomValue <= 0) {
-                return routes[i];
-            }
-        }
-        
-        return routes[routes.length - 1]; // フォールバック
+        return bestRoutes[Math.floor(Math.random() * bestRoutes.length)];
     }
 
     addPlane(sizeType, companyId = 'player') {
         const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
         if (!spawnAirportId) return false; 
 
-        // ルーティングをセパレーションベースへ変更
-        const routeData = this._getRouteBySeparation(spawnAirportId, companyId);
+        const routeData = this._getLeastCrowdedRoute(spawnAirportId, companyId);
         if (!routeData) return false;
 
         let scale = 0.11;
@@ -213,13 +208,13 @@ export class PlaneManager {
         let spawnAirportId = plane.currentAirportId; 
 
         if (spawnAirportId) {
-            nextRoute = this._getRouteBySeparation(spawnAirportId, plane.companyId);
+            nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
         }
 
         if (!nextRoute) {
             spawnAirportId = this.networkManager.getRandomConnectedAirport(plane.companyId);
             if (spawnAirportId) {
-                nextRoute = this._getRouteBySeparation(spawnAirportId, plane.companyId);
+                nextRoute = this._getLeastCrowdedRoute(spawnAirportId, plane.companyId);
             }
         }
 
@@ -255,10 +250,10 @@ export class PlaneManager {
             const pos = new THREE.Vector3();
             plane.mesh.getWorldPosition(pos);
             
-            // 動的カリングによる裏透け防止
-            const cameraToPlane = camera.position.clone().sub(pos);
+            // ★修正: ベクトルを正規化し -0.15 のマージンを持たせることで、地平線での唐突な消失を防ぐ
+            const cameraToPlane = camera.position.clone().sub(pos).normalize();
             const normal = pos.clone().normalize();
-            if (cameraToPlane.dot(normal) < 0) {
+            if (cameraToPlane.dot(normal) < -0.15) {
                 plane.mesh.visible = false;
                 return; 
             } else {
@@ -289,8 +284,7 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
-                // 到着時もセパレーションロジックで空いている間隔を選ぶ
-                const nextRoute = this._getRouteBySeparation(nextAirportId, plane.companyId);
+                const nextRoute = this._getLeastCrowdedRoute(nextAirportId, plane.companyId);
                 
                 if (nextRoute) {
                     plane.currentAirportId = nextAirportId;

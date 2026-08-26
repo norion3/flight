@@ -4,6 +4,8 @@
  * 履歴270に基づき、マゼンタと紫が同化してしまうバグを修正しました。
  * ユーザー様の指示通り、ピンク色を青みの強いマゼンタから「明るめのショッキングピンク（0xff1493）」
  * に変更し、紫（0x8a2be2）と並んでも絶対に色が混同しない最強の視認性を確保しています。
+ * 【陣営カラーの統一】
+ * 履歴283に基づき、プレイヤーの空路の色を機体の色（0x34d399: エメラルド）に統一し、自陣営の所有感と視認性を確立しました。
  */
 
 export const CONFIG = {
@@ -18,10 +20,10 @@ export const CONFIG = {
     // プレイヤーおよびライバル5社の定義
     // routeColor: 空路の色 / planeColor: 飛行機の色
     COMPANIES: [
-        { id: 'player', name: 'Player Airlines', routeColor: 0x0ea5e9, planeColor: 0x34d399 }, // 自分の色（維持）
+        // ★修正: プレイヤーの空路と機体の色を統一（エメラルド）
+        { id: 'player', name: 'Player Airlines', routeColor: 0x34d399, planeColor: 0x34d399 }, 
         { id: 'rival_eu', name: 'Euro Wings',    routeColor: 0x0044ff, planeColor: 0x0044ff }, // 真っ青（黒背景に沈まないピュアブルー）
         { id: 'rival_as', name: 'Asia Orient',   routeColor: 0xffff00, planeColor: 0xffff00 }, // まっ黄色
-        // ★修正: 純粋なマゼンタから、紫と同化しない「明るめのショッキングピンク (DeepPink)」へ変更
         { id: 'rival_af', name: 'Africa Star',   routeColor: 0xff1493, planeColor: 0xff1493 }, // 明るめのショッキングピンク
         { id: 'rival_am', name: 'Americas Air',  routeColor: 0xff0000, planeColor: 0xff0000 }, // 真っ赤
         { id: 'rival_oc', name: 'Oceania Fly',   routeColor: 0x8a2be2, planeColor: 0x8a2be2 }  // 真紫（ブルーバイオレット）

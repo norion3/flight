@@ -3,7 +3,7 @@
  * 【起点と目的地のハイライト独立管理】に加え、
  * 履歴223に基づき、地球儀の裏側に回ったマーカーの光が透けるのを防ぐため、
  * updateMarkerScale 内にベクトルの内積を用いた「動的カリング」を追加しました。
- * 見えないマーカーは visible = false にしてスケール計算もスキップすることで、高速スワイプ時のGPU負荷を下げています。
+ * 履歴283にて、地平線での唐突な消失（ポッピング）を防ぐため、ベクトルを正規化し -0.15 のマージンを設定しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -99,7 +99,6 @@ export class AirportManager {
 
             markerGroup.add(visualGroup);
 
-            // ★修正: 起点(origin)と目的地(dest)のフラグを独立させる
             markerGroup.userData = { 
                 airportData: airport, 
                 targetMesh: highlightTarget,
@@ -114,7 +113,6 @@ export class AirportManager {
         });
     }
 
-    // ★修正: 種類（'all', 'origin', 'dest'）を指定してハイライトを消去する
     clearHighlight(type = 'all') {
         this.markers.forEach(m => {
             if (type === 'all' || type === 'origin') m.userData.isOrigin = false;
@@ -132,7 +130,6 @@ export class AirportManager {
         });
     }
 
-    // ★修正: 種類を指定してハイライトする（起点はシアン、目的地は白）
     setHighlight(hitMesh, type) {
         if (!hitMesh || !hitMesh.userData.targetMesh) return;
         
@@ -150,12 +147,12 @@ export class AirportManager {
             const markerWorldPos = new THREE.Vector3();
             hitMesh.getWorldPosition(markerWorldPos);
             
-            // ★追加: カメラから見て裏側に回ったマーカーを非表示(カリング)して透けを防止し、GPU負荷を下げる
-            const cameraToMarker = camera.position.clone().sub(markerWorldPos);
+            // ★修正: ベクトルを正規化し -0.15 のマージンを持たせることで、地平線での唐突な消失を防ぐ
+            const cameraToMarker = camera.position.clone().sub(markerWorldPos).normalize();
             const normal = markerWorldPos.clone().normalize();
-            if (cameraToMarker.dot(normal) < 0) {
+            if (cameraToMarker.dot(normal) < -0.15) {
                 hitMesh.visible = false;
-                return; // 見えない時はスケール計算もスキップしてさらに軽量化
+                return; 
             } else {
                 hitMesh.visible = true;
             }
@@ -165,7 +162,6 @@ export class AirportManager {
             let baseScale = distance / 10;
             baseScale = Math.max(1.0, Math.min(baseScale, 1.8)); 
             
-            // ★修正: どちらかのハイライト状態であれば 1.5 倍にする
             const isHigh = hitMesh.userData.isOrigin || hitMesh.userData.isDest;
             const highlightScale = isHigh ? 1.5 : 1.0;
             const finalScale = baseScale * highlightScale;
