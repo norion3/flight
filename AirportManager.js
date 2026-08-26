@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【起点と目的地のハイライト独立管理】に加え、
- * 履歴223に基づき、地球儀の裏側に回ったマーカーの光が透けるのを防ぐため、
- * updateMarkerScale 内にベクトルの内積を用いた「動的カリング」を追加しました。
- * 履歴283にて、地平線での唐突な消失（ポッピング）を防ぐため、ベクトルを正規化し -0.15 のマージンを設定しました。
+ * 履歴223に基づき、地球儀の裏側に回ったマーカーの光が透けるのを防ぐため「動的カリング」を適用しています。
+ * 履歴285にて、カメラのズームイン時にマーカーが地平線の手前で消滅（ポッピング）するのを防ぐため、
+ * 視直径ベース(horizonCos)の正確な地平線判定に修正し、自然な回り込み描画を実現しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -143,14 +143,21 @@ export class AirportManager {
     }
 
     updateMarkerScale(camera) {
+        // ★追加: カメラの距離から正確な地平線の限界値(horizonCos)を計算
+        const R = CONFIG.GLOBE_RADIUS;
+        const distC = camera.position.length();
+        const horizonCos = R / distC;
+        const dirC = camera.position.clone().normalize();
+
         this.markers.forEach(hitMesh => {
             const markerWorldPos = new THREE.Vector3();
             hitMesh.getWorldPosition(markerWorldPos);
             
-            // ★修正: ベクトルを正規化し -0.15 のマージンを持たせることで、地平線での唐突な消失を防ぐ
-            const cameraToMarker = camera.position.clone().sub(markerWorldPos).normalize();
-            const normal = markerWorldPos.clone().normalize();
-            if (cameraToMarker.dot(normal) < -0.15) {
+            // ★修正: ズーム距離に依存しない正確な地平線カリング
+            // 地球の中心からの方向ベクトル同士の内積で判定し、-0.05のマージンを持たせる
+            const dirP = markerWorldPos.clone().normalize();
+            
+            if (dirC.dot(dirP) < horizonCos - 0.05) {
                 hitMesh.visible = false;
                 return; 
             } else {
