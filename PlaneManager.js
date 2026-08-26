@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【プロポーションの最適化（隙間、縦幅短縮、尾翼短縮）】
- * 履歴267・268に基づき、厚み(depth:0.12)とマルチマテリアル設計は完全に保護しつつ、
- * ① 胴体(X=0.06)とエンジン(X=0.08)の間にわずかな隙間を開け、メカニカルなかっこよさを復活させました。
- * ② エンジンの前方への突き出し(Y)を抑え、縦に長すぎないコンパクトで太い大口径エンジンにしました。
- * ③ 主翼との対比を考慮し、尾翼の横幅を(X=0.15)から(X=0.12)へ短縮してシャープなシルエットにしました。
+ * 【隙間の拡大と、弾丸型（ノーズコーン）エンジンの実装】
+ * 履歴271に基づき、ダサかった長方形のエンジンを脱却しました。
+ * 胴体とエンジンの隙間を明確に広げ（X=0.10スタート）、エンジンの前方に頂点を1つ追加して
+ * 空気を切り裂くような「弾丸型（先端が少し尖った形）」にすることで、
+ * ジェットエンジンらしい空気力学的なかっこよさを極限まで高めています。
+ * ※厚みや質感は一切触れずに100%維持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -29,22 +30,23 @@ export class PlaneManager {
         shape.moveTo(0, 0.5);
         shape.bezierCurveTo(0.05, 0.45, 0.06, 0.3, 0.06, 0.1); 
         
-        // --- 右翼前縁（微小な隙間を持たせ、突き出しを抑えた大口径エンジン） ---
-        shape.lineTo(0.08, 0.086);    // 胴体から離れ、わずかな隙間を開ける
-        shape.lineTo(0.08, 0.13);     // エンジン内側（前方への突き出しを抑え短くコンパクトに）
-        shape.lineTo(0.18, 0.13);     // エンジンの幅（大口径）
-        shape.lineTo(0.18, 0.017);    // エンジン外側から主翼前縁に戻る
+        // --- 右翼前縁（隙間を広げ、弾丸型に尖らせたエンジン） ---
+        shape.lineTo(0.10, 0.072);    // 胴体から離れ、隙間を明確に広げる
+        shape.lineTo(0.10, 0.12);     // エンジン内側前方
+        shape.lineTo(0.13, 0.14);     // ★エンジン先端（とんがりを追加し弾丸型にする）
+        shape.lineTo(0.16, 0.12);     // エンジン外側前方
+        shape.lineTo(0.16, 0.031);    // エンジン外側後方（主翼前縁に戻る）
         shape.lineTo(0.35, -0.1);     // 翼端へ
         // -----------------------------
         
         shape.lineTo(0.35, -0.2);
         shape.lineTo(0.06, -0.15);
-        shape.lineTo(0.05, -0.35);    // 胴体後部
+        shape.lineTo(0.05, -0.35);    
         
-        // ★修正: 尾翼の横への飛び出しを短くし（0.15 -> 0.12）、バランスを最適化
-        shape.lineTo(0.12, -0.45);    // 尾翼前縁
-        shape.lineTo(0.12, -0.5);     // 尾翼後端
-        shape.lineTo(0.02, -0.48);    // 最後尾の切り欠き
+        // 尾翼（短縮された美しいバランスを維持）
+        shape.lineTo(0.12, -0.45);    
+        shape.lineTo(0.12, -0.5);     
+        shape.lineTo(0.02, -0.48);    
         shape.lineTo(0, -0.5);
         
         shape.lineTo(-0.02, -0.48);
@@ -55,11 +57,12 @@ export class PlaneManager {
         shape.lineTo(-0.35, -0.2);
         shape.lineTo(-0.35, -0.1);    // 左翼端
         
-        // --- 左翼前縁（完全対称） ---
-        shape.lineTo(-0.18, 0.017);  
-        shape.lineTo(-0.18, 0.13);   
-        shape.lineTo(-0.08, 0.13);   
-        shape.lineTo(-0.08, 0.086);  
+        // --- 左翼前縁（完全対称の弾丸型エンジン） ---
+        shape.lineTo(-0.16, 0.031);  
+        shape.lineTo(-0.16, 0.12);   
+        shape.lineTo(-0.13, 0.14);   // ★左エンジンの先端
+        shape.lineTo(-0.10, 0.12);   
+        shape.lineTo(-0.10, 0.072);  
         // -----------------------------
 
         shape.lineTo(-0.06, 0.1);
@@ -102,14 +105,12 @@ export class PlaneManager {
         // ★維持: 「明るさ」と「分厚さ」を両立するマルチマテリアル設定
         const baseColor = new THREE.Color(planeColor);
         
-        // 1. 表面・裏面用マテリアル
         const matFront = new THREE.MeshBasicMaterial({ 
             color: baseColor,      
             transparent: false,
             side: THREE.DoubleSide
         });
         
-        // 2. 側面用マテリアル（影を表現）
         const sideColor = baseColor.clone().multiplyScalar(0.65); 
         const matSide = new THREE.MeshBasicMaterial({
             color: sideColor,
