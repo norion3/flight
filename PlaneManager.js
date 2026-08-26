@@ -1,13 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【確率的セパレーション（航空管制）による完璧な分散ルーティング】
- * 履歴282に基づき、「一番空いているルートを絶対選ぶ」という硬直化したロジックを廃止しました。
- * 代わりに、各ルートの「最後尾の機体の進行度(progress)」を調べ、
- * 「前の機体が進んでいる（間隔が空いている）ルートほど選ばれやすい」重み付きランダム（ルーレット）
- * を実装しています。
+ * 履歴282に基づき、各ルートの「最後尾の機体の進行度(progress)」を調べ、重み付きランダムで進入させる分散ロジックを実装済み。
  * 【正確な地平線カリングのマージン適用】
- * 履歴285に基づき、カメラの距離から正確な地平線の限界値(horizonCos)を計算し、
- * オブジェクトが完全に地球の裏側に隠れ切るまで消えないよう -0.05 の遊びを持たせました。
+ * 履歴285に基づき、視直径(horizonCos)による正確なカリングでポッピングを防止済み。
+ * 【背面飛行（裏返り）現象の完全根絶】
+ * 履歴286に基づき、機体の姿勢を決定するクォータニオン計算において、
+ * 右ベクトル(right)と進行方向(tangent)から「完全な直交基底(trueUp)」を再計算する処理を追加し、
+ * 特定のルート角度で機体が上下逆さまに裏返る数学的バグを完全に修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -70,7 +70,6 @@ export class PlaneManager {
         shape.lineTo(-0.06, 0.1);
         shape.bezierCurveTo(-0.06, 0.3, -0.05, 0.45, 0, 0.5);
 
-        // 厚み(0.12)とベベルの維持
         const extrudeSettings = {
             depth: 0.12,          
             bevelEnabled: true,
@@ -239,12 +238,9 @@ export class PlaneManager {
     }
 
     updateScale(camera) {
-        // ★追加: カメラの距離から正確な地平線の限界値(horizonCos)を計算
         const R = CONFIG.GLOBE_RADIUS;
         const distC = camera.position.length();
         const horizonCos = R / distC;
-        
-        // 地球中心からカメラへの方向ベクトル
         const dirC = camera.position.clone().normalize();
 
         this.planes.forEach(plane => {
@@ -256,11 +252,8 @@ export class PlaneManager {
             const pos = new THREE.Vector3();
             plane.mesh.getWorldPosition(pos);
             
-            // ★修正: ズーム距離に依存しない正確な地平線カリング
-            // オブジェクトの法線ではなく、「地球中心からの方向ベクトル」を利用して判定する
             const dirP = pos.clone().normalize();
             
-            // -0.05 のマージン（遊び）を加えることで、フチを少し越えるまで自然に描画する
             if (dirC.dot(dirP) < horizonCos - 0.05) {
                 plane.mesh.visible = false;
                 return; 
@@ -313,7 +306,11 @@ export class PlaneManager {
                 
                 if (right.lengthSq() > 0.000001) {
                     right.normalize();
-                    const matrix = new THREE.Matrix4().makeBasis(right, tangent, up);
+                    // ★修正: 進行方向(tangent)と地球の法線(up)が完全に直交していないと裏返り現象が起きるため、
+                    // 計算した右ベクトル(right)と進行方向(tangent)から、真の上方向(trueUp)を再計算して
+                    // 完全な直交基底を作ることで、上下逆さまになる描画バグを完全に根絶する。
+                    const trueUp = new THREE.Vector3().crossVectors(right, tangent).normalize();
+                    const matrix = new THREE.Matrix4().makeBasis(right, tangent, trueUp);
                     plane.mesh.quaternion.setFromRotationMatrix(matrix);
                 }
             }

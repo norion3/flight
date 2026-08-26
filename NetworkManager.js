@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【純白ブレンドによる空路の視認性向上（発光表現）】
- * 履歴274に基づき、半透明（opacity: 0.65）の空気感は100%維持したまま、
- * 各陣営の原色（routeColor）に対して、プログラム内で純白（0xffffff）を20%ブレンドする処理を追加しました。
- * これにより、裏透けや白飛びなどのバグを引き起こすことなく、暗い赤や青の線がネオンのように美しく発光して見えるようになります。
+ * 【選択的純白ブレンドによる白ボケ防止と視認性向上】
+ * 履歴286に基づき、すべての色に純白を混ぜるのではなく、色の「輝度（Luminance）」を計算し、
+ * 輝度が0.5未満の暗い色（赤、青、紫、ピンク）にのみ白をブレンドしてネオン発光させるように修正しました。
+ * これにより、元々明るい黄色やエメラルドグリーンが「白ボケ」してしまう現象を防ぎ、
+ * すべての陣営の空路カラーが強烈で美しいピュアカラーとして画面上に発色するようになります。
  */
 
 import { CONFIG } from './Config.js';
@@ -77,11 +78,16 @@ export class NetworkManager {
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         
-        // ★修正: 原色に「20%の純白」をブレンドして発光感（明度）を引き上げる
         const baseColor = new THREE.Color(routeColor);
-        const neonColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.2);
+        const neonColor = baseColor.clone();
         
-        // 透明度(0.65)を維持したまま、発光色を適用する
+        // ★修正: 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
+        const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
+        if (luminance < 0.5) {
+            neonColor.lerp(new THREE.Color(0xffffff), 0.2); // 暗い色のみ発光させる
+        }
+        
+        // 透明度(0.65)を維持したまま、計算されたカラーを適用する
         const material = new THREE.LineBasicMaterial({ 
             color: neonColor, 
             transparent: true, 
