@@ -6,6 +6,10 @@
  * 2. 戻るボタンのタップ領域を広く確保し、iOSネイティブアプリのような左右対称のヘッダーレイアウトへ最適化しました。
  * 3. トグルスイッチ（ステータス表示）をONにした際、白い丸が枠内にぴったりと収まるよう、
  * 計算ミスであった translateX(16px) を、正確な距離である translateX(24px) に修正しました。
+ * * 【人間工学を極めた「サイド戻るボタン」の導入】
+ * 履歴301に基づき、詳細パネル（階層2）での戻るボタン（btn-cc-back）をヘッダーから完全に廃止し、
+ * コンテンツエリアの左端（縦全体）を巨大な戻るボタンエリア（btn-side-back）とするレイアウトへ変更しました。
+ * これにより、親指を最上部まで伸ばすことなく自然な位置で階層を戻ることが可能になっています。
  */
 export class UIManager {
     constructor() {
@@ -140,7 +144,7 @@ export class UIManager {
                 const targetId = e.currentTarget.getAttribute('data-target');
                 
                 // すべての詳細パネルを一度隠す
-                document.querySelectorAll('#cc-layer-detail > div').forEach(div => div.classList.add('hidden'));
+                document.querySelectorAll('#cc-layer-detail > div > div').forEach(div => div.classList.add('hidden'));
                 
                 // 目的のパネルだけ表示する
                 const targetPanel = document.getElementById(targetId);
@@ -150,7 +154,6 @@ export class UIManager {
                     // タイトルを書き換える
                     const titleText = e.currentTarget.querySelector('.text-sm').innerText;
                     document.getElementById('cc-title').innerText = titleText;
-                    document.getElementById('btn-cc-back').classList.remove('hidden');
                     
                     // 【アニメーション】左へスライド
                     this.ccLayerMain.style.transform = 'translateX(-100%)';
@@ -159,10 +162,13 @@ export class UIManager {
             });
         });
 
-        // 詳細層からトップ層へ「戻る」
-        document.getElementById('btn-cc-back').addEventListener('click', () => {
-            this._resetControlCenterView();
-        });
+        // ★修正: サイド戻るボタンでトップ層へ「戻る」
+        const btnSideBack = document.getElementById('btn-side-back');
+        if (btnSideBack) {
+            btnSideBack.addEventListener('click', () => {
+                this._resetControlCenterView();
+            });
+        }
 
         // =========================================================
         // 上部ステータスHUDのON/OFFトグル処理
@@ -177,7 +183,6 @@ export class UIManager {
                 if (isHudOn) {
                     // スイッチをON（緑）にする
                     btnToggleHud.classList.replace('bg-slate-700', 'bg-emerald-500');
-                    // ★修正: 親のwidth(56px) - 左margin(4px) - 自身のwidth(24px) - 右margin(4px) = 移動距離24px
                     hudIndicator.style.transform = 'translateX(24px)';
                     hudIndicator.classList.replace('bg-slate-400', 'bg-white');
                     // HUDを上から降ろす
@@ -198,9 +203,8 @@ export class UIManager {
     _resetControlCenterView() {
         this.ccLayerMain.style.transform = 'translateX(0)';
         this.ccLayerDetail.style.transform = 'translateX(100%)';
-        // ★修正: タイトルを「メニュー」に戻す
+        // タイトルを「メニュー」に戻す
         document.getElementById('cc-title').innerText = 'メニュー';
-        document.getElementById('btn-cc-back').classList.add('hidden');
     }
 
     // 親指ゾーン（Thumb Zone）のボタン群を一括で表示・非表示するユーティリティ
