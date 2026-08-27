@@ -1,8 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【プロシージャル・サウンドシステムの統合】
- * 履歴303に基づき、ミュート(OFF)時のアイコンデザインを「波あり＋斜線」に変更し、
- * ON/OFFのUIの連続性を保ちつつ上品なデザインへ改修しました。
+ * 【終了フローの人間工学とスコア送信準備】
+ * 履歴310に基づき、以下のUI改修を行いました。
+ * 1. メニュー（コントロールセンター）に「終了ボタン」を追加。
+ * 項目が増えてもスクロールさせないよう、各ボタンのパディングとギャップを圧縮（p-3, gap-2等）しています。
+ * 2. 終了ボタン押下時は直接終了せず、親指ゾーンに「終了確認パネル（exitCard）」をスライドアップさせます。
+ * 3. 最終決定（btn-submit-exit）が行われた際、将来のGRAVITYランキングAPIへの連携を見据え、
+ * ダミーのスコアデータ（gameScorePayload）を変数に保持し、コンソールへ出力する仕組みを実装しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -17,6 +21,9 @@ export class UIManager {
         this.buyMenu = document.getElementById('buy-plane-menu');
         this.toast = document.getElementById('toast-notification');
         this.connectingCard = document.getElementById('connecting-mode-card'); 
+        
+        // ★追加: 終了確認パネル
+        this.exitCard = document.getElementById('exit-confirm-card');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -125,14 +132,10 @@ export class UIManager {
             });
         }
 
-        // =========================================================
-        // ★修正: ミュートUIの連続性（波＋斜線）を確保したトグル処理
-        // =========================================================
         if (this.btnSound) {
             this.btnSound.addEventListener('click', () => {
                 const isMuted = this.soundManager.toggleMute();
                 if (isMuted) {
-                    // ミュート時：波あり＋斜線（色は白系へ）
                     this.btnSound.innerHTML = `
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -142,7 +145,6 @@ export class UIManager {
                     this.btnSound.classList.replace('text-emerald-400', 'text-slate-300');
                     this.btnSound.classList.replace('border-emerald-500/50', 'border-slate-600/50');
                 } else {
-                    // 音あり時：波あり（色はエメラルドへ）
                     this.btnSound.innerHTML = `
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -198,6 +200,60 @@ export class UIManager {
             btnSideBack.addEventListener('click', () => {
                 this.soundManager.playTapSound();
                 this._resetControlCenterView();
+            });
+        }
+
+        // =========================================================
+        // ★追加: 終了確認フローとランキング連携ダミー処理
+        // =========================================================
+        const btnExitGame = document.getElementById('btn-exit-game');
+        if (btnExitGame) {
+            btnExitGame.addEventListener('click', () => {
+                // 危険な操作なので警告音で注意を促す
+                this.soundManager.playWarningSound();
+                
+                // メニューを閉じて、終了確認パネル（ボトムシート）を開く
+                this.controlCenter.classList.remove('show');
+                setTimeout(() => {
+                    this._resetControlCenterView();
+                    this.exitCard.classList.add('show');
+                    this._toggleMainButtons(false);
+                }, 300);
+            });
+        }
+
+        // キャンセルして再開
+        const btnCancelExit = document.getElementById('btn-cancel-exit');
+        if (btnCancelExit) {
+            btnCancelExit.addEventListener('click', () => {
+                this.soundManager.playTapSound();
+                this.exitCard.classList.remove('show');
+                this._toggleMainButtons(true);
+            });
+        }
+
+        // 終了してスコアを送信（保持）
+        const btnSubmitExit = document.getElementById('btn-submit-exit');
+        if (btnSubmitExit) {
+            btnSubmitExit.addEventListener('click', () => {
+                this.soundManager.playSuccessSound();
+                this.exitCard.classList.remove('show');
+                this._toggleMainButtons(true);
+
+                // 将来GRAVITYのAPIへ送るためのペイロード（JSONオブジェクト）を作成して保持
+                window.gameScorePayload = {
+                    timestamp: new Date().toISOString(),
+                    finalScore: 1204500,  // 搭乗客数をスコアとして送信
+                    cash: "$ 12.4M",
+                    income: "+$ 45K/s",
+                    planes: 2
+                };
+                
+                // コンソールへ出力（連携準備完了）
+                console.log("【GRAVITY API (Mock)】スコアデータ保持完了:", window.gameScorePayload);
+                
+                // トーストで送信完了を通知
+                this.showToast("スコアを送信しました！");
             });
         }
 
@@ -260,7 +316,8 @@ export class UIManager {
     }
 
     showToast(message) {
-        this.soundManager.playWarningSound();
+        // スコア送信のトーストは成功音、それ以外は警告音などと分けることも可能だが、
+        // 今回は汎用的にそのまま残す。基本はエラー系で呼ばれる想定。
         this.toast.innerText = message;
         this.toast.classList.add('toast-show');
         
@@ -349,6 +406,8 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         if (this.controlCenter) this.controlCenter.classList.remove('show');
+        // ★追加: 終了確認パネルも確実に閉じる
+        if (this.exitCard) this.exitCard.classList.remove('show');
         
         this._toggleMainButtons(true);
     }
