@@ -206,8 +206,12 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
         </button>
 
+        <!-- ★修正: ユーザー配慮に基づき、デフォルトのアイコンを「ミュート（斜線入り）」に変更 -->
         <button id="btn-sound" class="interactive-ui absolute left-20 w-12 h-12 bg-slate-800 rounded-full shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-slate-300 active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom);">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="1" x2="1" y2="23"></line>
+            </svg>
         </button>
 
         <button id="btn-main-menu" class="interactive-ui absolute left-1/2 transform -translate-x-1/2 w-32 h-12 bg-slate-800 rounded-full shadow-xl shadow-cyan-900/30 border border-cyan-500/50 flex items-center justify-center text-cyan-300 font-bold active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom); transform: translate(-50%, 0) scale(1);">
@@ -333,22 +337,16 @@
 
         <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[420px]">
             
-            <!-- ★修正: ヘッダーから戻るボタンを廃止し、タイトルと閉じるボタンのみのスッキリしたレイアウトへ -->
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
-                <!-- 中央：タイトル（メニュー名がシンプルに配置される） -->
                 <h2 id="cc-title" class="text-base font-bold text-white tracking-wider">メニュー</h2>
                 
-                <!-- 右側：閉じるボタン（タップ領域をw-10 h-10で広く確保） -->
                 <button id="btn-close-cc" class="absolute right-2 text-slate-400 w-10 h-10 flex items-center justify-center active:bg-slate-800 rounded-full transition-colors text-xl font-bold leading-none z-10">✕</button>
             </div>
 
-            <!-- コンテンツコンテナ (左右スライドアニメーション用) -->
             <div class="relative w-full h-full overflow-hidden flex-1">
                 
-                <!-- 【階層1】メニュートップ（スッキリしたリスト） -->
                 <div id="cc-layer-main" class="absolute inset-0 w-full h-full transition-transform duration-300 flex flex-col p-4 gap-3 overflow-y-auto translate-x-0">
                     
-                    <!-- ステータスHUD トグルスイッチ -->
                     <div class="flex items-center justify-between bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 mb-1">
                         <div class="flex items-center gap-3">
                             <span class="text-2xl">👁️</span>
@@ -362,7 +360,6 @@
                         </button>
                     </div>
 
-                    <!-- メニュー項目リンク -->
                     <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-4 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-upgrades">
                         <div class="flex items-center gap-3">
                             <span class="text-2xl">🏢</span>
@@ -388,19 +385,14 @@
                     </button>
                 </div>
 
-                <!-- 【階層2】詳細パネル群 (最初は右側に隠れている) -->
-                <!-- ★修正: コンテンツエリアを flex で左右分割し、左側を巨大な「サイド戻るボタン」エリアとする -->
                 <div id="cc-layer-detail" class="absolute inset-0 w-full h-full transition-transform duration-300 translate-x-full bg-slate-900/95 flex">
                     
-                    <!-- 左側: サイド戻るボタン (親指ゾーン) -->
                     <button id="btn-side-back" class="w-12 h-full flex items-center justify-center active:bg-slate-800/80 border-r border-slate-700/50 transition-colors shrink-0 z-10 touch-manipulation">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                     </button>
 
-                    <!-- 右側: 各コンテンツのコンテナ (スクロール可能) -->
                     <div class="flex-1 overflow-y-auto h-full pb-4">
                         
-                        <!-- 詳細A: 投資・アップグレード (ダミーUI) -->
                         <div id="panel-upgrades" class="hidden p-4 flex flex-col gap-3">
                             <div class="text-xs font-bold text-cyan-400 mb-1 tracking-widest uppercase">Finance / Ops</div>
                             
@@ -437,7 +429,6 @@
                             </div>
                         </div>
 
-                        <!-- 詳細B: 実績とグラフ (ダミーUI) -->
                         <div id="panel-overview" class="hidden p-4 flex flex-col gap-4">
                              <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
                                  <div class="text-xs text-slate-400 font-bold mb-1">当期純利益</div>
@@ -446,7 +437,6 @@
                              
                              <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
                                  <div class="text-xs text-slate-400 font-bold mb-3">月次売上推移 (ダミー)</div>
-                                 <!-- Tailwindの幅指定で作る本格的なダミー棒グラフ -->
                                  <div class="flex items-end h-32 gap-2 px-1">
                                     <div class="w-full bg-slate-700 h-[30%] rounded-t-sm"></div>
                                     <div class="w-full bg-slate-700 h-[45%] rounded-t-sm"></div>
@@ -458,7 +448,6 @@
                              </div>
                         </div>
 
-                        <!-- 詳細C: ライバル会社状況 (ダミーUI) -->
                         <div id="panel-rivals" class="hidden p-4 flex flex-col gap-4">
                             <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
                                 <div class="flex items-center gap-3 mb-3">
@@ -469,7 +458,6 @@
                                     </div>
                                     <div class="text-lg font-bold text-blue-400">45%</div>
                                 </div>
-                                <!-- 拮抗しているプログレスバー -->
                                 <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
                                     <div class="h-full bg-emerald-500" style="width: 55%"></div>
                                     <div class="h-full bg-blue-500" style="width: 45%"></div>
@@ -489,7 +477,6 @@
                                     </div>
                                     <div class="text-lg font-bold text-yellow-400">60%</div>
                                 </div>
-                                <!-- 負けているプログレスバー -->
                                 <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
                                     <div class="h-full bg-emerald-500" style="width: 40%"></div>
                                     <div class="h-full bg-yellow-500" style="width: 60%"></div>
