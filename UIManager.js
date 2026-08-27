@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【機体管理（フリートマネジメント）パネルのUI制御】
- * 履歴290に基づき、単なる「購入メニュー」を「フリート管理パネル」へ昇華させました。
- * パネルを開く際（onFleetMenuOpen）に PlaneManager から最新の機体数を取得し、
- * updateFleetPanel メソッドによって各サイズの稼働数と売却ボタンの非活性状態(disabled)を
- * 動的に更新・制御する処理を追加しています。
+ * 【没入感を極める階層型コントロールセンターの実装】
+ * 履歴298に基づき、通常時（没入モード）は邪魔なUIをすべて隠し、メニュー展開時のみ
+ * コントロールセンターを引き出せる「階層型（ドリルダウン）」のUI制御を実装しました。
+ * 1. メニュー展開時は、親指ゾーンのボタン群（ズーム・機体・音量・ヘルプ）をフェードアウト(scale0)させます。
+ * 2. ccLayerMain と ccLayerDetail を使った、なめらかな左右スライドの階層遷移を組み込んでいます。
+ * 3. 上部ステータスHUDのON/OFF（トグル）アニメーションを実装しました。
  */
 export class UIManager {
     constructor() {
@@ -15,20 +16,30 @@ export class UIManager {
         this.toast = document.getElementById('toast-notification');
         this.connectingCard = document.getElementById('connecting-mode-card'); 
         
+        // --- 既存の右側ボタン ---
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
         this.zoomControls = document.getElementById('zoom-controls');
+
+        // --- ★追加: 新設されたボタンとパネル群 ---
+        this.btnHelp = document.getElementById('btn-help');
+        this.btnSound = document.getElementById('btn-sound');
+        this.btnMainMenu = document.getElementById('btn-main-menu');
+        this.controlCenter = document.getElementById('control-center-panel');
+        this.topStatusHud = document.getElementById('top-status-hud');
+        
+        // 階層スライド用レイヤー
+        this.ccLayerMain = document.getElementById('cc-layer-main');
+        this.ccLayerDetail = document.getElementById('cc-layer-detail');
 
         this.toastTimeout = null;
 
         this.onConnectRequested = null;
         this.onRouteActionConfirmed = null; 
         this.onRouteCanceled = null;
-        
-        this.onFleetMenuOpen = null; // ★追加
+        this.onFleetMenuOpen = null; 
         this.onBuyPlane = null;
-        this.onSellPlane = null;     // ★追加
-        
+        this.onSellPlane = null;     
         this.onZoomIn = null;
         this.onZoomOut = null;
         
@@ -46,8 +57,7 @@ export class UIManager {
             if (this.onRouteCanceled) this.onRouteCanceled();
             this.hideRouteConfirm();
             this.connectingCard.classList.remove('show');
-            this.fabBuy.style.transform = 'scale(1)'; 
-            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; 
+            this._toggleMainButtons(true);
         };
 
         document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
@@ -57,18 +67,17 @@ export class UIManager {
             if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
         });
 
+        // 飛行機ボタン（フリート管理）を開く
         this.fabBuy.addEventListener('click', () => {
-            if (this.onFleetMenuOpen) this.onFleetMenuOpen(); // ★追加: パネル展開時にカウント更新を要求
+            if (this.onFleetMenuOpen) this.onFleetMenuOpen(); 
             this.hideAll();
             this.buyMenu.classList.add('show');
-            this.fabBuy.style.transform = 'scale(0)'; 
-            if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
+            this._toggleMainButtons(false);
         });
 
         document.getElementById('btn-close-buy').addEventListener('click', () => {
             this.buyMenu.classList.remove('show');
-            this.fabBuy.style.transform = 'scale(1)';
-            if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; 
+            this._toggleMainButtons(true);
         });
 
         const btnCloseInfo = document.getElementById('btn-close-info');
@@ -85,7 +94,6 @@ export class UIManager {
             });
         });
 
-        // ★追加: 売却ボタンのイベントリスナー
         document.querySelectorAll('.sell-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const type = e.currentTarget.getAttribute('data-type');
@@ -103,9 +111,109 @@ export class UIManager {
                 if (this.onZoomOut) this.onZoomOut();
             });
         }
+
+        // =========================================================
+        // ★追加: コントロールセンター（階層型メニュー）のイベントバインド
+        // =========================================================
+
+        // メニューを開く
+        if (this.btnMainMenu) {
+            this.btnMainMenu.addEventListener('click', () => {
+                this.hideAll();
+                this.controlCenter.classList.add('show');
+                this._toggleMainButtons(false); // 周りのボタンをスッキリ隠す
+            });
+        }
+
+        // メニューを閉じる
+        document.getElementById('btn-close-cc').addEventListener('click', () => {
+            this.controlCenter.classList.remove('show');
+            this._toggleMainButtons(true);
+            
+            // 閉じたついでに階層をトップ（Main）に戻しておく
+            setTimeout(() => this._resetControlCenterView(), 300);
+        });
+
+        // トップ層のリンクボタンを押して、詳細層へスライド遷移する
+        document.querySelectorAll('.cc-link-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetId = e.currentTarget.getAttribute('data-target');
+                
+                // すべての詳細パネルを一度隠す
+                document.querySelectorAll('#cc-layer-detail > div').forEach(div => div.classList.add('hidden'));
+                
+                // 目的のパネルだけ表示する
+                const targetPanel = document.getElementById(targetId);
+                if (targetPanel) {
+                    targetPanel.classList.remove('hidden');
+                    
+                    // タイトルを書き換える
+                    const titleText = e.currentTarget.querySelector('.text-sm').innerText;
+                    document.getElementById('cc-title').innerText = titleText;
+                    document.getElementById('btn-cc-back').classList.remove('hidden');
+                    
+                    // 【アニメーション】左へスライド
+                    this.ccLayerMain.style.transform = 'translateX(-100%)';
+                    this.ccLayerDetail.style.transform = 'translateX(0)';
+                }
+            });
+        });
+
+        // 詳細層からトップ層へ「戻る」
+        document.getElementById('btn-cc-back').addEventListener('click', () => {
+            this._resetControlCenterView();
+        });
+
+        // =========================================================
+        // ★追加: 上部ステータスHUDのON/OFFトグル処理
+        // =========================================================
+        let isHudOn = false;
+        const btnToggleHud = document.getElementById('btn-toggle-hud');
+        if (btnToggleHud) {
+            const hudIndicator = btnToggleHud.querySelector('div');
+
+            btnToggleHud.addEventListener('click', () => {
+                isHudOn = !isHudOn;
+                if (isHudOn) {
+                    // スイッチをON（緑）にする
+                    btnToggleHud.classList.replace('bg-slate-700', 'bg-emerald-500');
+                    hudIndicator.style.transform = 'translateX(16px)';
+                    hudIndicator.classList.replace('bg-slate-400', 'bg-white');
+                    // HUDを上から降ろす
+                    this.topStatusHud.style.transform = 'translateY(0)';
+                } else {
+                    // スイッチをOFF（グレー）にする
+                    btnToggleHud.classList.replace('bg-emerald-500', 'bg-slate-700');
+                    hudIndicator.style.transform = 'translateX(0)';
+                    hudIndicator.classList.replace('bg-white', 'bg-slate-400');
+                    // HUDを上に隠す
+                    this.topStatusHud.style.transform = 'translateY(-100%)';
+                }
+            });
+        }
     }
 
-    // ★追加: フリート管理パネルの情報を最新の機体数で更新する
+    // ★追加: 階層メニューのビューをトップに戻すユーティリティ
+    _resetControlCenterView() {
+        this.ccLayerMain.style.transform = 'translateX(0)';
+        this.ccLayerDetail.style.transform = 'translateX(100%)';
+        document.getElementById('cc-title').innerText = 'コントロールセンター';
+        document.getElementById('btn-cc-back').classList.add('hidden');
+    }
+
+    // ★追加: 親指ゾーン（Thumb Zone）のボタン群を一括で表示・非表示するユーティリティ
+    _toggleMainButtons(show) {
+        const scale = show ? '1' : '0';
+        // 右側（アクション）
+        this.fabBuy.style.transform = `scale(${scale})`;
+        if (this.zoomControls) this.zoomControls.style.transform = `scale(${scale})`;
+        // 左側（システム）
+        if (this.btnHelp) this.btnHelp.style.transform = `scale(${scale})`;
+        if (this.btnSound) this.btnSound.style.transform = `scale(${scale})`;
+        // 中央（メニュー）※Tailwindのtranslate-x-1/2と競合しないよう明示的に指定
+        if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
+    }
+
     updateFleetPanel(counts) {
         ['small', 'medium', 'large', 'super'].forEach(type => {
             const countEl = document.getElementById(`count-${type}`);
@@ -113,7 +221,6 @@ export class UIManager {
             
             const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
             if (sellBtn) {
-                // 所持数が0なら売却ボタンを非活性(disabled)にする
                 sellBtn.disabled = (counts[type] === 0);
             }
         });
@@ -165,15 +272,13 @@ export class UIManager {
         }
 
         this.infoCard.classList.add('show');
-        this.fabBuy.style.transform = 'scale(0)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
+        this._toggleMainButtons(false);
     }
 
     setConnectingMode() {
         this.infoCard.classList.remove('show');
         this.connectingCard.classList.add('show');
-        this.fabBuy.style.transform = 'scale(0)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
+        this._toggleMainButtons(false);
     }
 
     showRouteConfirm(fromData, toData, isConnected) {
@@ -200,8 +305,7 @@ export class UIManager {
             btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50";
         }
 
-        this.fabBuy.style.transform = 'scale(0)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(0)'; 
+        this._toggleMainButtons(false);
     }
 
     hideRouteConfirm() {
@@ -213,7 +317,8 @@ export class UIManager {
         this.routeCard.classList.remove('show');
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
-        this.fabBuy.style.transform = 'scale(1)'; 
-        if (this.zoomControls) this.zoomControls.style.transform = 'scale(1)'; 
+        if (this.controlCenter) this.controlCenter.classList.remove('show');
+        
+        this._toggleMainButtons(true);
     }
 }

@@ -101,7 +101,7 @@
         .interactive-ui { pointer-events: auto; touch-action: none; }
         
         .bottom-sheet { 
-            transform: translateY(200px); 
+            transform: translateY(120%); 
             opacity: 0;
             pointer-events: none;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
@@ -110,7 +110,7 @@
             max-width: 400px !important;
         }
         .bottom-sheet.show { 
-            transform: translateY(0); 
+            transform: translateY(0) !important; 
             opacity: 1;
             pointer-events: auto;
         }
@@ -136,6 +136,24 @@
 
     <div id="toast-notification" class="fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 bg-red-600/90 text-white text-sm font-bold rounded-full shadow-lg shadow-red-900/50 opacity-0 pointer-events-none transition-all duration-300 z-50">
         Message
+    </div>
+
+    <!-- ★追加: 上部ステータスHUD (デフォルトは隠れている) -->
+    <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full">
+        <div class="flex items-center justify-between w-full max-w-md px-4 py-3 gap-2">
+            <div class="flex flex-col">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">資金 (Cash)</span>
+                <span class="text-sm font-bold text-emerald-400 font-mono">$ 12.4M</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">収益 (Income)</span>
+                <span class="text-sm font-bold text-yellow-400 font-mono">+$ 45K/s</span>
+            </div>
+            <div class="flex flex-col text-right">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">搭乗数 (Pax)</span>
+                <span class="text-sm font-bold text-cyan-400 font-mono">1,204,500</span>
+            </div>
+        </div>
     </div>
 
     <div id="ui-layer" class="pb-4 px-4 relative overflow-hidden flex flex-col items-center">
@@ -181,6 +199,20 @@
             </button>
         </div>
 
+        <!-- ★追加: 人間工学（Thumb Zone）に基づいた左側のシステムボタン群 -->
+        <button id="btn-help" class="interactive-ui absolute left-4 w-12 h-12 bg-slate-800 rounded-full shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-slate-300 active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        </button>
+
+        <button id="btn-sound" class="interactive-ui absolute left-20 w-12 h-12 bg-slate-800 rounded-full shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-slate-300 active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        </button>
+
+        <!-- ★追加: 階層メニューを展開する中央のタブボタン -->
+        <button id="btn-main-menu" class="interactive-ui absolute left-1/2 transform -translate-x-1/2 w-32 h-12 bg-slate-800 rounded-full shadow-xl shadow-cyan-900/30 border border-cyan-500/50 flex items-center justify-center text-cyan-300 font-bold active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom); transform: translate(-50%, 0) scale(1);">
+            <span class="mr-2">≡</span> メニュー
+        </button>
+
         <div id="zoom-controls" class="interactive-ui absolute right-6 z-20 flex flex-col space-y-2 origin-bottom" style="bottom: calc(var(--ui-bottom) + 80px);">
             <button id="btn-zoom-in" class="w-12 h-12 bg-slate-800 rounded-xl shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-white active:bg-slate-700 transition-all disabled:opacity-50 disabled:text-slate-500 disabled:border-slate-800 disabled:active:bg-slate-800">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -196,16 +228,15 @@
             </svg>
         </button>
 
-        <!-- ★修正: 専門用語の「フリート管理」をやめ、直感的なアクションを表すタイトルに変更 -->
+        <!-- 既存の機体管理パネル（そのままキープ） -->
         <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30 w-full max-w-md">
             <div class="flex justify-between items-center mb-4 px-1">
                 <h2 class="text-lg font-bold text-white">機体の購入・売却</h2>
                 <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-xl font-bold">✕</button>
             </div>
             
-            <div class="flex flex-col gap-3">
+            <div class="flex flex-col gap-3 h-[320px] overflow-y-auto pr-1">
                 <!-- 小型機 -->
-                <!-- ★修正: 不要なノイズとなっていた英語表記（Small等）を削除し、スッキリとしたUIに -->
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 shadow-inner">
                     <div class="flex-1 flex items-center gap-3">
                         <div class="text-emerald-400 w-8 flex justify-center">
@@ -283,7 +314,6 @@
                             </svg>
                         </div>
                         <div>
-                            <!-- ★修正: 表記揺れを防ぐため「超大型機」へ統一 -->
                             <div class="text-sm font-bold text-slate-200">超大型機</div>
                             <div class="text-xs text-slate-400 mt-1">稼働中: <span id="count-super" class="text-white font-bold text-sm">0</span> 機</div>
                         </div>
@@ -298,6 +328,175 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+
+        <!-- ★追加: 階層型（ドリルダウン）コントロールセンター -->
+        <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[420px]">
+            
+            <!-- ヘッダー -->
+            <div class="flex justify-between items-center p-4 border-b border-slate-700/50 shrink-0">
+                <div class="flex items-center gap-2">
+                    <button id="btn-cc-back" class="hidden text-cyan-400 font-bold p-1 mr-2 flex items-center active:text-cyan-300">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        戻る
+                    </button>
+                    <h2 id="cc-title" class="text-lg font-bold text-white">コントロールセンター</h2>
+                </div>
+                <button id="btn-close-cc" class="text-slate-400 active:text-white p-1 text-xl font-bold leading-none">✕</button>
+            </div>
+
+            <!-- コンテンツコンテナ (左右スライドアニメーション用) -->
+            <div class="relative w-full h-full overflow-hidden flex-1">
+                
+                <!-- 【階層1】メニュートップ（スッキリしたリスト） -->
+                <div id="cc-layer-main" class="absolute inset-0 w-full h-full transition-transform duration-300 flex flex-col p-4 gap-3 overflow-y-auto translate-x-0">
+                    
+                    <!-- ステータスHUD トグルスイッチ -->
+                    <div class="flex items-center justify-between bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 mb-1">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">👁️</span>
+                            <div>
+                                <div class="text-sm font-bold text-slate-200">ステータス表示</div>
+                                <div class="text-[10px] text-slate-400">画面上部に資金や収益を常時表示</div>
+                            </div>
+                        </div>
+                        <button id="btn-toggle-hud" class="w-14 h-8 rounded-full bg-slate-700 relative transition-colors duration-300 shadow-inner">
+                            <div class="w-6 h-6 bg-slate-400 rounded-full absolute left-1 top-1 transition-transform duration-300 shadow"></div>
+                        </button>
+                    </div>
+
+                    <!-- メニュー項目リンク -->
+                    <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-4 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-upgrades">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🏢</span>
+                            <span class="text-sm font-bold text-slate-200">投資・アップグレード</span>
+                        </div>
+                        <span class="text-slate-500 font-bold text-lg">＞</span>
+                    </button>
+
+                    <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-4 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-overview">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📊</span>
+                            <span class="text-sm font-bold text-slate-200">実績とグラフ情報</span>
+                        </div>
+                        <span class="text-slate-500 font-bold text-lg">＞</span>
+                    </button>
+
+                    <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-4 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-rivals">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🌐</span>
+                            <span class="text-sm font-bold text-slate-200">ライバル会社状況</span>
+                        </div>
+                        <span class="text-slate-500 font-bold text-lg">＞</span>
+                    </button>
+                </div>
+
+                <!-- 【階層2】詳細パネル群 (最初は右側に隠れている) -->
+                <div id="cc-layer-detail" class="absolute inset-0 w-full h-full transition-transform duration-300 translate-x-full bg-slate-900/95 overflow-y-auto">
+                    
+                    <!-- 詳細A: 投資・アップグレード (ダミーUI) -->
+                    <div id="panel-upgrades" class="hidden p-4 flex flex-col gap-3">
+                        <div class="text-xs font-bold text-cyan-400 mb-1 tracking-widest uppercase">Finance / Ops</div>
+                        
+                        <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50">
+                            <div>
+                                <div class="text-sm font-bold text-slate-200">チケット価格設定 <span class="bg-cyan-900 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded ml-1 font-mono">Lv.4</span></div>
+                                <div class="text-xs text-emerald-400 mt-1">1フライトの収益 +200%</div>
+                            </div>
+                            <button class="bg-emerald-600 text-white text-[11px] font-bold px-4 py-2.5 rounded-lg shadow active:scale-95 transition-transform font-mono">
+                                $ 5M
+                            </button>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50">
+                            <div>
+                                <div class="text-sm font-bold text-slate-200">機体スピード強化 <span class="bg-cyan-900 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded ml-1 font-mono">Lv.2</span></div>
+                                <div class="text-xs text-emerald-400 mt-1">フライト時間 -15%</div>
+                            </div>
+                            <button class="bg-emerald-600 text-white text-[11px] font-bold px-4 py-2.5 rounded-lg shadow active:scale-95 transition-transform font-mono">
+                                $ 12M
+                            </button>
+                        </div>
+
+                        <div class="text-xs font-bold text-cyan-400 mt-2 mb-1 tracking-widest uppercase">Service / Staff</div>
+
+                        <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50">
+                            <div>
+                                <div class="text-sm font-bold text-slate-200">機内食の高級化 <span class="bg-cyan-900 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded ml-1 font-mono">Lv.1</span></div>
+                                <div class="text-xs text-emerald-400 mt-1">顧客満足度 大幅UP</div>
+                            </div>
+                            <button class="bg-emerald-600 text-white text-[11px] font-bold px-4 py-2.5 rounded-lg shadow active:scale-95 transition-transform font-mono">
+                                $ 2M
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 詳細B: 実績とグラフ (ダミーUI) -->
+                    <div id="panel-overview" class="hidden p-4 flex flex-col gap-4">
+                         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
+                             <div class="text-xs text-slate-400 font-bold mb-1">当期純利益</div>
+                             <div class="text-3xl font-bold text-emerald-400 font-mono">$ 12.4M</div>
+                         </div>
+                         
+                         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
+                             <div class="text-xs text-slate-400 font-bold mb-3">月次売上推移 (ダミー)</div>
+                             <!-- Tailwindの幅指定で作る本格的なダミー棒グラフ -->
+                             <div class="flex items-end h-32 gap-2 px-1">
+                                <div class="w-full bg-slate-700 h-[30%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[45%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[40%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[65%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[80%] rounded-t-sm"></div>
+                                <div class="w-full bg-emerald-500 h-[100%] rounded-t-sm shadow-[0_0_10px_rgba(16,185,129,0.4)]"></div>
+                             </div>
+                         </div>
+                    </div>
+
+                    <!-- 詳細C: ライバル会社状況 (ダミーUI) -->
+                    <div id="panel-rivals" class="hidden p-4 flex flex-col gap-4">
+                        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">EU</div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-bold text-slate-200">Euro Wings</div>
+                                    <div class="text-[10px] text-slate-400">欧州シェア競争</div>
+                                </div>
+                                <div class="text-lg font-bold text-blue-400">45%</div>
+                            </div>
+                            <!-- 拮抗しているプログレスバー -->
+                            <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
+                                <div class="h-full bg-emerald-500" style="width: 55%"></div>
+                                <div class="h-full bg-blue-500" style="width: 45%"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                                <span>自社 (優勢)</span>
+                                <span>ライバル</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center font-bold text-slate-900 text-xs">AS</div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-bold text-slate-200">Asia Orient</div>
+                                    <div class="text-[10px] text-slate-400">アジアシェア競争</div>
+                                </div>
+                                <div class="text-lg font-bold text-yellow-400">60%</div>
+                            </div>
+                            <!-- 負けているプログレスバー -->
+                            <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
+                                <div class="h-full bg-emerald-500" style="width: 40%"></div>
+                                <div class="h-full bg-yellow-500" style="width: 60%"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                                <span>自社 (劣勢)</span>
+                                <span>ライバル</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
             </div>
         </div>
     </div>
