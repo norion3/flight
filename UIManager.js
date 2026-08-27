@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【没入感を極める階層型コントロールセンターの実装】
- * 履歴298に基づき、通常時（没入モード）は邪魔なUIをすべて隠し、メニュー展開時のみ
- * コントロールセンターを引き出せる「階層型（ドリルダウン）」のUI制御を実装しました。
- * 1. メニュー展開時は、親指ゾーンのボタン群（ズーム・機体・音量・ヘルプ）をフェードアウト(scale0)させます。
- * 2. ccLayerMain と ccLayerDetail を使った、なめらかな左右スライドの階層遷移を組み込んでいます。
- * 3. 上部ステータスHUDのON/OFF（トグル）アニメーションを実装しました。
+ * 【没入感を極める階層型メニューとUI細部の洗練】
+ * 履歴300に基づき、以下のUI改修を行いました。
+ * 1. 硬い言葉を避け、パネルタイトルを「コントロールセンター」から「メニュー」へ変更しました。
+ * 2. 戻るボタンのタップ領域を広く確保し、iOSネイティブアプリのような左右対称のヘッダーレイアウトへ最適化しました。
+ * 3. トグルスイッチ（ステータス表示）をONにした際、白い丸が枠内にぴったりと収まるよう、
+ * 計算ミスであった translateX(16px) を、正確な距離である translateX(24px) に修正しました。
  */
 export class UIManager {
     constructor() {
@@ -21,7 +21,7 @@ export class UIManager {
         this.btnZoomOut = document.getElementById('btn-zoom-out');
         this.zoomControls = document.getElementById('zoom-controls');
 
-        // --- ★追加: 新設されたボタンとパネル群 ---
+        // --- 新設されたボタンとパネル群 ---
         this.btnHelp = document.getElementById('btn-help');
         this.btnSound = document.getElementById('btn-sound');
         this.btnMainMenu = document.getElementById('btn-main-menu');
@@ -113,7 +113,7 @@ export class UIManager {
         }
 
         // =========================================================
-        // ★追加: コントロールセンター（階層型メニュー）のイベントバインド
+        // コントロールセンター（階層型メニュー）のイベントバインド
         // =========================================================
 
         // メニューを開く
@@ -165,7 +165,7 @@ export class UIManager {
         });
 
         // =========================================================
-        // ★追加: 上部ステータスHUDのON/OFFトグル処理
+        // 上部ステータスHUDのON/OFFトグル処理
         // =========================================================
         let isHudOn = false;
         const btnToggleHud = document.getElementById('btn-toggle-hud');
@@ -177,7 +177,8 @@ export class UIManager {
                 if (isHudOn) {
                     // スイッチをON（緑）にする
                     btnToggleHud.classList.replace('bg-slate-700', 'bg-emerald-500');
-                    hudIndicator.style.transform = 'translateX(16px)';
+                    // ★修正: 親のwidth(56px) - 左margin(4px) - 自身のwidth(24px) - 右margin(4px) = 移動距離24px
+                    hudIndicator.style.transform = 'translateX(24px)';
                     hudIndicator.classList.replace('bg-slate-400', 'bg-white');
                     // HUDを上から降ろす
                     this.topStatusHud.style.transform = 'translateY(0)';
@@ -193,15 +194,16 @@ export class UIManager {
         }
     }
 
-    // ★追加: 階層メニューのビューをトップに戻すユーティリティ
+    // 階層メニューのビューをトップに戻すユーティリティ
     _resetControlCenterView() {
         this.ccLayerMain.style.transform = 'translateX(0)';
         this.ccLayerDetail.style.transform = 'translateX(100%)';
-        document.getElementById('cc-title').innerText = 'コントロールセンター';
+        // ★修正: タイトルを「メニュー」に戻す
+        document.getElementById('cc-title').innerText = 'メニュー';
         document.getElementById('btn-cc-back').classList.add('hidden');
     }
 
-    // ★追加: 親指ゾーン（Thumb Zone）のボタン群を一括で表示・非表示するユーティリティ
+    // 親指ゾーン（Thumb Zone）のボタン群を一括で表示・非表示するユーティリティ
     _toggleMainButtons(show) {
         const scale = show ? '1' : '0';
         // 右側（アクション）

@@ -138,7 +138,6 @@
         Message
     </div>
 
-    <!-- ★修正: GRAVITYの操作不可エリア回避のためpt-12を追加し、日本語のみ・機体数追加の4項目へ最適化 -->
     <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-12 pb-2">
         <div class="flex items-center justify-between w-full max-w-md px-4 gap-1">
             <div class="flex flex-col text-center flex-1">
@@ -230,7 +229,6 @@
             </svg>
         </button>
 
-        <!-- ★修正: 固定高さとスクロールを廃止し、余白を詰めて1画面に収まるようコンパクトに再設計 -->
         <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-3 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30 w-full max-w-md h-auto">
             <div class="flex justify-between items-center mb-3 px-2">
                 <h2 class="text-base font-bold text-white">機体の購入・売却</h2>
@@ -335,21 +333,27 @@
 
         <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[420px]">
             
-            <div class="flex justify-between items-center p-4 border-b border-slate-700/50 shrink-0">
-                <div class="flex items-center gap-2">
-                    <button id="btn-cc-back" class="hidden text-cyan-400 font-bold p-1 mr-2 flex items-center active:text-cyan-300">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                        戻る
-                    </button>
-                    <h2 id="cc-title" class="text-lg font-bold text-white">コントロールセンター</h2>
-                </div>
-                <button id="btn-close-cc" class="text-slate-400 active:text-white p-1 text-xl font-bold leading-none">✕</button>
+            <!-- ★修正: iOSネイティブ準拠の、左右対称・中央揃え・タップ領域拡大の美しいヘッダー -->
+            <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
+                <!-- 左側：戻るボタン（アイコンのみ、タップ領域をw-10 h-10で広く確保） -->
+                <button id="btn-cc-back" class="hidden absolute left-2 text-cyan-400 font-bold w-10 h-10 flex items-center justify-center active:bg-slate-800 rounded-full transition-colors z-10">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                
+                <!-- 中央：タイトル（メニュー名がシンプルに配置される） -->
+                <h2 id="cc-title" class="text-base font-bold text-white tracking-wider">メニュー</h2>
+                
+                <!-- 右側：閉じるボタン（タップ領域をw-10 h-10で広く確保） -->
+                <button id="btn-close-cc" class="absolute right-2 text-slate-400 w-10 h-10 flex items-center justify-center active:bg-slate-800 rounded-full transition-colors text-xl font-bold leading-none z-10">✕</button>
             </div>
 
+            <!-- コンテンツコンテナ (左右スライドアニメーション用) -->
             <div class="relative w-full h-full overflow-hidden flex-1">
                 
+                <!-- 【階層1】メニュートップ（スッキリしたリスト） -->
                 <div id="cc-layer-main" class="absolute inset-0 w-full h-full transition-transform duration-300 flex flex-col p-4 gap-3 overflow-y-auto translate-x-0">
                     
+                    <!-- ステータスHUD トグルスイッチ -->
                     <div class="flex items-center justify-between bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 mb-1">
                         <div class="flex items-center gap-3">
                             <span class="text-2xl">👁️</span>
@@ -363,6 +367,7 @@
                         </button>
                     </div>
 
+                    <!-- メニュー項目リンク -->
                     <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-4 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-upgrades">
                         <div class="flex items-center gap-3">
                             <span class="text-2xl">🏢</span>
@@ -388,8 +393,10 @@
                     </button>
                 </div>
 
+                <!-- 【階層2】詳細パネル群 (最初は右側に隠れている) -->
                 <div id="cc-layer-detail" class="absolute inset-0 w-full h-full transition-transform duration-300 translate-x-full bg-slate-900/95 overflow-y-auto">
                     
+                    <!-- 詳細A: 投資・アップグレード (ダミーUI) -->
                     <div id="panel-upgrades" class="hidden p-4 flex flex-col gap-3">
                         <div class="text-xs font-bold text-cyan-400 mb-1 tracking-widest uppercase">Finance / Ops</div>
                         
@@ -426,6 +433,7 @@
                         </div>
                     </div>
 
+                    <!-- 詳細B: 実績とグラフ (ダミーUI) -->
                     <div id="panel-overview" class="hidden p-4 flex flex-col gap-4">
                          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
                              <div class="text-xs text-slate-400 font-bold mb-1">当期純利益</div>
@@ -434,6 +442,7 @@
                          
                          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
                              <div class="text-xs text-slate-400 font-bold mb-3">月次売上推移 (ダミー)</div>
+                             <!-- Tailwindの幅指定で作る本格的なダミー棒グラフ -->
                              <div class="flex items-end h-32 gap-2 px-1">
                                 <div class="w-full bg-slate-700 h-[30%] rounded-t-sm"></div>
                                 <div class="w-full bg-slate-700 h-[45%] rounded-t-sm"></div>
@@ -445,6 +454,7 @@
                          </div>
                     </div>
 
+                    <!-- 詳細C: ライバル会社状況 (ダミーUI) -->
                     <div id="panel-rivals" class="hidden p-4 flex flex-col gap-4">
                         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/50">
                             <div class="flex items-center gap-3 mb-3">
@@ -455,6 +465,7 @@
                                 </div>
                                 <div class="text-lg font-bold text-blue-400">45%</div>
                             </div>
+                            <!-- 拮抗しているプログレスバー -->
                             <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
                                 <div class="h-full bg-emerald-500" style="width: 55%"></div>
                                 <div class="h-full bg-blue-500" style="width: 45%"></div>
@@ -474,6 +485,7 @@
                                 </div>
                                 <div class="text-lg font-bold text-yellow-400">60%</div>
                             </div>
+                            <!-- 負けているプログレスバー -->
                             <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
                                 <div class="h-full bg-emerald-500" style="width: 40%"></div>
                                 <div class="h-full bg-yellow-500" style="width: 60%"></div>
