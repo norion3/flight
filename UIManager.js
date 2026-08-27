@@ -1,19 +1,14 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【プロシージャル・サウンドシステムの統合】
- * 履歴302に基づき、SoundManagerをインポートし、各種UI操作にサウンドをバインドしました。
- * 1. 音量ボタン（btn-sound）でミュートON/OFFを切り替え、SVGアイコンを動的に変更する処理を追加しました。
- * 2. ほとんどのボタン押下時に `playTapSound` (ポッ) を鳴らします。
- * 3. 警告時(Toast)には `playWarningSound` (ププッ) を鳴らします。
- * 4. ポップアップ展開時やアクション成功時には `playEventSound` や `playSuccessSound` を適宜呼び出し、
- * 耳に心地よい、ゲーム体験を邪魔しない音響設計を実現しています。
+ * 履歴303に基づき、ミュート(OFF)時のアイコンデザインを「波あり＋斜線」に変更し、
+ * ON/OFFのUIの連続性を保ちつつ上品なデザインへ改修しました。
  */
 
 import { SoundManager } from './SoundManager.js';
 
 export class UIManager {
     constructor() {
-        // ★追加: サウンドマネージャーの初期化（デフォルトはミュート）
         this.soundManager = new SoundManager();
 
         this.infoCard = document.getElementById('airport-info-card');
@@ -70,7 +65,6 @@ export class UIManager {
         document.getElementById('btn-cancel-connect').addEventListener('click', cancelRoute);
 
         document.getElementById('btn-action-route').addEventListener('click', () => {
-            // アクション（開拓・廃止）の実行時は心地よい成功音を鳴らす
             this.soundManager.playSuccessSound();
             if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
         });
@@ -99,7 +93,7 @@ export class UIManager {
 
         document.querySelectorAll('.buy-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                this.soundManager.playSuccessSound(); // 購入アクション時
+                this.soundManager.playSuccessSound(); 
                 const type = e.currentTarget.getAttribute('data-type');
                 if (this.onBuyPlane) this.onBuyPlane(type);
             });
@@ -107,7 +101,7 @@ export class UIManager {
 
         document.querySelectorAll('.sell-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                this.soundManager.playSuccessSound(); // 売却アクション時
+                this.soundManager.playSuccessSound(); 
                 const type = e.currentTarget.getAttribute('data-type');
                 if (this.onSellPlane) this.onSellPlane(type);
             });
@@ -132,22 +126,23 @@ export class UIManager {
         }
 
         // =========================================================
-        // ★追加: サウンドボタン（ミュートのトグル切り替え）
+        // ★修正: ミュートUIの連続性（波＋斜線）を確保したトグル処理
         // =========================================================
         if (this.btnSound) {
             this.btnSound.addEventListener('click', () => {
                 const isMuted = this.soundManager.toggleMute();
                 if (isMuted) {
-                    // ミュートアイコン（斜線）に変更し、色をグレーにする
+                    // ミュート時：波あり＋斜線（色は白系へ）
                     this.btnSound.innerHTML = `
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                             <line x1="23" y1="1" x2="1" y2="23"></line>
                         </svg>`;
                     this.btnSound.classList.replace('text-emerald-400', 'text-slate-300');
                     this.btnSound.classList.replace('border-emerald-500/50', 'border-slate-600/50');
                 } else {
-                    // 音ありアイコンに変更し、色をアクティブなエメラルドにする
+                    // 音あり時：波あり（色はエメラルドへ）
                     this.btnSound.innerHTML = `
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -264,7 +259,6 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
-    // ★修正: トースト表示時（主にエラーや警告）にはププッという警告音を鳴らす
     showToast(message) {
         this.soundManager.playWarningSound();
         this.toast.innerText = message;
@@ -276,7 +270,6 @@ export class UIManager {
         }, 2000); 
     }
 
-    // ★修正: 空港情報表示時にはポワーンという柔らかなイベント音を鳴らす
     showAirportInfo(data, currentConnections, maxConnections) {
         this.soundManager.playEventSound();
         this.hideAll();
@@ -318,7 +311,6 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    // ★修正: 確認パネル表示時にもポワーンという柔らかなイベント音を鳴らす
     showRouteConfirm(fromData, toData, isConnected) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
