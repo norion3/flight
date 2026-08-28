@@ -1,6 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: ダイナミック経済システムの中核】
+ * 【フェーズ1: ダイナミック経済システムの中核（収益スムージング版）】
+ * 履歴329に基づき、UIの収益表示のパラパラ感をなくすため、`displayIncome` と
+ * フレームレート非依存の補間（Lerp）を用いたスムージング処理を実装しました。
  * 1. 距離と空港ランクに応じた動的な空路開拓費の算出 (`calculateRouteCost`)
  * 2. 機体のサイズ、空港の需要キャップ、距離に応じた動的収益と維持費の計算 (`update`)
  * 3. 資金がマイナスにならない防波堤機構 (`deductFunds`) を完備。
@@ -13,7 +15,8 @@ export class EconomyManager {
     constructor(uiManager) {
         this.uiManager = uiManager;
         this.funds = CONFIG.ECONOMY.INITIAL_FUNDS;
-        this.incomePerSecond = 0;
+        this.incomePerSecond = 0; // 内部の正確な秒間収益
+        this.displayIncome = 0;   // UI表示用の滑らかな収益
         this.totalPassengers = 0;
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
     }
@@ -35,7 +38,7 @@ export class EconomyManager {
         return false;
     }
 
-    // ★追加: 距離と空港ランクに基づいた動的な空路開拓費用の計算
+    // 距離と空港ランクに基づいた動的な空路開拓費用の計算
     calculateRouteCost(fromData, toData) {
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS);
         const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS);
@@ -85,13 +88,19 @@ export class EconomyManager {
         // ネット収益（総収入 - 維持費）
         this.incomePerSecond = grossIncome - totalUpkeep;
         
+        // ★追加: 収益表示の安定化（スムージング処理）
+        // 1秒間で目標値に約99%近づくようなフレームレート非依存の減衰率
+        const lerpFactor = 1.0 - Math.pow(0.01, delta);
+        this.displayIncome += (this.incomePerSecond - this.displayIncome) * lerpFactor;
+        
         // 資金と搭乗客数の加算
         this.addFunds(this.incomePerSecond * delta);
         this.totalPassengers += currentPassengers * delta;
 
         // UIへの反映（HUD更新）
-        const incomePrefix = this.incomePerSecond >= 0 ? '+$ ' : '-$ ';
-        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(this.incomePerSecond))}/s`;
+        const displayVal = Math.round(this.displayIncome);
+        const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
+        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}/s`;
 
         this.uiManager.updateTopHUD(
             this._formatMoney(this.funds),
