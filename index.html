@@ -23,1556 +23,315 @@
         };
         window.addEventListener('error', function(e) {
             if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
-                logToOSD('[Load Error] Failed to load file: ' + e.target.src, '#f33');
+                logToOSD('[Resource Error] Failed to load: ' + e.target.src || e.target.href, '#f90');
             }
         }, true);
         window.addEventListener('unhandledrejection', function(e) {
-            logToOSD('[Promise Error] ' + (e.reason ? e.reason.message : 'Unknown'), '#f33');
+            logToOSD('[Promise Error] ' + (e.reason ? e.reason.toString() : 'Unknown'), '#f33');
         });
-        window.logToOSD = logToOSD;
-
-        function updateUIBottomMargin() {
-            const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-            const hasBottomBar = !isStandalone && (window.innerHeight < window.screen.height - 150); 
-            
-            let margin = 'calc(env(safe-area-inset-bottom) + 8px)'; 
-            if (hasBottomBar) {
-                margin = '8px'; 
-            }
-            document.documentElement.style.setProperty('--ui-bottom', margin);
-        }
-        window.addEventListener('resize', updateUIBottomMargin);
-        window.addEventListener('DOMContentLoaded', updateUIBottomMargin);
-
-        document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
-        document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
-        document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
-
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', function(event) {
-            const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-                const btn = event.target.closest('button');
-                if (btn && !btn.disabled) {
-                    btn.click();
-                }
-            }
-            lastTouchEnd = now;
-        }, { passive: false });
     </script>
-
-    <script>
-        window.APP_LANG = {
-            toastNoRoute: "先に空路を開拓してください",
-            toastLimit: "接続上限です",
-            toastLimitPlanes: "駐機場の空きがありません",
-            toastNoFunds: "資金が不足しています",
-            toastOverDistance: "航続距離を超えています",
-            errMapLoad: "地図データの取得に失敗しました。",
-            hubMajor: "主要空港",
-            hubLocal: "地方空港",
-            hubFictional: "中継空港",
-            btnLimit: "接続上限です",
-            btnLimitAction: "接続上限 (空路を整理する)",
-            btnConnect: "空路を開拓・廃止する",
-            routeOpenTitle: "空路開拓",
-            routeRemoveTitle: "空路廃止",
-            btnOpenRoute: "開拓する",
-            btnRemoveRoute: "廃止する"
-        };
-    </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://unpkg.com/topojson-client@3"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+
     <style>
-        :root {
-            --ui-bottom: 30px;
-        }
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
-            background-color: #020617; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            touch-action: none; user-select: none; -webkit-user-select: none;
-            -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
-        }
-        #webgl-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
+        body { margin: 0; overflow: hidden; background-color: #020617; touch-action: none; -webkit-tap-highlight-color: transparent; }
+        #webgl-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        .pointer-events-auto { pointer-events: auto; }
         
-        .interactive-ui { pointer-events: auto; touch-action: none; }
+        .interactive-ui { transform: scale(0.95); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; }
+        .interactive-ui.show { transform: scale(1); opacity: 1; pointer-events: auto; }
         
-        .bottom-sheet { 
-            transform: translateY(120%); 
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-            bottom: var(--ui-bottom) !important;
-            width: 90% !important;
-            max-width: 400px !important;
-        }
-        .bottom-sheet.show { 
-            transform: translateY(0) !important; 
-            opacity: 1;
-            pointer-events: auto;
-        }
-        #connecting-mode-card {
-            width: fit-content !important;
-            min-width: 240px;
-        }
+        .bottom-sheet { bottom: -100%; left: 0; right: 0; border-radius: 24px 24px 0 0; margin: 0; width: 100%; max-width: 100%; padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+        .bottom-sheet.show { bottom: 0; }
         
-        .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
-        #fab-buy-plane { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        #zoom-controls { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .side-panel { right: -100%; top: 0; bottom: 0; width: 85%; max-width: 400px; height: 100%; border-radius: 24px 0 0 24px; transition: right 0.4s cubic-bezier(0.19, 1, 0.22, 1); }
+        .side-panel.show { right: 0; }
+        
+        .loading-ring { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #38bdf8; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .btn-press { transition: transform 0.1s, background-color 0.2s; }
+        .btn-press:active { transform: scale(0.92); }
+
+        .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
     </style>
 </head>
-<body class="text-slate-100">
+<body class="text-slate-100 antialiased overflow-hidden font-sans">
+    <div id="osd-console"></div>
+
+    <script>
+        window.APP_LANG = {
+            loadingTitle: "AIRLINE TYCOON",
+            loadingDesc: "Building the world...",
+            btnConnect: "Route Open",
+            btnCancel: "Cancel",
+            btnConfirm: "Confirm",
+            airportInfoTitle: "Airport Info",
+            routeOpenTitle: "Open Route",
+            routeRemoveTitle: "Remove Route",
+            toastNoFunds: "Not enough funds!",
+            toastOverDistance: "Distance limit exceeded!",
+            toastLimit: "Connection limit reached!",
+            toastLimitPlanes: "Max planes reached!",
+            toastNoRoute: "No available routes!",
+            fleetPanelTitle: "Fleet Management",
+            btnBuyPlane: "Buy",
+            btnSellPlane: "Sell",
+            capacity: "Capacity",
+            speed: "Speed",
+            maintenance: "Upkeep",
+            income: "Income",
+            price: "Price",
+            sizeSmall: "Small Jets",
+            sizeMedium: "Medium Jets",
+            sizeLarge: "Large Jets",
+            sizeSuper: "Super Jumbos",
+            btnOpenRoute: "Open",
+            btnRemoveRoute: "Close"
+        };
+    </script>
 
     <div id="webgl-container"></div>
 
-    <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm transition-opacity duration-500">
-        <div class="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-4"></div>
-        <h2 class="text-sm font-bold text-cyan-300 tracking-widest uppercase">システム起動中...</h2>
-        <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
-    </div>
+    <div id="ui-layer" class="relative w-full h-full">
 
-    <div id="toast-notification" class="fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50">
-        Message
-    </div>
-
-    <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-12 pb-2">
-        <div class="flex items-center justify-between w-full max-w-md px-4 gap-1">
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">資金</span>
-                <!-- ★修正: 初期資金の表示を50Mに増額 -->
-                <span id="hud-funds" class="text-[13px] font-bold text-emerald-400 font-mono leading-tight">$ 50.0M</span>
-            </div>
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">収益</span>
-                <span id="hud-income" class="text-[13px] font-bold text-yellow-400 font-mono leading-tight">+$ 0/s</span>
-            </div>
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">機体数</span>
-                <span id="hud-planes" class="text-[13px] font-bold text-white font-mono leading-tight">2 <span class="text-slate-500 text-[10px]">/ 5</span></span>
-            </div>
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">搭乗客数</span>
-                <span id="hud-passengers" class="text-[13px] font-bold text-cyan-400 font-mono leading-tight">0</span>
-            </div>
-        </div>
-    </div>
-
-    <div id="ui-layer" class="pb-4 px-4 relative overflow-hidden flex flex-col items-center">
-        
-        <div id="connecting-mode-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-full py-2 px-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 absolute flex items-center justify-between space-x-4">
-            <p class="text-xs text-yellow-400 font-bold animate-pulse whitespace-nowrap">行先の空港をタップ...</p>
-            <button id="btn-cancel-connect" class="px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold active:bg-slate-700 whitespace-nowrap">キャンセル</button>
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="absolute inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center transition-opacity duration-500 pointer-events-auto">
+            <div class="loading-ring mb-6"></div>
+            <h2 class="text-2xl font-bold tracking-widest text-white mb-2" id="loading-title"></h2>
+            <p class="text-slate-400 text-sm animate-pulse" id="loading-desc"></p>
         </div>
 
-        <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-slate-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-slate-900/20 absolute">
-            <h3 id="route-action-title" class="text-xs font-bold tracking-wider mb-2">---</h3>
-            <div class="flex justify-between items-center text-lg font-bold mb-4">
-                <span id="route-from" class="text-white">---</span>
-                <span class="text-slate-500">➔</span>
-                <span id="route-to" class="text-white">---</span>
-            </div>
-            <div class="flex space-x-3">
-                <button id="btn-cancel-route" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold active:bg-slate-700">キャンセル</button>
-                <button id="btn-action-route" class="flex-1 py-3 rounded-xl text-white font-bold shadow-lg">---</button>
+        <!-- ★修正 (Proposal 022): トップHUDのリッチな2段構成とタイポグラフィ強化 -->
+        <!-- 余白(pt-12)を維持したまま縦幅を広げ、GRAVITYアプリの操作不能エリアを回避するセーフエリアとして活用 -->
+        <div id="top-status-hud" class="absolute top-0 left-0 w-full pt-12 pb-4 px-4 pointer-events-none transition-all duration-300 z-50">
+            <div class="bg-slate-900/95 border border-slate-700/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-black/50 pointer-events-auto flex flex-col gap-3">
+                <!-- 上段: 資金/収益 & 搭乗客数 -->
+                <div class="flex justify-between items-start">
+                    <div class="flex flex-col gap-1">
+                        <div class="flex items-center gap-4">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Cash</span>
+                                <span id="hud-funds" class="text-lg text-white font-black tracking-tight">$ 50.0M</span>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Income</span>
+                                <span id="hud-income" class="text-sm font-black tracking-tight text-slate-300">+$ 0/s</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Passengers</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="hud-passengers" class="text-lg text-blue-400 font-black tracking-tight">0</span>
+                            <span class="text-[10px] text-slate-400 font-bold">pax</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- 下段: プログレスバー -->
+                <div class="flex flex-col gap-1.5 w-full mt-1">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Planes</span>
+                        <span class="text-[10px] text-slate-300 font-bold font-mono tracking-wider"><span id="hud-planes">0</span> / <span id="hud-max-planes">5</span></span>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div id="hud-planes-progress" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div id="exit-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-rose-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-rose-900/20 absolute">
-            <h3 class="text-sm font-bold tracking-wider mb-2 text-rose-400 text-center">ゲーム終了の確認</h3>
-            <p class="text-xs text-slate-300 text-center mb-4">現在のスコア（搭乗客数）を記録し、ゲームを終了しますか？</p>
-            <div class="flex space-x-3">
-                <button id="btn-cancel-exit" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold active:bg-slate-700 transition-colors">再開する</button>
-                <button id="btn-submit-exit" class="flex-1 py-3 rounded-xl bg-rose-600 text-white font-bold active:bg-rose-500 shadow-lg shadow-rose-900/50 transition-colors flex items-center justify-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    終了・送信
+        <!-- Toast Notification -->
+        <div id="toast-notification" class="absolute top-32 left-1/2 -translate-x-1/2 interactive-ui z-50">
+            <div class="bg-red-500/90 text-white px-6 py-3 rounded-full font-bold text-sm shadow-lg shadow-red-900/50 backdrop-blur border border-red-400/50 flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                <span id="toast-message">Message</span>
+            </div>
+        </div>
+
+        <!-- Center Connecting Mode Indicator -->
+        <div id="connecting-mode-card" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 interactive-ui z-40">
+            <div class="bg-blue-600/90 border border-blue-400 text-white px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col items-center gap-2">
+                <div class="animate-pulse">
+                    <i data-lucide="map-pin" class="w-8 h-8"></i>
+                </div>
+                <span class="font-bold tracking-widest text-sm">SELECT DESTINATION</span>
+                <span class="text-xs text-blue-200">Tap another airport to connect</span>
+                <button id="btn-cancel-route" class="mt-2 px-6 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold btn-press pointer-events-auto border border-slate-600 hover:bg-slate-700">CANCEL</button>
+            </div>
+        </div>
+
+        <!-- Zoom & View Controls -->
+        <div id="zoom-controls" class="absolute right-4 bottom-32 flex flex-col gap-3 pointer-events-auto z-30 transition-opacity duration-300">
+            <button id="btn-zoom-in" class="w-12 h-12 bg-slate-800/90 rounded-full flex items-center justify-center text-slate-300 shadow-lg border border-slate-600/50 btn-press backdrop-blur-md disabled:opacity-30 disabled:cursor-not-allowed">
+                <i data-lucide="plus" class="w-6 h-6"></i>
+            </button>
+            <button id="btn-zoom-out" class="w-12 h-12 bg-slate-800/90 rounded-full flex items-center justify-center text-slate-300 shadow-lg border border-slate-600/50 btn-press backdrop-blur-md disabled:opacity-30 disabled:cursor-not-allowed">
+                <i data-lucide="minus" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <!-- Main FAB (Fleet Menu) -->
+        <button id="fab-buy-plane" class="absolute right-4 bottom-12 w-16 h-16 bg-emerald-500 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg shadow-emerald-900/50 border border-emerald-400 pointer-events-auto btn-press z-30 transition-transform duration-300">
+            <i data-lucide="plane" class="w-7 h-7 mb-0.5"></i>
+            <span class="text-[10px] font-black tracking-widest uppercase">Fleet</span>
+        </button>
+
+        <!-- Left Menu Buttons -->
+        <div class="absolute left-4 bottom-12 flex flex-col gap-3 pointer-events-auto z-30">
+            <button id="btn-help" class="w-12 h-12 bg-slate-800/90 rounded-2xl flex items-center justify-center text-slate-300 shadow-lg border border-slate-600/50 btn-press backdrop-blur-md">
+                <i data-lucide="help-circle" class="w-6 h-6"></i>
+            </button>
+            <button id="btn-sound" class="w-12 h-12 bg-slate-800/90 rounded-2xl flex items-center justify-center text-slate-300 shadow-lg border border-slate-600/50 btn-press backdrop-blur-md">
+                <i data-lucide="volume-x" class="w-6 h-6" id="icon-sound"></i>
+            </button>
+            <button id="btn-main-menu" class="w-12 h-12 bg-blue-600/90 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-900/50 border border-blue-400/50 btn-press backdrop-blur-md">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <!-- Airport Info Bottom Sheet -->
+        <div id="airport-info-card" class="interactive-ui bottom-sheet bg-slate-900/95 border-t border-slate-700/50 p-6 backdrop-blur-xl shadow-2xl absolute flex flex-col pointer-events-auto z-40">
+            <div class="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-6"></div>
+            
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 id="info-name" class="text-2xl font-black tracking-tight text-white mb-1">Tokyo Haneda</h3>
+                    <p id="info-country" class="text-sm text-slate-400 font-medium">Japan</p>
+                </div>
+                <div id="info-type-badge" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border">MAJOR</div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div class="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-2 flex items-center gap-1">
+                        <i data-lucide="git-merge" class="w-3 h-3"></i> Connections
+                    </span>
+                    <p class="text-xl font-mono font-bold text-white"><span id="info-connections" class="text-blue-400">0</span> <span class="text-slate-500 text-sm">/ <span id="info-max-connections">8</span></span></p>
+                </div>
+                <div class="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-2 flex items-center gap-1">
+                        <i data-lucide="users" class="w-3 h-3"></i> Demand Base
+                    </span>
+                    <p id="info-demand" class="text-xl font-mono font-bold text-emerald-400">High</p>
+                </div>
+            </div>
+
+            <button id="btn-init-route" class="w-full py-4 rounded-xl bg-blue-600 text-white font-bold tracking-widest active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors flex justify-center items-center gap-2 btn-press">
+                <i data-lucide="plus" class="w-5 h-5"></i> OPEN NEW ROUTE
+            </button>
+            <button id="btn-close-info" class="w-full py-4 mt-3 rounded-xl bg-slate-800 text-slate-300 font-bold tracking-widest active:bg-slate-700 border border-slate-600 transition-colors flex justify-center items-center btn-press">
+                CANCEL
+            </button>
+        </div>
+
+        <!-- Route Confirm / Remove Bottom Sheet -->
+        <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border-t border-slate-700/50 p-6 backdrop-blur-xl shadow-2xl absolute flex flex-col pointer-events-auto z-50">
+            <div class="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4"></div>
+            
+            <p id="route-action-title" class="text-xs text-blue-400 font-bold tracking-widest mb-3 uppercase text-center">Open Route</p>
+            
+            <div class="flex items-center justify-between bg-slate-800/80 rounded-2xl p-4 border border-slate-700/50 mb-6">
+                <div class="flex-1 text-center">
+                    <h4 id="route-from-name" class="text-lg font-bold text-white truncate">HND</h4>
+                    <p class="text-[10px] text-slate-400 uppercase mt-1">Origin</p>
+                </div>
+                <div class="px-4 text-slate-500">
+                    <i data-lucide="arrow-right" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1 text-center">
+                    <h4 id="route-to-name" class="text-lg font-bold text-white truncate">JFK</h4>
+                    <p class="text-[10px] text-slate-400 uppercase mt-1">Destination</p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-auto">
+                <button id="btn-route-cancel" class="flex-1 py-4 rounded-xl bg-slate-800 text-slate-300 font-bold tracking-wider active:bg-slate-700 border border-slate-600 transition-colors btn-press">CANCEL</button>
+                <button id="btn-route-action" class="flex-1 py-4 rounded-xl bg-blue-600 text-white font-bold tracking-wider active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors btn-press flex justify-center items-center gap-2">
+                    CONFIRM
                 </button>
             </div>
         </div>
 
-        <div id="airport-info-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-cyan-900/40 absolute">
-            <div class="flex justify-between items-start mb-3">
+        <!-- Buy Plane Side Panel -->
+        <div id="buy-plane-menu" class="interactive-ui side-panel absolute bg-slate-900/95 border-l border-slate-700/50 backdrop-blur-xl shadow-2xl flex flex-col pointer-events-auto z-50">
+            <div class="p-6 pb-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 sticky top-0 z-10 pt-10">
                 <div>
-                    <h3 id="airport-name" class="text-xl font-bold text-white leading-tight pr-2">Name</h3>
-                    <p id="airport-country" class="text-sm text-slate-400">Country</p>
+                    <h3 class="text-xl font-black text-white tracking-tight">Fleet Management</h3>
+                    <p class="text-xs text-emerald-400 mt-1 font-bold">Expand your empire</p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <div class="bg-cyan-950 border border-cyan-500 text-cyan-300 px-2 py-1 rounded text-sm font-mono font-bold">
-                        <span id="airport-code">XXX</span>
-                    </div>
-                    <button id="btn-close-info" class="text-slate-400 active:text-white p-1 text-xl font-bold leading-none">✕</button>
-                </div>
-            </div>
-            <div class="flex items-center space-x-2 mb-4">
-                <span id="airport-type" class="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Type</span>
-                <span class="text-slate-600">|</span>
-                <span class="text-xs text-slate-400">接続数: <span id="airport-conn" class="text-white font-bold">0/0</span></span>
-            </div>
-            <button id="btn-connect" class="w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors">
-                Connect
-            </button>
-        </div>
-
-        <button id="btn-help" class="interactive-ui absolute left-4 w-12 h-12 bg-slate-800 rounded-full shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-slate-300 active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom);">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-        </button>
-
-        <div id="help-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-cyan-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-cyan-900/40 z-30 w-full max-w-md h-auto">
-            <div class="flex justify-between items-center mb-4 px-1">
-                <h2 class="text-base font-bold text-white tracking-widest">遊び方ガイド</h2>
-                <button id="btn-close-help" class="text-slate-400 active:text-white p-1 text-xl font-bold leading-none touch-manipulation">✕</button>
+                <button id="btn-close-buy" class="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white border border-slate-700 btn-press">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
             
-            <div class="overflow-y-auto max-h-[50vh] pr-2 pb-2 flex flex-col gap-5 text-sm">
-                <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ ゲームの目的</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        世界の空港を空路で繋ぎ、<br>
-                        <span class="pl-4 inline-block text-slate-300">シェア1位のトップ企業を目指しましょう。</span>
-                    </p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 空路の開拓</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        光る空港をタップしてルートを開拓し、<br>
-                        <span class="pl-4 inline-block text-slate-300">毎秒の収益と搭乗客数を増やしましょう。</span>
-                    </p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 接続のルール</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        ルートを繋ぐには一定の資金が必要です。<br>
-                        <span class="pl-4 inline-block text-slate-300">遠すぎる空港へは繋ぐことができません。</span>
-                    </p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 機体の購入と売却</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        右下の緑の飛行機ボタンから機体を購入し、<br>
-                        <span class="pl-4 inline-block text-slate-300">より長距離の大きな空港へ繋ぎましょう。</span>
-                    </p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 投資と成長</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        メニューの「投資・アップグレード」から、<br>
-                        <span class="pl-4 inline-block text-slate-300">資金を使って収益や満足度を高めましょう。</span>
-                    </p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ ライバルとの競争</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        メニューの「ライバル会社状況」を開き、<br>
-                        <span class="pl-4 inline-block text-slate-300">他社と能力を比較して戦略を練りましょう。</span>
-                    </p>
-                </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="planes-list">
+                <!-- Planes injected by JS -->
             </div>
         </div>
 
-        <button id="btn-sound" class="interactive-ui absolute left-20 w-12 h-12 bg-slate-800 rounded-full shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-slate-300 active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom);">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                <line x1="23" y1="1" x2="1" y2="23"></line>
-            </svg>
-        </button>
-
-        <button id="btn-main-menu" class="interactive-ui absolute left-1/2 transform -translate-x-1/2 w-32 h-12 bg-slate-800 rounded-full shadow-xl shadow-cyan-900/30 border border-cyan-500/50 flex items-center justify-center text-cyan-300 font-bold active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom); transform: translate(-50%, 0) scale(1);">
-            <span class="mr-2">≡</span> メニュー
-        </button>
-
-        <div id="zoom-controls" class="interactive-ui absolute right-5 z-20 flex flex-col space-y-2 origin-bottom" style="bottom: calc(var(--ui-bottom) + 80px);">
-            <button id="btn-zoom-in" class="w-12 h-12 bg-slate-800 rounded-xl shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-white active:bg-slate-700 transition-all disabled:opacity-50 disabled:text-slate-500 disabled:border-slate-800 disabled:active:bg-slate-800">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-            <button id="btn-zoom-out" class="w-12 h-12 bg-slate-800 rounded-xl shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-white active:bg-slate-700 transition-all disabled:opacity-50 disabled:text-slate-500 disabled:border-slate-800 disabled:active:bg-slate-800">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-        </div>
-
-        <button id="fab-buy-plane" class="interactive-ui absolute right-4 w-14 h-14 bg-emerald-600 rounded-full shadow-lg shadow-emerald-900/50 flex items-center justify-center text-white active:scale-95 z-20 transition-transform origin-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
-            </svg>
-        </button>
-
-        <div id="buy-plane-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-emerald-500/50 rounded-2xl p-3 backdrop-blur-md shadow-lg shadow-emerald-900/40 z-30 w-full max-w-md h-auto">
-            <div class="flex justify-between items-center mb-3 px-2">
-                <h2 class="text-base font-bold text-white">機体の購入・売却</h2>
-                <button id="btn-close-buy" class="text-slate-400 active:text-white p-1 text-lg font-bold leading-none">✕</button>
-            </div>
-            
-            <div class="flex flex-col gap-2">
-                <!-- 小型機 -->
-                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
-                    <div class="flex-1 flex items-center gap-2">
-                        <div class="text-emerald-400 w-8 flex justify-center">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="text-sm font-bold text-slate-200 leading-none">小型機</div>
-                            <div class="text-[11px] text-slate-400 mt-1">稼働中: <span id="count-small" class="text-white font-bold text-xs">0</span> 機</div>
-                        </div>
-                    </div>
-                    <div class="w-[100px] flex flex-col gap-1.5">
-                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="small">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$ 10M</span>
-                        </button>
-                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="small" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 5M</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 中型機 -->
-                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
-                    <div class="flex-1 flex items-center gap-2">
-                        <div class="text-emerald-400 w-8 flex justify-center">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="text-sm font-bold text-slate-200 leading-none">中型機</div>
-                            <div class="text-[11px] text-slate-400 mt-1">稼働中: <span id="count-medium" class="text-white font-bold text-xs">0</span> 機</div>
-                        </div>
-                    </div>
-                    <div class="w-[100px] flex flex-col gap-1.5">
-                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="medium">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$ 25M</span>
-                        </button>
-                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="medium" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 12M</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 大型機 -->
-                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
-                    <div class="flex-1 flex items-center gap-2">
-                        <div class="text-emerald-400 w-8 flex justify-center">
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="text-sm font-bold text-slate-200 leading-none">大型機</div>
-                            <div class="text-[11px] text-slate-400 mt-1">稼働中: <span id="count-large" class="text-white font-bold text-xs">0</span> 機</div>
-                        </div>
-                    </div>
-                    <div class="w-[100px] flex flex-col gap-1.5">
-                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="large">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$ 50M</span>
-                        </button>
-                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="large" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 25M</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 超大型機 -->
-                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
-                    <div class="flex-1 flex items-center gap-2">
-                        <div class="text-emerald-400 w-8 flex justify-center">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M 12 2 C 13.2 3.5 13.2 5.5 13.2 9 L 14 9.5 V 7.5 L 15 6.5 L 16 7.5 V 10.8 L 20.4 13.5 V 15 L 13.2 14 L 13 18 L 14.2 20 V 21 L 12 20.5 L 9.8 21 V 20 L 11 18 L 10.8 14 L 3.6 15 V 13.5 L 8 10.8 V 7.5 L 9 6.5 L 10 7.5 V 9.5 L 10.8 9 C 10.8 5.5 10.8 3.5 12 2 Z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="text-sm font-bold text-slate-200 leading-none">超大型機</div>
-                            <div class="text-[11px] text-slate-400 mt-1">稼働中: <span id="count-super" class="text-white font-bold text-xs">0</span> 機</div>
-                        </div>
-                    </div>
-                    <div class="w-[100px] flex flex-col gap-1.5">
-                        <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="super">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$100M</span>
-                        </button>
-                        <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="super" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 50M</span>
-                        </button>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[400px]">
-            
-            <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
-                <h2 id="cc-title" class="text-base font-bold text-white tracking-wider">メニュー</h2>
-                <button id="btn-close-cc" class="absolute right-4 text-slate-400 w-8 h-8 flex items-center justify-center active:bg-slate-800 rounded-full transition-colors text-xl font-bold leading-none z-10 touch-manipulation">✕</button>
-            </div>
-
-            <div class="relative w-full h-full overflow-hidden flex-1">
+        <!-- Exit / Control Center Dialogs -->
+        <div id="control-center-panel" class="interactive-ui absolute inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+                <h3 class="text-xl font-black text-white mb-6 text-center">Control Center</h3>
                 
-                <div id="cc-layer-main" class="absolute inset-0 w-full h-full transition-transform duration-300 flex flex-col p-3 gap-2 overflow-y-auto translate-x-0">
-                    
-                    <div class="flex items-center justify-between bg-slate-800/80 rounded-xl p-3 border border-slate-700/50">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">👁️</span>
-                            <div>
-                                <div class="text-sm font-bold text-slate-200">ステータス表示</div>
-                                <div class="text-[10px] text-slate-400">画面上部に資金や収益を常時表示</div>
-                            </div>
-                        </div>
-                        <button id="btn-toggle-hud" class="w-14 h-8 rounded-full bg-slate-700 relative transition-colors duration-300 shadow-inner">
-                            <div class="w-6 h-6 bg-slate-400 rounded-full absolute left-1 top-1 transition-transform duration-300 shadow"></div>
-                        </button>
-                    </div>
+                <div class="space-y-3">
+                    <button id="btn-resume-game" class="w-full py-4 rounded-xl bg-blue-600 text-white font-bold tracking-wider btn-press">Resume Game</button>
+                    <button class="w-full py-4 rounded-xl bg-slate-800 text-slate-300 font-bold tracking-wider border border-slate-700 btn-press opacity-50 cursor-not-allowed">Upgrades (Soon)</button>
+                    <button class="w-full py-4 rounded-xl bg-slate-800 text-slate-300 font-bold tracking-wider border border-slate-700 btn-press opacity-50 cursor-not-allowed">Events (Soon)</button>
+                    <button id="btn-request-exit" class="w-full py-4 rounded-xl bg-red-900/30 text-red-400 font-bold tracking-wider border border-red-900/50 btn-press mt-6">End Game</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="exit-confirm-card" class="interactive-ui absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-red-900/50 rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
+                <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-red-500"></i>
+                </div>
+                <h3 class="text-xl font-black text-white mb-2">End Simulation?</h3>
+                <p class="text-sm text-slate-400 mb-8">All current progress will be reset. Are you sure you want to exit?</p>
+                
+                <div class="flex gap-3">
+                    <button id="btn-cancel-exit" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold border border-slate-700 btn-press">Cancel</button>
+                    <button class="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold btn-press shadow-lg shadow-red-900/50" onclick="location.reload()">Exit</button>
+                </div>
+            </div>
+        </div>
 
-                    <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-upgrades">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">🏢</span>
-                            <span class="text-sm font-bold text-slate-200">投資・アップグレード</span>
-                        </div>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
-
-                    <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-overview">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">📊</span>
-                            <span class="text-sm font-bold text-slate-200">実績とグラフ情報</span>
-                        </div>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
-
-                    <button class="cc-link-btn flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 active:bg-slate-700 transition-colors" data-target="panel-rivals">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">🌐</span>
-                            <span class="text-sm font-bold text-slate-200">ライバル会社状況</span>
-                        </div>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
-
-                    <div class="mt-1"></div>
-                    <button id="btn-exit-game" class="flex items-center justify-between bg-slate-800/80 rounded-xl p-3 border border-slate-700/50 active:bg-slate-700 transition-colors">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl text-rose-400">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                            </span>
-                            <span class="text-sm font-bold text-rose-200">ゲーム終了・スコア送信</span>
-                        </div>
+        <div id="help-menu" class="interactive-ui absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-black text-white">How to Play</h3>
+                    <button id="btn-close-help" class="p-2 bg-slate-800 rounded-full text-slate-400 btn-press border border-slate-700">
+                        <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
-
-                <div id="cc-layer-detail" class="absolute inset-0 w-full h-full transition-transform duration-300 translate-x-full bg-slate-900/95 flex">
-                    
-                    <button id="btn-side-back" class="group w-12 h-full flex items-center justify-center active:bg-slate-800/50 transition-colors shrink-0 z-10 touch-manipulation">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 group-active:text-slate-300 transition-colors"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                    </button>
-
-                    <div class="flex-1 overflow-y-auto h-full pb-4 pr-4 pl-0">
-                        
-                        <!-- アップグレード関連モックデータは省略せずそのまま保持 -->
-                        <div id="panel-upgrades" class="hidden py-4 flex flex-col gap-3">
-                            
-                            <div class="text-xs font-bold text-cyan-400 mb-1 tracking-widest uppercase">財務・運航</div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        チケット価格設定 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-emerald-400 mt-0.5">1フライトの収益 +180%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $461K
-                                </button>
-                            </div>
-
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        フライト速度強化 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-emerald-400 mt-0.5">フライト時間 -30%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $922K
-                                </button>
-                            </div>
-
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        機内快適性 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-emerald-400 mt-0.5">顧客満足度 +60</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $519K
-                                </button>
-                            </div>
-
-                            <div class="text-xs font-bold text-cyan-400 mt-2 mb-1 tracking-widest uppercase">人員・スタッフ</div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        パイロット訓練 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-blue-400 mt-0.5">収益 +104%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $27K
-                                </button>
-                            </div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        地上オペレーション <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-blue-400 mt-0.5">折り返し時間 -15%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $293K
-                                </button>
-                            </div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        人事管理・採用 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-blue-400 mt-0.5">満足度 +48</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $197K
-                                </button>
-                            </div>
-
-                            <div class="text-xs font-bold text-cyan-400 mt-2 mb-1 tracking-widest uppercase">サービス</div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        機内食・ケータリング <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">満足度 +80</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $922K
-                                </button>
-                            </div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        機内エンターテインメント <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">収益 +90%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $634K
-                                </button>
-                            </div>
-                            
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        VIPラウンジ設備 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">満足度 +52, 収益 +39%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $27K
-                                </button>
-                            </div>
-                            
-                            <div class="h-4"></div>
-                        </div>
-
-                        <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
-                            
-                            <div class="flex bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors">資金</button>
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors">収益</button>
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors">搭乗数</button>
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors">機体数</button>
-                            </div>
-
-                            <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
-                                <div class="flex justify-between items-end mb-3">
-                                    <div>
-                                        <div class="text-[10px] text-slate-400 font-bold mb-0.5">当期資金推移</div>
-                                        <div class="text-2xl font-bold text-emerald-400 font-mono leading-none">$ 12.4M</div>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-[10px] text-blue-400 font-bold">1位: Euro Wings</div>
-                                        <div class="text-sm font-bold text-slate-300 font-mono">$ 18.2M</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="w-full h-32 relative mt-4">
-                                    <div class="absolute inset-0 flex flex-col justify-between">
-                                        <div class="w-full h-px bg-slate-700/50"></div>
-                                        <div class="w-full h-px bg-slate-700/50"></div>
-                                        <div class="w-full h-px bg-slate-700/50"></div>
-                                        <div class="w-full h-px bg-slate-700/50"></div>
-                                        <div class="w-full h-px bg-slate-700/50"></div>
-                                    </div>
-                                    <svg viewBox="0 0 100 40" class="w-full h-full absolute inset-0 overflow-visible" preserveAspectRatio="none">
-                                        <polyline points="0,35 20,32 40,34 60,30 80,31 100,28" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.5" />
-                                        <polyline points="0,38 20,36 40,33 60,35 80,25 100,22" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.5" />
-                                        <polyline points="0,40 20,39 40,38 60,37 80,36 100,34" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.5" />
-                                        
-                                        <polyline points="0,20 20,18 40,15 60,12 80,8 100,5" fill="none" stroke="#3b82f6" stroke-width="1.5" />
-                                        
-                                        <polyline points="0,30 20,28 40,22 60,15 80,10 100,4" fill="none" stroke="#34d399" stroke-width="2" />
-                                        
-                                        <circle cx="100" cy="4" r="1.5" fill="#34d399" class="animate-pulse" />
-                                        <circle cx="100" cy="5" r="1.5" fill="#3b82f6" />
-                                    </svg>
-                                </div>
-                                <div class="flex justify-between text-[9px] text-slate-500 mt-2 font-mono">
-                                    <span>Jan</span>
-                                    <span>Feb</span>
-                                    <span>Mar</span>
-                                    <span>Apr</span>
-                                    <span>May</span>
-                                    <span>Jun</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="panel-rivals" class="hidden py-4 flex flex-col gap-3">
-                            
-                            <!-- 1位 Euro Wings -->
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">EU</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">Euro Wings</div>
-                                            <div class="text-[10px] text-slate-400">シェア1位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-blue-400 font-mono">45%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <!-- 満足度比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-rose-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 敵 95</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- 速度比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⏱️ フライト速度</span>
-                                                <span class="text-emerald-400">自社 120 <span class="text-slate-500 font-normal">vs</span> 敵 100</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- 所有機体数比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">✈️ 所有機体数</span>
-                                                <span class="text-rose-400">自社 2 <span class="text-slate-500 font-normal">vs</span> 敵 8</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- 総収益比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">💰 総収益</span>
-                                                <span class="text-rose-400">自社 $45K/s <span class="text-slate-500 font-normal">vs</span> 敵 $80K/s</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 2位 Asia Orient -->
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center font-bold text-slate-900 text-xs">AS</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">Asia Orient</div>
-                                            <div class="text-[10px] text-slate-400">シェア2位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-yellow-400 font-mono">28%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-emerald-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 敵 65</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⏱️ フライト速度</span>
-                                                <span class="text-emerald-400">自社 120 <span class="text-slate-500 font-normal">vs</span> 敵 110</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">✈️ 所有機体数</span>
-                                                <span class="text-rose-400">自社 2 <span class="text-slate-500 font-normal">vs</span> 敵 5</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">💰 総収益</span>
-                                                <span class="text-rose-400">自社 $45K/s <span class="text-slate-500 font-normal">vs</span> 敵 $50K/s</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-yellow-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 3位 Americas Air -->
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center font-bold text-white text-xs">AM</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">Americas Air</div>
-                                            <div class="text-[10px] text-slate-400">シェア3位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-rose-400 font-mono">12%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-rose-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 敵 85</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⏱️ フライト速度</span>
-                                                <span class="text-emerald-400">自社 120 <span class="text-slate-500 font-normal">vs</span> 敵 80</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">✈️ 所有機体数</span>
-                                                <span class="text-rose-400">自社 2 <span class="text-slate-500 font-normal">vs</span> 敵 3</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">💰 総収益</span>
-                                                <span class="text-emerald-400">自社 $45K/s <span class="text-slate-500 font-normal">vs</span> 敵 $30K/s</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-rose-600 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 4位 自社 (Player) -->
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-slate-900 text-xs">PL</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">自社 (Player)</div>
-                                            <div class="text-[10px] text-slate-400">シェア4位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-emerald-400 font-mono">8%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <!-- 満足度比較 (対 1位) -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-rose-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 1位 95</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">1位</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- 速度比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⏱️ フライト速度</span>
-                                                <span class="text-emerald-400">自社 120 <span class="text-slate-500 font-normal">vs</span> 1位 100</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">1位</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- 所有機体数比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">✈️ 所有機体数</span>
-                                                <span class="text-rose-400">自社 2 <span class="text-slate-500 font-normal">vs</span> 1位 8</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">1位</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- 総収益比較 -->
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">💰 総収益</span>
-                                                <span class="text-rose-400">自社 $45K/s <span class="text-slate-500 font-normal">vs</span> 1位 $80K/s</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">1位</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 5位 Africa Star -->
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold text-white text-xs">AF</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">Africa Star</div>
-                                            <div class="text-[10px] text-slate-400">シェア5位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-pink-400 font-mono">4%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-emerald-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 敵 70</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⏱️ フライト速度</span>
-                                                <span class="text-emerald-400">自社 120 <span class="text-slate-500 font-normal">vs</span> 敵 90</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">✈️ 所有機体数</span>
-                                                <span class="text-rose-400">自社 2 <span class="text-slate-500 font-normal">vs</span> 敵 4</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">💰 総収益</span>
-                                                <span class="text-emerald-400">自社 $45K/s <span class="text-slate-500 font-normal">vs</span> 敵 $20K/s</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-pink-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 6位 Oceania Fly -->
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center font-bold text-white text-xs">OC</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">Oceania Fly</div>
-                                            <div class="text-[10px] text-slate-400">シェア6位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-purple-400 font-mono">3%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-emerald-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 敵 60</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⏱️ フライト速度</span>
-                                                <span class="text-emerald-400">自社 120 <span class="text-slate-500 font-normal">vs</span> 敵 100</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">✈️ 所有機体数</span>
-                                                <span class="text-emerald-400">自社 2 <span class="text-slate-500 font-normal">vs</span> 敵 2</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">💰 総収益</span>
-                                                <span class="text-emerald-400">自社 $45K/s <span class="text-slate-500 font-normal">vs</span> 敵 $15K/s</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-purple-500 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-
+                <div class="overflow-y-auto space-y-4 pr-2 text-sm text-slate-300">
+                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                        <h4 class="font-bold text-white mb-1 flex items-center gap-2"><i data-lucide="globe-2" class="w-4 h-4 text-blue-400"></i> 1. Explore & Connect</h4>
+                        <p>Rotate the globe and tap an airport (white dot). Tap 'OPEN NEW ROUTE', then select a nearby airport (gold dot) to connect them.</p>
+                    </div>
+                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                        <h4 class="font-bold text-white mb-1 flex items-center gap-2"><i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i> 2. Network Bonus</h4>
+                        <p>Planes earn fixed income based on your total network size. Expanding your routes steadily increases your overall profit multiplier.</p>
+                    </div>
+                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                        <h4 class="font-bold text-white mb-1 flex items-center gap-2"><i data-lucide="plane" class="w-4 h-4 text-indigo-400"></i> 3. Buy Planes</h4>
+                        <p>Use the green Fleet button to buy planes. Only active planes (assigned to routes) will generate income and carry passengers.</p>
+                    </div>
+                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                        <h4 class="font-bold text-white mb-1 flex items-center gap-2"><i data-lucide="crosshairs" class="w-4 h-4 text-red-400"></i> 4. Rivals</h4>
+                        <p>Other colored lines are rival airlines expanding. Currently, they are harmless, but stay tuned for future competition updates!</p>
                     </div>
                 </div>
             </div>
         </div>
+
     </div>
 
     <!-- キャッシュバスターは動的に付与 -->

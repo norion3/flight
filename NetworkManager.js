@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【選択的純白ブレンドによる白ボケ防止と視認性向上】
- * 履歴286に基づき、すべての色に純白を混ぜるのではなく、色の「輝度（Luminance）」を計算し、
- * 輝度が0.5未満の暗い色（赤、青、紫、ピンク）にのみ白をブレンドしてネオン発光させるように修正しました。
- * * 【フェーズ1: ネットワーク規模の算出 (Proposal 017)】
- * 会社全体が所有している「ネットワーク総延長距離」を算出する getTotalNetworkLength メソッドを追加。
- * 双方向のルート重複を排除して正確な距離を合算します。
+ * 【フェーズ1.5: ネットワーク規模のキャッシュ化によるパフォーマンス改善 (Proposal 022)】
+ * 毎フレーム総延長を計算し `Set` を生成する重い処理を廃止し、
+ * `cachedTotalLength` プロパティを導入しました。
+ * 路線が追加(addRoute)・削除(removeRoute)された瞬間にのみ再計算を行うことで、
+ * 処理落ち・フリーズの危険性を完全に根絶しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -30,6 +29,9 @@ export class NetworkManager {
             'local': 5,
             'fictional': 3
         };
+        
+        // ★追加: 処理落ち防止のためのキャッシュ用変数
+        this.cachedTotalLength = 0;
     }
 
     getConnectionCount(airportId, companyId = 'player') {
@@ -85,10 +87,9 @@ export class NetworkManager {
         // 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
         const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
         if (luminance < 0.5) {
-            neonColor.lerp(new THREE.Color(0xffffff), 0.2); // 暗い色のみ発光させる
+            neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
         }
         
-        // 透明度(0.65)を維持したまま、計算されたカラーを適用する
         const material = new THREE.LineBasicMaterial({ 
             color: neonColor, 
             transparent: true, 
@@ -107,6 +108,11 @@ export class NetworkManager {
         
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
+
+        // ★追加: ルート開拓が成功した時だけ、総延長を再計算してキャッシュに保存
+        if (companyId === 'player') {
+            this._updateCachedTotalLength();
+        }
 
         return true;
     }
@@ -138,6 +144,11 @@ export class NetworkManager {
             if (line.material) line.material.dispose();
         });
 
+        // ★追加: ルート削除が成功した時だけ、総延長を再計算してキャッシュに保存
+        if (companyId === 'player') {
+            this._updateCachedTotalLength();
+        }
+
         return true;
     }
 
@@ -155,8 +166,13 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
-    // ★追加: 会社のネットワーク総延長（距離の合計）を算出するメソッド (重複カウント排除)
-    getTotalNetworkLength(companyId = 'player') {
+    // ★追加: キャッシュを更新する内部メソッド
+    _updateCachedTotalLength() {
+        this.cachedTotalLength = this._calculateTotalNetworkLength('player');
+    }
+
+    // 実際の計算メソッド（毎フレームではなく、必要な時だけ呼ばれる）
+    _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
         if (!compNetwork) return 0;
@@ -166,7 +182,6 @@ export class NetworkManager {
         for (const originId in compNetwork) {
             const routes = compNetwork[originId];
             routes.forEach(route => {
-                // A -> B と B -> A を重複カウントしないように一意のキーを作成
                 const routeKey1 = `${originId}-${route.id}`;
                 const routeKey2 = `${route.id}-${originId}`;
                 
@@ -177,5 +192,10 @@ export class NetworkManager {
             });
         }
         return totalLength;
+    }
+
+    // ★追加: EconomyManager 等から参照するための軽量なゲッター
+    get playerTotalNetworkLength() {
+        return this.cachedTotalLength;
     }
 }

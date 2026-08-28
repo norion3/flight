@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: ダイナミック経済システムの定数定義（絶対安定化版）】
- * Proposal 017に基づき、個別路線の「距離ボーナス」を廃止し、
- * ネットワーク全体の総延長に応じた「平方根カーブボーナス（NETWORK_BONUS_MULTIPLIER）」へ移行しました。
- * 長距離・大規模ネットワークによる旨味は残しつつ、200機体制でのインフレ破綻を防ぎます。
+ * 【フェーズ1.5: 経済バランスの最適化 (Proposal 022)】
+ * 序盤のストレスを無くし、世界を繋ぐにつれて巨大なインフレとロマンを味わえる
+ * 「マイルドかつ圧倒的なインフレカーブ」を実現するため、
+ * NETWORK_BONUS_MULTIPLIER を 2.5 から 1.2 へと調整しました。
  */
 
 export const CONFIG = {
@@ -36,7 +36,7 @@ export const CONFIG = {
             super:  { cost: 100000000,sellRate: 0.30, upkeep: 3500,  baseDemand: 300, incomeBase: 25000 }
         },
 
-        // 空港ランクに応じた需要・係数 (※新計算式ではルート開拓コスト等でのみ使用)
+        // 空港ランクに応じた需要・係数 (ルート開拓コスト等でのみ使用)
         AIRPORT_RANKS: {
             'major':     { multiplier: 3.0, demandCap: 500 },
             'local':     { multiplier: 1.5, demandCap: 120 },
@@ -47,8 +47,8 @@ export const CONFIG = {
         ROUTE_BASE_COST: 20000,
         ROUTE_DISTANCE_COST_RATE: 150000,
         
-        // ★修正 (Proposal 017): ルート単体の距離係数を廃止し、ネットワーク全体の規模に応じたボーナスへ変更
-        // ネットワーク総延長距離の平方根(Math.sqrt)に対して掛ける係数。インフレを緩やかに抑え込む。
-        NETWORK_BONUS_MULTIPLIER: 2.5
+        // ★修正 (Proposal 022): マイルドかつ圧倒的なインフレカーブのための係数調整
+        // ネットワーク総延長距離の平方根(Math.sqrt)に対して掛ける係数。
+        NETWORK_BONUS_MULTIPLIER: 1.2
     }
 };

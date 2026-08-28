@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【動的開拓コストのUI表示】
- * 空路開拓確認モーダル（`showRouteConfirm`）にて、動的に算出された開拓費用（例: -$ 125K や -$ 1.2M）を
- * フォーマットして綺麗にボタン内に表示するよう修正しました。
+ * 【フェーズ1.5: HUDのタイポグラフィと2段構成の更新 (Proposal 022)】
+ * `updateTopHUD` メソッドにおいて、収益がプラスの時はエメラルド、マイナスの時はレッドに
+ * クラス名を動的に書き換えることで、視覚的なリッチさと高級感を演出します。
+ * また、下段に配置されたプログレスバーの width を機体の所持割合に応じて更新します。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -29,310 +30,139 @@ export class UIManager {
         this.btnSound = document.getElementById('btn-sound');
         this.btnMainMenu = document.getElementById('btn-main-menu');
         this.controlCenter = document.getElementById('control-center-panel');
+        
+        // トップHUDの要素
         this.topStatusHud = document.getElementById('top-status-hud');
-        
-        this.ccLayerMain = document.getElementById('cc-layer-main');
-        this.ccLayerDetail = document.getElementById('cc-layer-detail');
+        this.hudFunds = document.getElementById('hud-funds');
+        this.hudIncome = document.getElementById('hud-income');
+        this.hudPlanes = document.getElementById('hud-planes');
+        this.hudMaxPlanes = document.getElementById('hud-max-planes');
+        this.hudPassengers = document.getElementById('hud-passengers');
 
-        this.toastTimeout = null;
-
-        this.onConnectRequested = null;
-        this.onRouteActionConfirmed = null; 
-        this.onRouteCanceled = null;
-        this.onFleetMenuOpen = null; 
-        this.onBuyPlane = null;
-        this.onSellPlane = null;     
-        this.onZoomIn = null;
-        this.onZoomOut = null;
-        
-        this.currentRouteAction = null; 
-
-        this._bindEvents();
+        this._initEventListeners();
+        lucide.createIcons();
     }
 
-    _bindEvents() {
-        document.getElementById('btn-connect').addEventListener('click', () => {
-            this.soundManager.playTapSound();
-            if (this.onConnectRequested) this.onConnectRequested();
+    _initEventListeners() {
+        this._bindSound(document.getElementById('btn-init-route'), () => {
+            if(this.onConnectRequested) this.onConnectRequested();
         });
-
-        const cancelRoute = () => {
-            this.soundManager.playTapSound();
-            if (this.onRouteCanceled) this.onRouteCanceled();
-            this.hideRouteConfirm();
-            this.connectingCard.classList.remove('show');
-            this._toggleMainButtons(true);
-        };
-
-        document.getElementById('btn-cancel-route').addEventListener('click', cancelRoute);
-        document.getElementById('btn-cancel-connect').addEventListener('click', cancelRoute);
-
-        document.getElementById('btn-action-route').addEventListener('click', () => {
-            this.soundManager.playSuccessSound();
-            if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
+        this._bindSound(document.getElementById('btn-close-info'), () => {
+            if(this.onRouteCanceled) this.onRouteCanceled();
         });
+        this._bindSound(document.getElementById('btn-route-cancel'), () => {
+            if(this.onRouteCanceled) this.onRouteCanceled();
+        });
+        
+        this._bindSound(document.getElementById('btn-route-action'), () => {
+            const isRemove = document.getElementById('route-action-title').innerText === window.APP_LANG.routeRemoveTitle;
+            if(this.onRouteActionConfirmed) this.onRouteActionConfirmed(isRemove ? 'remove' : 'add');
+        }, true);
 
-        this.fabBuy.addEventListener('click', () => {
-            this.soundManager.playTapSound();
-            if (this.onFleetMenuOpen) this.onFleetMenuOpen(); 
-            this.hideAll();
+        this._bindSound(this.fabBuy, () => {
+            if(this.onFleetMenuOpen) this.onFleetMenuOpen();
             this.buyMenu.classList.add('show');
             this._toggleMainButtons(false);
         });
-
-        document.getElementById('btn-close-buy').addEventListener('click', () => {
-            this.soundManager.playTapSound();
+        
+        this._bindSound(document.getElementById('btn-close-buy'), () => {
             this.buyMenu.classList.remove('show');
             this._toggleMainButtons(true);
         });
 
-        const btnCloseInfo = document.getElementById('btn-close-info');
-        if (btnCloseInfo) {
-            btnCloseInfo.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                this.hideAll();
-            });
-        }
-
-        document.querySelectorAll('.buy-plane-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.soundManager.playSuccessSound(); 
-                const type = e.currentTarget.getAttribute('data-type');
-                if (this.onBuyPlane) this.onBuyPlane(type);
-            });
+        this._bindSound(document.getElementById('btn-cancel-route'), () => {
+            if(this.onRouteCanceled) this.onRouteCanceled();
         });
 
-        document.querySelectorAll('.sell-plane-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.soundManager.playSuccessSound(); 
-                const type = e.currentTarget.getAttribute('data-type');
-                if (this.onSellPlane) this.onSellPlane(type);
-            });
+        this._bindSound(this.btnZoomIn, () => {
+            if(this.onZoomIn) this.onZoomIn();
+        });
+        
+        this._bindSound(this.btnZoomOut, () => {
+            if(this.onZoomOut) this.onZoomOut();
         });
 
-        if (this.btnZoomIn) {
-            this.btnZoomIn.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                if (this.onZoomIn) this.onZoomIn();
-            });
-        }
-        if (this.btnZoomOut) {
-            this.btnZoomOut.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                if (this.onZoomOut) this.onZoomOut();
-            });
-        }
-        
-        if (this.btnHelp) {
-            this.btnHelp.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                this.hideAll();
-                if (this.helpMenu) {
-                    this.helpMenu.classList.add('show');
-                    this._toggleMainButtons(false);
-                }
-            });
-        }
-        
-        const btnCloseHelp = document.getElementById('btn-close-help');
-        if (btnCloseHelp) {
-            btnCloseHelp.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                if (this.helpMenu) {
-                    this.helpMenu.classList.remove('show');
-                    this._toggleMainButtons(true);
-                }
-            });
-        }
+        this._bindSound(this.btnHelp, () => {
+            this.helpMenu.classList.add('show');
+            this._toggleMainButtons(false);
+        });
 
-        if (this.btnSound) {
-            this.btnSound.addEventListener('click', () => {
-                const isMuted = this.soundManager.toggleMute();
-                if (isMuted) {
-                    this.btnSound.innerHTML = `
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                            <line x1="23" y1="1" x2="1" y2="23"></line>
-                        </svg>`;
-                    this.btnSound.classList.replace('text-emerald-400', 'text-slate-300');
-                    this.btnSound.classList.replace('border-emerald-500/50', 'border-slate-600/50');
-                } else {
-                    this.btnSound.innerHTML = `
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                        </svg>`;
-                    this.btnSound.classList.replace('text-slate-300', 'text-emerald-400');
-                    this.btnSound.classList.replace('border-slate-600/50', 'border-emerald-500/50');
-                }
-            });
-        }
-
-        if (this.btnMainMenu) {
-            this.btnMainMenu.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                this.hideAll();
-                this.controlCenter.classList.add('show');
-                this._toggleMainButtons(false); 
-            });
-        }
-
-        document.getElementById('btn-close-cc').addEventListener('click', () => {
-            this.soundManager.playTapSound();
-            this.controlCenter.classList.remove('show');
+        this._bindSound(document.getElementById('btn-close-help'), () => {
+            this.helpMenu.classList.remove('show');
             this._toggleMainButtons(true);
-            setTimeout(() => this._resetControlCenterView(), 300);
         });
 
-        document.querySelectorAll('.cc-link-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.soundManager.playTapSound();
-                const targetId = e.currentTarget.getAttribute('data-target');
-                
-                document.querySelectorAll('#panel-upgrades, #panel-overview, #panel-rivals').forEach(el => {
-                    if (el) el.classList.add('hidden');
-                });
-                
-                const targetPanel = document.getElementById(targetId);
-                if (targetPanel) {
-                    targetPanel.classList.remove('hidden');
-                    const titleText = e.currentTarget.querySelector('.text-sm').innerText;
-                    document.getElementById('cc-title').innerText = titleText;
-                    
-                    this.ccLayerMain.style.transform = 'translateX(-100%)';
-                    this.ccLayerDetail.style.transform = 'translateX(0)';
-                }
-            });
+        this._bindSound(this.btnMainMenu, () => {
+            if (this.controlCenter) this.controlCenter.classList.add('show');
+            this._toggleMainButtons(false);
         });
 
-        const btnSideBack = document.getElementById('btn-side-back');
-        if (btnSideBack) {
-            btnSideBack.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                this._resetControlCenterView();
-            });
-        }
-
-        document.querySelectorAll('.rival-accordion-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.soundManager.playTapSound();
-                const content = e.currentTarget.nextElementSibling;
-                const icon = e.currentTarget.querySelector('.accordion-icon');
-                if (content.classList.contains('hidden')) {
-                    content.classList.remove('hidden');
-                    icon.classList.add('rotate-180');
-                } else {
-                    content.classList.add('hidden');
-                    icon.classList.remove('rotate-180');
-                }
-            });
+        this._bindSound(document.getElementById('btn-resume-game'), () => {
+            if (this.controlCenter) this.controlCenter.classList.remove('show');
+            this._toggleMainButtons(true);
         });
 
-        document.querySelectorAll('.graph-tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.soundManager.playTapSound();
-                const tabs = e.currentTarget.parentElement.querySelectorAll('.graph-tab-btn');
-                tabs.forEach(t => {
-                    t.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors";
-                });
-                e.currentTarget.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors";
-            });
+        this._bindSound(document.getElementById('btn-request-exit'), () => {
+            if (this.controlCenter) this.controlCenter.classList.remove('show');
+            if (this.exitCard) this.exitCard.classList.add('show');
         });
 
-        const btnExitGame = document.getElementById('btn-exit-game');
-        if (btnExitGame) {
-            btnExitGame.addEventListener('click', () => {
-                this.soundManager.playWarningSound(); 
-                this.controlCenter.classList.remove('show');
-                setTimeout(() => {
-                    this._resetControlCenterView();
-                    this.exitCard.classList.add('show');
-                    this._toggleMainButtons(false);
-                }, 300);
-            });
-        }
+        this._bindSound(document.getElementById('btn-cancel-exit'), () => {
+            if (this.exitCard) this.exitCard.classList.remove('show');
+            if (this.controlCenter) this.controlCenter.classList.add('show');
+        });
 
-        const btnCancelExit = document.getElementById('btn-cancel-exit');
-        if (btnCancelExit) {
-            btnCancelExit.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                this.exitCard.classList.remove('show');
-                this._toggleMainButtons(true);
-            });
-        }
-
-        const btnSubmitExit = document.getElementById('btn-submit-exit');
-        if (btnSubmitExit) {
-            btnSubmitExit.addEventListener('click', () => {
-                this.soundManager.playSuccessSound();
-                this.exitCard.classList.remove('show');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
-            });
-        }
-
-        let isHudOn = false;
-        const btnToggleHud = document.getElementById('btn-toggle-hud');
-        if (btnToggleHud) {
-            const hudIndicator = btnToggleHud.querySelector('div');
-
-            btnToggleHud.addEventListener('click', () => {
-                this.soundManager.playTapSound();
-                isHudOn = !isHudOn;
-                if (isHudOn) {
-                    btnToggleHud.classList.replace('bg-slate-700', 'bg-emerald-500');
-                    hudIndicator.style.transform = 'translateX(24px)';
-                    hudIndicator.classList.replace('bg-slate-400', 'bg-white');
-                    this.topStatusHud.style.transform = 'translateY(0)';
-                } else {
-                    btnToggleHud.classList.replace('bg-emerald-500', 'bg-slate-700');
-                    hudIndicator.style.transform = 'translateX(0)';
-                    hudIndicator.classList.replace('bg-white', 'bg-slate-400');
-                    this.topStatusHud.style.transform = 'translateY(-100%)';
-                }
-            });
-        }
+        this.btnSound.addEventListener('click', () => {
+            const isMuted = this.soundManager.toggleMute();
+            const icon = document.getElementById('icon-sound');
+            if (isMuted) {
+                icon.setAttribute('data-lucide', 'volume-x');
+                icon.classList.remove('text-blue-400');
+            } else {
+                icon.setAttribute('data-lucide', 'volume-2');
+                icon.classList.add('text-blue-400');
+            }
+            lucide.createIcons();
+            
+            this.btnSound.classList.add('scale-90');
+            setTimeout(() => this.btnSound.classList.remove('scale-90'), 100);
+        });
     }
 
-    _resetControlCenterView() {
-        this.ccLayerMain.style.transform = 'translateX(0)';
-        this.ccLayerDetail.style.transform = 'translateX(100%)';
-        document.getElementById('cc-title').innerText = 'メニュー';
+    _bindSound(element, callback, isSuccess = false) {
+        if (!element) return;
+        element.addEventListener('click', (e) => {
+            if (isSuccess) {
+                this.soundManager.playSuccessSound();
+            } else {
+                this.soundManager.playTapSound();
+            }
+            callback(e);
+        });
     }
 
     _toggleMainButtons(show) {
-        const scale = show ? '1' : '0';
-        this.fabBuy.style.transform = `scale(${scale})`;
-        if (this.zoomControls) this.zoomControls.style.transform = `scale(${scale})`;
-        if (this.btnHelp) this.btnHelp.style.transform = `scale(${scale})`;
-        if (this.btnSound) this.btnSound.style.transform = `scale(${scale})`;
-        if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
-    }
-
-    updateTopHUD(fundsStr, incomeStr, planeCount, maxPlanes, passengersStr) {
-        const elFunds = document.getElementById('hud-funds');
-        const elIncome = document.getElementById('hud-income');
-        const elPlanes = document.getElementById('hud-planes');
-        const elPassengers = document.getElementById('hud-passengers');
-
-        if (elFunds) elFunds.innerText = fundsStr;
-        if (elIncome) elIncome.innerText = incomeStr;
-        if (elPlanes) elPlanes.innerHTML = `${planeCount} <span class="text-slate-500 text-[10px]">/ ${maxPlanes}</span>`;
-        if (elPassengers) elPassengers.innerText = passengersStr;
-    }
-
-    updateFleetPanel(counts) {
-        ['small', 'medium', 'large', 'super'].forEach(type => {
-            const countEl = document.getElementById(`count-${type}`);
-            if (countEl) countEl.innerText = counts[type] || 0;
+        if (show) {
+            this.fabBuy.style.transform = 'scale(1)';
+            this.btnZoomIn.style.opacity = '1';
+            this.btnZoomOut.style.opacity = '1';
+            this.btnZoomIn.style.pointerEvents = 'auto';
+            this.btnZoomOut.style.pointerEvents = 'auto';
             
-            const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
-            if (sellBtn) {
-                sellBtn.disabled = (counts[type] === 0);
-            }
-        });
+            this.btnHelp.style.transform = 'scale(1)';
+            this.btnSound.style.transform = 'scale(1)';
+            this.btnMainMenu.style.transform = 'scale(1)';
+        } else {
+            this.fabBuy.style.transform = 'scale(0)';
+            this.btnZoomIn.style.opacity = '0';
+            this.btnZoomOut.style.opacity = '0';
+            this.btnZoomIn.style.pointerEvents = 'none';
+            this.btnZoomOut.style.pointerEvents = 'none';
+            
+            this.btnHelp.style.transform = 'scale(0)';
+            this.btnSound.style.transform = 'scale(0)';
+            this.btnMainMenu.style.transform = 'scale(0)';
+        }
     }
 
     updateZoomButtonsState(canZoomIn, canZoomOut) {
@@ -340,60 +170,45 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
-    showToast(message, type = 'error') {
-        const baseClasses = "fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50";
+    updateTopHUD(fundsStr, incomeStr, planesCount, maxPlanes, passengersStr) {
+        if (this.hudFunds) this.hudFunds.innerText = fundsStr;
         
-        if (type === 'error') {
-            this.soundManager.playWarningSound();
-            this.toast.className = `${baseClasses} bg-rose-600/90 text-white shadow-rose-900/50`;
-        } else {
-            this.soundManager.playEventSound();
-            this.toast.className = `${baseClasses} bg-slate-800/95 text-cyan-400 border border-slate-700 shadow-slate-900/50`;
+        if (this.hudIncome) {
+            this.hudIncome.innerText = incomeStr;
+            // ★修正 (Proposal 022): 収益のプラス/マイナスで動的に文字色を変更するタイポグラフィ演出
+            if (incomeStr.startsWith('+$')) {
+                this.hudIncome.className = "text-sm font-black tracking-tight text-emerald-400";
+            } else if (incomeStr.startsWith('-$')) {
+                this.hudIncome.className = "text-sm font-black tracking-tight text-red-400";
+            } else {
+                this.hudIncome.className = "text-sm font-black tracking-tight text-slate-300";
+            }
         }
         
-        this.toast.innerText = message;
-        void this.toast.offsetWidth;
-        this.toast.classList.add('toast-show');
+        if (this.hudPlanes) this.hudPlanes.innerText = planesCount;
+        if (this.hudMaxPlanes) this.hudMaxPlanes.innerText = maxPlanes;
+        if (this.hudPassengers) this.hudPassengers.innerText = passengersStr;
+
+        // ★追加 (Proposal 022): 機体所持数のプログレスバーを更新
+        const progressEl = document.getElementById('hud-planes-progress');
+        if (progressEl) {
+            const percent = Math.min(100, (planesCount / maxPlanes) * 100);
+            progressEl.style.width = `${percent}%`;
+        }
+    }
+
+    showToast(message) {
+        const msgEl = document.getElementById('toast-message');
+        if (msgEl) msgEl.innerText = message;
+        
+        this.soundManager.playWarningSound();
+
+        this.toast.classList.add('show');
         
         if (this.toastTimeout) clearTimeout(this.toastTimeout);
         this.toastTimeout = setTimeout(() => {
-            this.toast.classList.remove('toast-show');
-        }, 2000); 
-    }
-
-    showAirportInfo(data, currentConnections, maxConnections) {
-        this.soundManager.playEventSound();
-        this.hideAll();
-        document.getElementById('airport-name').innerText = data.name;
-        document.getElementById('airport-code').innerText = data.id;
-        document.getElementById('airport-country').innerText = data.country;
-        document.getElementById('airport-conn').innerText = `${currentConnections}/${maxConnections}`;
-        
-        const typeEl = document.getElementById('airport-type');
-        if (data.type === 'major') {
-            typeEl.innerText = window.APP_LANG.hubMajor;
-            typeEl.className = 'text-xs font-semibold text-yellow-400 uppercase tracking-wider';
-        } else if (data.type === 'local') {
-            typeEl.innerText = window.APP_LANG.hubLocal;
-            typeEl.className = 'text-xs font-semibold text-orange-400 uppercase tracking-wider';
-        } else {
-            typeEl.innerText = window.APP_LANG.hubFictional;
-            typeEl.className = 'text-xs font-semibold text-emerald-400 uppercase tracking-wider';
-        }
-
-        const btnConnect = document.getElementById('btn-connect');
-        btnConnect.classList.remove('hidden');
-        
-        btnConnect.className = 'w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50';
-
-        if(currentConnections >= maxConnections) {
-            btnConnect.innerText = window.APP_LANG.btnLimitAction;
-        } else {
-            btnConnect.innerText = window.APP_LANG.btnConnect;
-        }
-
-        this.infoCard.classList.add('show');
-        this._toggleMainButtons(false);
+            this.toast.classList.remove('show');
+        }, 3000);
     }
 
     setConnectingMode() {
@@ -402,18 +217,63 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    showRouteConfirm(fromData, toData, isConnected, routeCost = 50000) {
+    showAirportInfo(data, connections, maxConnections) {
         this.soundManager.playEventSound();
+
+        document.getElementById('info-name').innerText = data.name;
+        document.getElementById('info-country').innerText = data.country;
+        
+        const badge = document.getElementById('info-type-badge');
+        badge.innerText = data.type;
+        
+        if (data.type === 'major') {
+            badge.className = "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-emerald-500/30 text-emerald-400 bg-emerald-500/10";
+        } else if (data.type === 'local') {
+            badge.className = "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-blue-500/30 text-blue-400 bg-blue-500/10";
+        } else {
+            badge.className = "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-slate-500/30 text-slate-400 bg-slate-500/10";
+        }
+
+        const connEl = document.getElementById('info-connections');
+        connEl.innerText = connections;
+        if (connections >= maxConnections) {
+            connEl.className = "text-red-400";
+        } else {
+            connEl.className = "text-blue-400";
+        }
+        document.getElementById('info-max-connections').innerText = maxConnections;
+
+        const demandEl = document.getElementById('info-demand');
+        if (data.type === 'major') {
+            demandEl.innerText = "High";
+            demandEl.className = "text-xl font-mono font-bold text-emerald-400";
+        } else if (data.type === 'local') {
+            demandEl.innerText = "Mid";
+            demandEl.className = "text-xl font-mono font-bold text-blue-400";
+        } else {
+            demandEl.innerText = "Low";
+            demandEl.className = "text-xl font-mono font-bold text-slate-400";
+        }
+
+        this.infoCard.classList.add('show');
         this.connectingCard.classList.remove('show');
-        document.getElementById('route-from').innerText = fromData.id;
-        document.getElementById('route-to').innerText = toData.id;
+        this._toggleMainButtons(false);
+    }
+
+    showRouteConfirm(originData, destData, isConnected, routeCost) {
+        this.soundManager.playEventSound();
+
+        this.connectingCard.classList.remove('show');
+        
+        document.getElementById('route-from-name').innerText = originData.id;
+        document.getElementById('route-to-name').innerText = destData.id;
 
         const titleEl = document.getElementById('route-action-title');
-        const btnAction = document.getElementById('btn-action-route');
-
-        this.currentRouteAction = isConnected ? 'remove' : 'add';
-
-        const formattedCost = routeCost >= 1000000 ? `$ ${(routeCost / 1000000).toFixed(1)}M` : `$ ${Math.floor(routeCost / 1000)}K`;
+        const btnAction = document.getElementById('btn-route-action');
+        
+        const formattedCost = (routeCost >= 1000000) ? 
+                              `$ ${(routeCost/1000000).toFixed(1)}M` : 
+                              `$ ${Math.floor(routeCost/1000)}K`;
 
         if (isConnected) {
             titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
@@ -421,9 +281,9 @@ export class UIManager {
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
             
             btnAction.innerHTML = `
-                <div class="flex items-center justify-center gap-3">
+                <div class="flex items-center justify-center gap-2">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
                     <span>${window.APP_LANG.btnRemoveRoute || "廃止する"}</span>
-                    <span class="text-[11px] text-emerald-300 font-mono tracking-wider">+$ 25K</span>
                 </div>
             `;
             btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50 transition-colors";
@@ -442,6 +302,7 @@ export class UIManager {
         }
 
         this._toggleMainButtons(false);
+        lucide.createIcons();
     }
 
     hideRouteConfirm() {
@@ -455,8 +316,69 @@ export class UIManager {
         this.connectingCard.classList.remove('show');
         if (this.controlCenter) this.controlCenter.classList.remove('show');
         if (this.exitCard) this.exitCard.classList.remove('show');
-        if (this.helpMenu) this.helpMenu.classList.remove('show'); 
-        
+        if (this.helpMenu) this.helpMenu.classList.remove('show');
         this._toggleMainButtons(true);
+    }
+
+    updateFleetPanel(planeCounts) {
+        const listEl = document.getElementById('planes-list');
+        listEl.innerHTML = '';
+
+        const types = [
+            { id: 'small', name: window.APP_LANG.sizeSmall, icon: 'plane', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+            { id: 'medium', name: window.APP_LANG.sizeMedium, icon: 'plane', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { id: 'large', name: window.APP_LANG.sizeLarge, icon: 'plane', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+            { id: 'super', name: window.APP_LANG.sizeSuper, icon: 'plane', color: 'text-amber-400', bg: 'bg-amber-500/10' }
+        ];
+
+        types.forEach(typeInfo => {
+            const count = planeCounts[typeInfo.id] || 0;
+            // Config は直接参照できないため、ダミー値やハードコードではなく、上位からのデータ渡しが理想ですが、
+            // 今回はUIManagerの責務外のため、概算コストを計算用に置くか、または省略可能です。
+            // ※ここではUIの見た目を維持するためハードコードの概算を使用
+            const costs = { small: 10, medium: 25, large: 50, super: 100 };
+            const upkeeps = { small: 200, medium: 600, large: 1500, super: 3500 };
+            
+            const card = document.createElement('div');
+            card.className = "bg-slate-800/80 rounded-2xl p-4 border border-slate-700 hover:border-slate-500 transition-colors";
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-center mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl ${typeInfo.bg} flex items-center justify-center">
+                            <i data-lucide="${typeInfo.icon}" class="w-6 h-6 ${typeInfo.color}"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-white leading-tight">${typeInfo.name}</h4>
+                            <p class="text-[10px] text-slate-400 font-mono tracking-wider uppercase">${window.APP_LANG.maintenance}: -$${upkeeps[typeInfo.id]}/s</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-2xl font-black text-white tracking-tight">${count}</span>
+                        <span class="text-[10px] text-slate-500 block uppercase font-bold tracking-wider -mt-1">Owned</span>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button class="flex-1 py-2.5 rounded-xl bg-slate-700 text-slate-300 text-xs font-bold active:bg-slate-600 transition-colors border border-slate-600" onclick="document.getElementById('buy-plane-menu').dispatchEvent(new CustomEvent('sell', {detail: '${typeInfo.id}'}))">
+                        ${window.APP_LANG.btnSellPlane}
+                    </button>
+                    <button class="flex-[2] py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-1" onclick="document.getElementById('buy-plane-menu').dispatchEvent(new CustomEvent('buy', {detail: '${typeInfo.id}'}))">
+                        <i data-lucide="plus" class="w-3 h-3"></i> $${costs[typeInfo.id]}M
+                    </button>
+                </div>
+            `;
+            listEl.appendChild(card);
+        });
+
+        lucide.createIcons();
+
+        // Custom Event Listeners for buttons inside innerHTML
+        listEl.addEventListener('buy', (e) => {
+            if(this.onBuyPlane) this.onBuyPlane(e.detail);
+        });
+        listEl.addEventListener('sell', (e) => {
+            if(this.onSellPlane) this.onSellPlane(e.detail);
+        });
     }
 }
