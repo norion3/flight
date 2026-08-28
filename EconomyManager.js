@@ -4,7 +4,7 @@
  * 履歴331に基づき、収益計算の根本を「機体ごとのルート長」から「会社全体のネットワーク規模」へ刷新しました。
  * 1. 【絶対安定化】: 機体が交差点を曲がるたびにブレていた仕様を廃止。路線網が変化しない限り、毎フレームの収益は1ドルの狂いもなく完全に一定になります。
  * 2. 【インフレ制御】: ネットワーク全体の総延長距離を計算し、平方根（Math.sqrt）を用いて緩やかな上昇カーブを描くボーナス倍率へと変換しています。
- * 3. 1秒キャッシュのLerpと組み合わせることで、新路線を繋いだ瞬間にだけUIの数字がスーッと上昇する、最高の手触りを実現しました。
+ * 3. インフレ対応として数値フォーマットに `B（十億）` を追加し、表示崩壊を防止しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -160,14 +160,14 @@ export class EconomyManager {
     }
 
     _formatMoney(value) {
-        if (value >= 1000000000) return `$ ${(value / 1000000000).toFixed(1)}B`; // 十億(インフレ対応)
+        if (value >= 1000000000) return `$ ${(value / 1000000000).toFixed(1)}B`;
         if (value >= 1000000) return `$ ${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$ ${Math.floor(value / 1000)}K`;
         return `$ ${Math.floor(value)}`;
     }
 
     _formatMoneyNumber(value) {
-        if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`; // 十億(インフレ対応)
+        if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`;
         if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `${Math.floor(value / 1000)}K`;
         return `${Math.floor(value)}`;

@@ -92,7 +92,6 @@ export class GameManager {
         this.uiManager.onRouteActionConfirmed = (action) => {
             if (this.selectedOrigin && this.selectedDest) {
                 if (action === 'add') {
-                    // ★修正: 動的に計算された開拓コストで資金チェック
                     const cost = this.economyManager.calculateRouteCost(this.selectedOrigin, this.selectedDest);
                     if (this.economyManager.canAfford(cost)) {
                         this.economyManager.deductFunds(cost);
