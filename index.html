@@ -134,7 +134,6 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <!-- ★修正: ハードコーディングされていた bg-red-600 等を外し、JS側で色を動的付与するためのベースクラスに変更 -->
     <div id="toast-notification" class="fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50">
         Message
     </div>
@@ -350,10 +349,14 @@
 
         <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[400px]">
             
+            <!-- ★修正: 戻るボタンをヘッダーの左側に配置（画像準拠） -->
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
+                <button id="btn-cc-back" class="hidden absolute left-4 flex items-center gap-1 text-cyan-400 font-bold active:text-cyan-300 transition-colors z-10 touch-manipulation">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    <span class="text-sm">戻る</span>
+                </button>
                 <h2 id="cc-title" class="text-base font-bold text-white tracking-wider">メニュー</h2>
-                
-                <button id="btn-close-cc" class="absolute right-2 text-slate-400 w-10 h-10 flex items-center justify-center active:bg-slate-800 rounded-full transition-colors text-xl font-bold leading-none z-10">✕</button>
+                <button id="btn-close-cc" class="absolute right-4 text-slate-400 w-8 h-8 flex items-center justify-center active:bg-slate-800 rounded-full transition-colors text-xl font-bold leading-none z-10 touch-manipulation">✕</button>
             </div>
 
             <div class="relative w-full h-full overflow-hidden flex-1">
@@ -408,266 +411,112 @@
                     </button>
                 </div>
 
-                <div id="cc-layer-detail" class="absolute inset-0 w-full h-full transition-transform duration-300 translate-x-full bg-slate-900/95 flex">
+                <div id="cc-layer-detail" class="absolute inset-0 w-full h-full transition-transform duration-300 translate-x-full bg-slate-900/95 overflow-y-auto">
                     
-                    <button id="btn-side-back" class="group w-12 h-full flex items-center justify-center active:bg-slate-800/50 transition-colors shrink-0 z-10 touch-manipulation">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 group-active:text-slate-300 transition-colors"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                    </button>
-
-                    <div class="flex-1 overflow-y-auto h-full pb-4 pr-4 pl-0">
+                    <!-- ★修正: 幻覚（白背景・プログレスバー）を破棄し、画像に完全準拠したダークテーマとLvバッジのリストへ復元 -->
+                    <div id="panel-upgrades" class="hidden p-4 flex flex-col gap-3">
                         
-                        <div id="panel-upgrades" class="hidden py-4 flex flex-col gap-3">
-                            
-                            <div class="text-xs font-bold text-cyan-400 mb-1 tracking-widest uppercase">Finance / Ops</div>
-                            
-                            <!-- チケット価格 (収益・緑) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        チケット価格設定 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-emerald-400 mt-0.5">1フライトの収益 +180%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
+                        <div class="text-[11px] font-bold text-cyan-400 tracking-widest uppercase mt-1 mb-0.5">Finance / Ops</div>
+                        
+                        <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
+                            <div class="flex-1 pr-3">
+                                <div class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                    チケット価格設定 <span class="bg-cyan-900 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded font-mono">Lv.4</span>
                                 </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $461K
-                                </button>
+                                <div class="text-xs font-bold text-emerald-400 mt-1">1フライトの収益 +200%</div>
                             </div>
-
-                            <!-- フライト速度 (速度・水色) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        フライト速度強化 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-cyan-400 mt-0.5">フライト時間 -30%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-cyan-500 rounded-full shadow-[0_0_5px_rgba(6,182,212,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-cyan-500 rounded-full shadow-[0_0_5px_rgba(6,182,212,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-cyan-500 rounded-full shadow-[0_0_5px_rgba(6,182,212,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $922K
-                                </button>
-                            </div>
-
-                            <!-- 機内快適性 (満足度・黄色) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        機内快適性 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">顧客満足度 +60</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $519K
-                                </button>
-                            </div>
-
-
-                            <div class="text-xs font-bold text-cyan-400 mt-2 mb-1 tracking-widest uppercase">Staff</div>
-
-                            <!-- パイロット訓練 (収益・緑) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        パイロット訓練 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-emerald-400 mt-0.5">収益 +104%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $27K
-                                </button>
-                            </div>
-
-                            <!-- 地上オペレーション (速度・水色) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        地上オペレーション <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-cyan-400 mt-0.5">折り返し時間 -15%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-cyan-500 rounded-full shadow-[0_0_5px_rgba(6,182,212,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-cyan-500 rounded-full shadow-[0_0_5px_rgba(6,182,212,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $293K
-                                </button>
-                            </div>
-
-                            <!-- 人事管理・採用 (満足度・黄色) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        人事管理・採用 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">満足度 +48</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $197K
-                                </button>
-                            </div>
-
-
-                            <div class="text-xs font-bold text-cyan-400 mt-2 mb-1 tracking-widest uppercase">Service</div>
-
-                            <!-- 機内食・ケータリング (満足度・黄色) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        機内食・ケータリング <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">満足度 +80</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $922K
-                                </button>
-                            </div>
-
-                            <!-- 機内エンターテインメント (収益・緑) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        機内エンターテインメント <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 3</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-emerald-400 mt-0.5">収益 +90%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $634K
-                                </button>
-                            </div>
-
-                            <!-- VIPラウンジ設備 (満足度・黄色) -->
-                            <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
-                                <div class="flex-1 pr-3">
-                                    <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                                        VIPラウンジ設備 <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv 2</span>
-                                    </div>
-                                    <div class="text-[11px] font-bold text-amber-400 mt-0.5">満足度 +52, 収益 +39%</div>
-                                    <div class="flex gap-1 mt-1.5">
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-amber-500 rounded-full shadow-[0_0_5px_rgba(245,158,11,0.3)]"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <button class="bg-emerald-500 active:bg-emerald-400 text-white text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center">
-                                    $27K
-                                </button>
-                            </div>
-
+                            <button class="bg-emerald-600 active:bg-emerald-500 text-white text-[12px] font-bold px-4 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0">
+                                $ 5M
+                            </button>
                         </div>
 
-                        <div id="panel-overview" class="hidden py-4 flex flex-col gap-4">
-                             <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
-                                 <div class="text-xs text-slate-400 font-bold mb-1">当期純利益</div>
-                                 <div class="text-3xl font-bold text-emerald-400 font-mono">$ 12.4M</div>
-                             </div>
-                             
-                             <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
-                                 <div class="text-xs text-slate-400 font-bold mb-3">月次売上推移 (ダミー)</div>
-                                 <div class="flex items-end h-32 gap-2 px-1">
-                                    <div class="w-full bg-slate-700 h-[30%] rounded-t-sm"></div>
-                                    <div class="w-full bg-slate-700 h-[45%] rounded-t-sm"></div>
-                                    <div class="w-full bg-slate-700 h-[40%] rounded-t-sm"></div>
-                                    <div class="w-full bg-slate-700 h-[65%] rounded-t-sm"></div>
-                                    <div class="w-full bg-slate-700 h-[80%] rounded-t-sm"></div>
-                                    <div class="w-full bg-emerald-500 h-[100%] rounded-t-sm shadow-[0_0_10px_rgba(16,185,129,0.4)]"></div>
-                                 </div>
-                             </div>
+                        <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
+                            <div class="flex-1 pr-3">
+                                <div class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                    機体スピード強化 <span class="bg-cyan-900 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded font-mono">Lv.2</span>
+                                </div>
+                                <div class="text-xs font-bold text-cyan-400 mt-1">フライト時間 -15%</div>
+                            </div>
+                            <button class="bg-emerald-600 active:bg-emerald-500 text-white text-[12px] font-bold px-4 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0">
+                                $ 12M
+                            </button>
                         </div>
 
-                        <div id="panel-rivals" class="hidden py-4 flex flex-col gap-4">
-                            <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
-                                <div class="flex items-center gap-3 mb-3">
-                                    <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">EU</div>
-                                    <div class="flex-1">
-                                        <div class="text-sm font-bold text-slate-200">Euro Wings</div>
-                                        <div class="text-[10px] text-slate-400">欧州シェア競争</div>
-                                    </div>
-                                    <div class="text-lg font-bold text-blue-400">45%</div>
-                                </div>
-                                <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
-                                    <div class="h-full bg-emerald-500" style="width: 55%"></div>
-                                    <div class="h-full bg-blue-500" style="width: 45%"></div>
-                                </div>
-                                <div class="flex justify-between text-[10px] text-slate-400 mt-1">
-                                    <span>自社 (優勢)</span>
-                                    <span>ライバル</span>
-                                </div>
-                            </div>
+                        <div class="text-[11px] font-bold text-cyan-400 tracking-widest uppercase mt-3 mb-0.5">Service / Staff</div>
 
-                            <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
-                                <div class="flex items-center gap-3 mb-3">
-                                    <div class="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center font-bold text-slate-900 text-xs">AS</div>
-                                    <div class="flex-1">
-                                        <div class="text-sm font-bold text-slate-200">Asia Orient</div>
-                                        <div class="text-[10px] text-slate-400">アジアシェア競争</div>
-                                    </div>
-                                    <div class="text-lg font-bold text-yellow-400">60%</div>
+                        <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner">
+                            <div class="flex-1 pr-3">
+                                <div class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                    機内食の高級化 <span class="bg-cyan-900 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded font-mono">Lv.1</span>
                                 </div>
-                                <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
-                                    <div class="h-full bg-emerald-500" style="width: 40%"></div>
-                                    <div class="h-full bg-yellow-500" style="width: 60%"></div>
-                                </div>
-                                <div class="flex justify-between text-[10px] text-slate-400 mt-1">
-                                    <span>自社 (劣勢)</span>
-                                    <span>ライバル</span>
-                                </div>
+                                <div class="text-xs font-bold text-emerald-400 mt-1">顧客満足度 大幅UP</div>
                             </div>
+                            <button class="bg-emerald-600 active:bg-emerald-500 text-white text-[12px] font-bold px-4 py-2.5 rounded-lg shadow-md active:scale-95 transition-all font-mono tracking-wide shrink-0">
+                                $ 2M
+                            </button>
                         </div>
-
                     </div>
+
+                    <!-- overview と rivals も元のダークテーマを維持 -->
+                    <div id="panel-overview" class="hidden p-4 flex flex-col gap-4">
+                         <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
+                             <div class="text-xs text-slate-400 font-bold mb-1">当期純利益</div>
+                             <div class="text-3xl font-bold text-emerald-400 font-mono">$ 12.4M</div>
+                         </div>
+                         
+                         <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
+                             <div class="text-xs text-slate-400 font-bold mb-3">月次売上推移 (ダミー)</div>
+                             <div class="flex items-end h-32 gap-2 px-1">
+                                <div class="w-full bg-slate-700 h-[30%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[45%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[40%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[65%] rounded-t-sm"></div>
+                                <div class="w-full bg-slate-700 h-[80%] rounded-t-sm"></div>
+                                <div class="w-full bg-emerald-500 h-[100%] rounded-t-sm shadow-[0_0_10px_rgba(16,185,129,0.4)]"></div>
+                             </div>
+                         </div>
+                    </div>
+
+                    <div id="panel-rivals" class="hidden p-4 flex flex-col gap-4">
+                        <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">EU</div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-bold text-slate-200">Euro Wings</div>
+                                    <div class="text-[10px] text-slate-400">欧州シェア競争</div>
+                                </div>
+                                <div class="text-lg font-bold text-blue-400">45%</div>
+                            </div>
+                            <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
+                                <div class="h-full bg-emerald-500" style="width: 55%"></div>
+                                <div class="h-full bg-blue-500" style="width: 45%"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                                <span>自社 (優勢)</span>
+                                <span>ライバル</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center font-bold text-slate-900 text-xs">AS</div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-bold text-slate-200">Asia Orient</div>
+                                    <div class="text-[10px] text-slate-400">アジアシェア競争</div>
+                                </div>
+                                <div class="text-lg font-bold text-yellow-400">60%</div>
+                            </div>
+                            <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
+                                <div class="h-full bg-emerald-500" style="width: 40%"></div>
+                                <div class="h-full bg-yellow-500" style="width: 60%"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                                <span>自社 (劣勢)</span>
+                                <span>ライバル</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
