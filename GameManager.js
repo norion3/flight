@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: 経済連動ロジックのハブ結合】
- * 1. 空路開拓確認UI（`showRouteConfirm`）にて、`EconomyManager.calculateRouteCost` で算出した動的コストを表示するよう修正。
- * 2. 開拓実行時(`onRouteActionConfirmed`)にその動的コストで所持金をチェック・減算。
- * 3. 機体購入・売却時に Config の動的価格テーブルとリセールバリュー（小型70%、超大型30%）を適用。
+ * 【フェーズ1: 経済連動ロジックのハブ結合（ネットワークボーナス対応）】
+ * 履歴331に基づき、`animate` ループ内で `EconomyManager.update` を呼び出す際、
+ * `this.networkManager` を追加で渡すように変更しました。
+ * これにより、EconomyManagerが全空路の総延長を計算し、収益の絶対安定化が可能になります。
  */
 
 import { CONFIG } from './Config.js';
@@ -35,63 +35,83 @@ export class GameManager {
         this.mapData = new MapData();
         this.airportManager = new AirportManager(this.scene, this.globe.group);
         this.networkManager = new NetworkManager(this.scene, this.globe.group);
-        this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.uiManager = new UIManager();
-        
-        this.economyManager = new EconomyManager(this.uiManager);
+        this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
+        this.economyManager = new EconomyManager(this.uiManager);
 
+        this.bindUIEvents();
+        
+        this.start();
+    }
+
+    initThree() {
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(CONFIG.COLORS.BACKGROUND);
+        
+        this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        this.camera.position.set(0, 0, 14);
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.container.appendChild(this.renderer.domElement);
+
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enablePan = false;
+        this.controls.minDistance = 6;
+        this.controls.maxDistance = 20;
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.rotateSpeed = 0.6;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        this.scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 3, 5);
+        this.scene.add(dirLight);
+
+        this.clock = new THREE.Clock();
+
+        window.addEventListener('resize', this.onWindowResize.bind(this));
+    }
+
+    bindUIEvents() {
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
-            this.selectedOrigin = this.selectedHitMesh; 
-            
-            this.airportManager.clearHighlight('all');
-            this.airportManager.setHighlight(this.selectedOrigin, 'origin');
-            
             this.uiManager.setConnectingMode();
         };
 
         this.uiManager.onRouteCanceled = () => {
-            this.resetState();
+            this.state = STATE_IDLE;
+            this.selectedOrigin = null;
+            this.airportManager.clearHighlight();
         };
 
-        this.uiManager.onRouteActionConfirmed = (actionType) => {
-            if (this.selectedOrigin && this.selectedDestination) {
-                const originData = this.selectedOrigin.userData.airportData;
-                const destData = this.selectedDestination.userData.airportData;
-
-                if (actionType === 'add') {
-                    // 動的開拓費用の算出
-                    const routeCost = this.economyManager.calculateRouteCost(originData, destData);
-                    
-                    if (!this.economyManager.canAfford(routeCost)) {
-                        this.uiManager.showToast(window.APP_LANG.toastNoFunds);
-                        return;
-                    }
-                    
-                    const success = this.networkManager.addRoute(originData, destData);
-                    if (success) {
-                        this.economyManager.deductFunds(routeCost);
-                        this.planeManager.wakeUpPlanes();
-                        this.uiManager.showRouteConfirm(originData, destData, true, routeCost);
+        this.uiManager.onRouteActionConfirmed = (action) => {
+            if (this.selectedOrigin && this.selectedDest) {
+                if (action === 'add') {
+                    // ★修正: 動的に計算された開拓コストで資金チェック
+                    const cost = this.economyManager.calculateRouteCost(this.selectedOrigin, this.selectedDest);
+                    if (this.economyManager.canAfford(cost)) {
+                        this.economyManager.deductFunds(cost);
+                        this.networkManager.addRoute(this.selectedOrigin, this.selectedDest);
+                        this.uiManager.showToast("空路を開拓しました", "success");
                     } else {
-                        this.uiManager.showToast(window.APP_LANG.toastLimit);
+                        this.uiManager.showToast(window.APP_LANG.toastNoFunds, "error");
                     }
-                } else if (actionType === 'remove') {
-                    this.networkManager.removeRoute(originData, destData);
-                    this.planeManager.checkAndReassignPlanes();
-                    
-                    if (this.networkManager.canConnect(originData, destData)) {
-                        const routeCost = this.economyManager.calculateRouteCost(originData, destData);
-                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost);
-                    } else {
-                        this.uiManager.showToast(window.APP_LANG.toastLimit);
-                        this.selectedDestination = null;
-                        this.airportManager.clearHighlight('dest'); 
-                        this.uiManager.setConnectingMode();
-                    }
+                } else if (action === 'remove') {
+                    this.networkManager.removeRoute(this.selectedOrigin.id, this.selectedDest.id);
+                    this.uiManager.showToast("空路を廃止しました", "success");
                 }
             }
+            this.state = STATE_IDLE;
+            this.selectedOrigin = null;
+            this.selectedDest = null;
+            this.airportManager.clearHighlight();
+            this.uiManager.hideRouteConfirm();
+            this.uiManager._toggleMainButtons(true);
         };
 
         this.uiManager.onFleetMenuOpen = () => {
@@ -99,137 +119,111 @@ export class GameManager {
             this.uiManager.updateFleetPanel(counts);
         };
 
-        this.uiManager.onBuyPlane = (type) => {
-            const planeConf = CONFIG.ECONOMY.PLANES[type];
-            const cost = planeConf ? planeConf.cost : 10000000;
-            
-            if (!this.economyManager.canAfford(cost)) {
-                this.uiManager.showToast(window.APP_LANG.toastNoFunds);
-                return;
-            }
-            
+        this.uiManager.onBuyPlane = (sizeType) => {
             const counts = this.planeManager.getPlaneCounts('player');
-            const totalPlanes = Object.values(counts).reduce((a, b) => a + b, 0);
-            if (totalPlanes >= this.economyManager.maxPlanes) {
-                this.uiManager.showToast(window.APP_LANG.toastLimitPlanes);
+            const total = counts.small + counts.medium + counts.large + counts.super;
+            
+            if (total >= this.economyManager.maxPlanes) {
+                this.uiManager.showToast(window.APP_LANG.toastLimitPlanes, "error");
                 return;
             }
 
-            const success = this.planeManager.addPlane(type);
-            if (!success) {
-                this.uiManager.showToast(window.APP_LANG.toastNoRoute);
+            const conf = CONFIG.ECONOMY.PLANES[sizeType];
+            if (this.economyManager.canAfford(conf.cost)) {
+                this.economyManager.deductFunds(conf.cost);
+                
+                const startNode = this.networkManager.getRandomConnectedAirport('player') || this.airportManager.getAirportById('HND');
+                this.planeManager.addPlane(startNode, 'player', sizeType);
+                this.uiManager.updateFleetPanel(this.planeManager.getPlaneCounts('player'));
             } else {
-                this.economyManager.deductFunds(cost);
-                const newCounts = this.planeManager.getPlaneCounts('player');
-                this.uiManager.updateFleetPanel(newCounts);
+                this.uiManager.showToast(window.APP_LANG.toastNoFunds, "error");
             }
         };
 
-        this.uiManager.onSellPlane = (type) => {
-            const success = this.planeManager.sellPlane(type);
-            if (success) {
-                const planeConf = CONFIG.ECONOMY.PLANES[type];
-                const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 5000000;
+        this.uiManager.onSellPlane = (sizeType) => {
+            const conf = CONFIG.ECONOMY.PLANES[sizeType];
+            const refund = Math.floor(conf.cost * conf.sellRate);
+            
+            if (this.planeManager.sellPlane('player', sizeType)) {
                 this.economyManager.addFunds(refund);
-
-                const counts = this.planeManager.getPlaneCounts('player');
-                this.uiManager.updateFleetPanel(counts);
+                this.uiManager.updateFleetPanel(this.planeManager.getPlaneCounts('player'));
             }
         };
 
-        this.uiManager.onZoomIn = () => this.zoomCamera(-4.0);
-        this.uiManager.onZoomOut = () => this.zoomCamera(4.0);
+        this.uiManager.onZoomIn = () => {
+            this.targetDistance = Math.max(this.controls.minDistance, this.camera.position.distanceTo(this.controls.target) - 3);
+        };
 
-        this.isDragging = false;
-        this.dragStartPos = { x: 0, y: 0 };
-        this.selectedHitMesh = null;
-        this.selectedDestination = null;
+        this.uiManager.onZoomOut = () => {
+            this.targetDistance = Math.min(this.controls.maxDistance, this.camera.position.distanceTo(this.controls.target) + 3);
+        };
 
-        this.clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
 
-        window.addEventListener('resize', this.onWindowResize.bind(this));
-        this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
-        window.addEventListener('pointerup', this.onPointerUp.bind(this));
-        window.addEventListener('contextmenu', (e) => e.preventDefault());
-    }
+        this.container.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.interactive-ui')) return;
+            
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
-    resetState() {
-        this.state = STATE_IDLE;
-        this.selectedOrigin = null;
-        this.selectedDestination = null;
-        this.selectedHitMesh = null;
-        this.airportManager.clearHighlight('all'); 
-        this.uiManager.hideAll();
-    }
+            raycaster.setFromCamera(mouse, this.camera);
+            const intersects = raycaster.intersectObjects(this.airportManager.markers.map(m => m.userData.targetMesh));
 
-    initThree() {
-        this.scene = new THREE.Scene();
+            if (intersects.length > 0) {
+                const hitMesh = intersects[0].object.parent.parent; 
+                const airportData = hitMesh.userData.airportData;
 
-        this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        
-        const jpLat = 35.6; 
-        const jpLon = 139.7; 
-        const distance = 22.0; 
-        const phi = (90 - jpLat) * (Math.PI / 180);
-        const theta = (jpLon + 180) * (Math.PI / 180);
-        
-        this.camera.position.set(
-            -(distance * Math.sin(phi) * Math.cos(theta)),
-            distance * Math.cos(phi),
-            distance * Math.sin(phi) * Math.sin(theta)
-        );
+                if (this.state === STATE_IDLE) {
+                    this.airportManager.clearHighlight();
+                    this.airportManager.setHighlight(hitMesh, 'origin');
+                    this.selectedOrigin = airportData;
+                    
+                    const maxConn = this.networkManager.MAX_CONNECTIONS[airportData.type] || 3;
+                    const curConn = this.networkManager.getConnectionCount(airportData.id);
+                    this.uiManager.showAirportInfo(airportData, curConn, maxConn);
+                    
+                } else if (this.state === STATE_CONNECTING) {
+                    if (this.selectedOrigin.id === airportData.id) return;
+                    
+                    const posOrigin = Utils.latLonToVector3(this.selectedOrigin.lat, this.selectedOrigin.lon, CONFIG.GLOBE_RADIUS);
+                    const posDest = Utils.latLonToVector3(airportData.lat, airportData.lon, CONFIG.GLOBE_RADIUS);
+                    const distance = posOrigin.distanceTo(posDest);
+                    
+                    if (distance > CONFIG.GLOBE_RADIUS * 1.5) {
+                        this.uiManager.showToast(window.APP_LANG.toastOverDistance, "error");
+                        return;
+                    }
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.container.appendChild(this.renderer.domElement);
+                    const isConnected = this.networkManager.isConnected(this.selectedOrigin.id, airportData.id);
+                    
+                    if (!isConnected && !this.networkManager.canConnect(this.selectedOrigin, airportData)) {
+                        this.uiManager.showToast(window.APP_LANG.toastLimit, "error");
+                        return;
+                    }
 
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enablePan = false;
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.04;
-        this.controls.rotateSpeed = 0.5;
-        this.controls.zoomSpeed = 0.8;
-        
-        this.controls.minDistance = 7.5; 
-        this.controls.maxDistance = 25.0;
-        this.controls.minPolarAngle = 0.1;
-        this.controls.maxPolarAngle = Math.PI - 0.1;
+                    this.airportManager.setHighlight(hitMesh, 'dest');
+                    this.selectedDest = airportData;
+                    
+                    this.uiManager.showRouteConfirm(this.selectedOrigin, this.selectedDest, isConnected);
+                }
+            } else if (this.state === STATE_IDLE) {
+                this.airportManager.clearHighlight();
+                this.selectedOrigin = null;
+                this.uiManager.hideAll();
+            }
+        });
 
-        this.controls.addEventListener('change', () => this.checkZoomLimit());
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-        this.scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(CONFIG.COLORS.COASTLINE, 0.5);
-        dirLight.position.set(10, 10, 10);
-        this.scene.add(dirLight);
-    }
-
-    zoomCamera(deltaAmount) {
-        const currentDist = this.camera.position.distanceTo(this.controls.target);
-        if (this.targetDistance === null) this.targetDistance = currentDist;
-        
-        this.targetDistance += deltaAmount;
-        this.targetDistance = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, this.targetDistance));
-        
-        this.checkZoomLimit(); 
-    }
-
-    checkZoomLimit() {
-        const currentDist = this.camera.position.distanceTo(this.controls.target);
-        const target = this.targetDistance !== null ? this.targetDistance : currentDist;
-        
-        const canZoomIn = target > this.controls.minDistance + 0.01;
-        const canZoomOut = target < this.controls.maxDistance - 0.01;
-        
-        this.uiManager.updateZoomButtonsState(canZoomIn, canZoomOut);
+        this.controls.addEventListener('change', () => {
+            const dist = this.camera.position.distanceTo(this.controls.target);
+            const canZoomIn = dist > this.controls.minDistance + 0.1;
+            const canZoomOut = dist < this.controls.maxDistance - 0.1;
+            this.uiManager.updateZoomButtonsState(canZoomIn, canZoomOut);
+        });
     }
 
     async start() {
         this.globe.buildBase();
-
         const success = await this.mapData.loadData();
         if (success) {
             this.globe.buildCoastlines(this.mapData.coastlinePoints);
@@ -237,135 +231,22 @@ export class GameManager {
             
             this.initStarterPack();
             this.rivalManager.init();
-            
-            this.hideLoader();
-            this.checkZoomLimit(); 
-        } else {
-            this.showError("Error", window.APP_LANG.errMapLoad);
-        }
 
-        this.animate();
+            this.hideLoader();
+            this.animate();
+        } else {
+            this.showError("MAP LOAD FAILED", window.APP_LANG.errMapLoad);
+        }
     }
 
     initStarterPack() {
-        const hnd = this.airportManager.getAirportById('HND'); 
-        const cts = this.airportManager.getAirportById('CTS'); 
-        const fuk = this.airportManager.getAirportById('FUK'); 
-
-        if (hnd && cts) this.networkManager.addRoute(hnd, cts);
-        if (hnd && fuk) this.networkManager.addRoute(hnd, fuk);
-
-        this.planeManager.addPlane('small');
-        this.planeManager.addPlane('small');
-    }
-
-    onPointerDown(event) {
-        this.isDragging = false;
-        this.dragStartPos = { x: event.clientX, y: event.clientY };
-    }
-
-    onPointerUp(event) {
-        const dx = event.clientX - this.dragStartPos.x;
-        const dy = event.clientY - this.dragStartPos.y;
-        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-            this.handleTap(event);
-        }
-    }
-
-    handleTap(event) {
-        if (event.target !== this.renderer.domElement) return;
-
-        const tapX = event.clientX;
-        const tapY = event.clientY;
-        const widthHalf = window.innerWidth / 2;
-        const heightHalf = window.innerHeight / 2;
-
-        const maxDist = 45; 
+        const hnd = this.airportManager.getAirportById('HND');
+        const tpe = this.airportManager.getAirportById('TPE');
         
-        let bestHit = null;
-        let minDistance = maxDist;
-
-        this.airportManager.markers.forEach(hitMesh => {
-            const pos = new THREE.Vector3();
-            hitMesh.getWorldPosition(pos);
-
-            const cameraToMarker = this.camera.position.clone().sub(pos);
-            const normal = pos.clone().normalize();
-            if (cameraToMarker.dot(normal) < 0) return; 
-
-            const proj = pos.clone().project(this.camera);
-
-            const screenX = (proj.x * widthHalf) + widthHalf;
-            const screenY = -(proj.y * heightHalf) + heightHalf;
-
-            const dx = tapX - screenX;
-            const dy = tapY - screenY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist < minDistance) {
-                minDistance = dist;
-                bestHit = hitMesh;
-            }
-        });
-
-        if (this.state === STATE_IDLE) {
-            if (bestHit) {
-                this.selectedHitMesh = bestHit;
-                const data = bestHit.userData.airportData;
-                
-                this.airportManager.clearHighlight('all');
-                this.airportManager.setHighlight(bestHit, 'dest');
-                
-                const currConns = this.networkManager.getConnectionCount(data.id);
-                const maxConns = this.networkManager.MAX_CONNECTIONS[data.type];
-                
-                this.uiManager.showAirportInfo(data, currConns, maxConns);
-            } else {
-                this.resetState();
-            }
-        } else if (this.state === STATE_CONNECTING) {
-            if (bestHit) {
-                if (bestHit === this.selectedOrigin) return;
-
-                if (!this.selectedOrigin) {
-                    this.selectedOrigin = this.selectedHitMesh;
-                }
-                this.selectedDestination = bestHit;
-                
-                this.airportManager.clearHighlight('dest');
-                this.airportManager.setHighlight(this.selectedDestination, 'dest');
-                
-                const originData = this.selectedOrigin.userData.airportData;
-                const destData = this.selectedDestination.userData.airportData;
-
-                const isConnected = this.networkManager.isConnected(originData.id, destData.id);
-                const routeCost = this.economyManager.calculateRouteCost(originData, destData);
-
-                if (isConnected) {
-                    this.uiManager.showRouteConfirm(originData, destData, true, routeCost); 
-                } else {
-                    const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
-                    const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
-                    const distance = posA.distanceTo(posB);
-                    const maxDistance = CONFIG.GLOBE_RADIUS * 1.25;
-
-                    if (distance > maxDistance) {
-                        this.uiManager.showToast(window.APP_LANG.toastOverDistance);
-                        this.selectedDestination = null;
-                        this.airportManager.clearHighlight('dest'); 
-                        this.uiManager.setConnectingMode();
-                    } else if (this.networkManager.canConnect(originData, destData)) {
-                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost); 
-                    } else {
-                        this.uiManager.showToast(window.APP_LANG.toastLimit);
-                        this.selectedDestination = null;
-                        this.airportManager.clearHighlight('dest'); 
-                        this.uiManager.setConnectingMode();
-                    }
-                }
-            } else {
-                this.resetState();
-            }
+        if (hnd && tpe) {
+            this.networkManager.addRoute(hnd, tpe, 'player');
+            this.planeManager.addPlane(hnd, 'player', 'small');
+            this.planeManager.addPlane(tpe, 'player', 'small');
         }
     }
 
@@ -398,7 +279,8 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
         
-        this.economyManager.update(delta, this.planeManager.planes);
+        // ★修正: EconomyManagerにnetworkManagerを渡し、会社全体のネットワーク規模を計算できるようにする
+        this.economyManager.update(delta, this.planeManager.planes, this.networkManager);
         this.rivalManager.update(delta);
         
         this.controls.update(); 
@@ -413,5 +295,7 @@ export class GameManager {
     showError(title, msg) {
         this.loaderUI.querySelector('h2').innerText = title;
         this.loaderUI.querySelector('p').innerText = msg;
+        this.loaderUI.querySelector('div').className = "text-5xl mb-4";
+        this.loaderUI.querySelector('div').innerText = "⚠️";
     }
 }

@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: ダイナミック経済システム（距離ボーナス・絶対安定スムージング版）】
- * 履歴330に基づき、以下の2点を実装しました。
- * 1. 【距離ボーナス】: 航路の長さに応じて `distanceBonus` を算出し、長距離路線の収益と搭乗客数を劇的に向上させます。
- * 2. 【絶対安定化】: 毎フレームの収益変動（機体の到着ラグなど）によるUIのチカチカを防ぐため、
- * 1秒間の総収益を裏でキャッシュし、1秒に1回だけ確定した平均値(lastSecondIncome)を算出します。
- * UI(displayIncome)はその確定値に向かってゆっくりと補間（Lerp）されるため、どっしりと落ち着いた表示になります。
+ * 【フェーズ1: ダイナミック経済システム（ネットワーク全体ボーナス・絶対安定化版）】
+ * 履歴331に基づき、収益計算の根本を「機体ごとのルート長」から「会社全体のネットワーク規模」へ刷新しました。
+ * 1. 【絶対安定化】: 機体が交差点を曲がるたびにブレていた仕様を廃止。路線網が変化しない限り、毎フレームの収益は1ドルの狂いもなく完全に一定になります。
+ * 2. 【インフレ制御】: ネットワーク全体の総延長距離を計算し、平方根（Math.sqrt）を用いて緩やかな上昇カーブを描くボーナス倍率へと変換しています。
+ * 3. 1秒キャッシュのLerpと組み合わせることで、新路線を繋いだ瞬間にだけUIの数字がスーッと上昇する、最高の手触りを実現しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -18,14 +17,12 @@ export class EconomyManager {
         this.incomePerSecond = 0; 
         this.displayIncome = 0;   
         
-        // 1秒キャッシュ用バッファ
         this.incomeTimer = 0;
         this.grossIncomeBuffer = 0;
         this.upkeepBuffer = 0;
         
-        // 確定した1秒間の平均値
         this.lastSecondIncome = 0;
-        this.isFirstSecond = true; // 初回のラグ防止用
+        this.isFirstSecond = true;
 
         this.totalPassengers = 0;
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
@@ -61,35 +58,61 @@ export class EconomyManager {
         return Math.round(cost / 1000) * 1000; 
     }
 
-    update(delta, playerPlanes) {
+    update(delta, playerPlanes, networkManager) {
         let currentFrameGrossIncome = 0;
         let currentFrameUpkeep = 0;
         let currentFramePassengers = 0;
         let totalPlanesCount = 0;
 
+        // ★追加: ネットワーク全体の規模ボーナスと平均ランクの算出
+        let totalNetworkDistance = 0;
+        let totalMultiplier = 0;
+        let activeRoutesCount = 0;
+
+        if (networkManager && networkManager.network['player']) {
+            const playerNetwork = networkManager.network['player'];
+            const processedRoutes = new Set();
+
+            for (const originId in playerNetwork) {
+                const routes = playerNetwork[originId];
+                routes.forEach(route => {
+                    // 双方向ルートの重複カウントを防ぐためのキー
+                    const routeKey = [originId, route.id].sort().join('-');
+                    if (!processedRoutes.has(routeKey)) {
+                        processedRoutes.add(routeKey);
+                        totalNetworkDistance += route.length;
+                        
+                        const destRankConf = CONFIG.ECONOMY.AIRPORT_RANKS[route.data.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
+                        totalMultiplier += destRankConf.multiplier;
+                        activeRoutesCount++;
+                    }
+                });
+            }
+        }
+
+        let networkBonus = 1.0;
+        let averageRankMultiplier = 1.0;
+
+        // ★追加: 路線を持っている場合のみ、インフレを制御した平方根カーブでボーナスを確定
+        if (activeRoutesCount > 0) {
+            networkBonus = 1.0 + Math.sqrt(totalNetworkDistance * CONFIG.ECONOMY.DISTANCE_INCOME_RATE);
+            averageRankMultiplier = totalMultiplier / activeRoutesCount;
+        }
+
+        // ★修正: 機体がどこを飛んでいても、会社が保有するネットワークの力で一律の収益を生み出す
         playerPlanes.forEach(plane => {
             if (plane.companyId === 'player') {
                 totalPlanesCount++;
-                if (plane.currentRoute && plane.currentRoute.data) {
-                    const type = plane.sizeType || 'small';
-                    const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
-                    
-                    // 維持費の加算
-                    currentFrameUpkeep += planeConf.upkeep;
+                const type = plane.sizeType || 'small';
+                const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
+                
+                // 維持費は常にかかる
+                currentFrameUpkeep += planeConf.upkeep;
 
-                    // 目的地の空港ランクによる需要キャップ計算
-                    const destData = plane.currentRoute.data;
-                    const rankConf = CONFIG.ECONOMY.AIRPORT_RANKS[destData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
-                    
-                    const effectiveDemand = Math.min(planeConf.baseDemand, rankConf.demandCap);
-                    const demandRatio = effectiveDemand / planeConf.baseDemand;
-
-                    // ★追加：距離ボーナスの算出（遠くに飛ばすほどリターンが跳ね上がる）
-                    const distanceBonus = 1.0 + (plane.currentRoute.length * CONFIG.ECONOMY.DISTANCE_INCOME_RATE);
-
-                    // ★修正：距離ボーナスを収益と搭乗客数に掛ける
-                    const routeIncome = planeConf.incomeBase * rankConf.multiplier * demandRatio * distanceBonus;
-                    const routePassengers = Math.floor(effectiveDemand * 0.5 * distanceBonus);
+                // ネットワーク（路線網）が存在すれば収益が発生する
+                if (activeRoutesCount > 0) {
+                    const routeIncome = planeConf.incomeBase * averageRankMultiplier * networkBonus;
+                    const routePassengers = Math.floor(planeConf.baseDemand * 0.5 * averageRankMultiplier * networkBonus);
 
                     currentFrameGrossIncome += routeIncome;
                     currentFramePassengers += routePassengers;
@@ -104,12 +127,10 @@ export class EconomyManager {
 
         const currentNetIncome = currentFrameGrossIncome - currentFrameUpkeep;
 
-        // 初回のラグを無くすため、最初の1秒間は現在の収益をそのまま目標値にする
         if (this.isFirstSecond) {
             this.lastSecondIncome = currentNetIncome;
         }
 
-        // 1秒経過したらキャッシュを確定し、バッファをリセット
         if (this.incomeTimer >= 1.0) {
             this.lastSecondIncome = (this.grossIncomeBuffer - this.upkeepBuffer) / this.incomeTimer;
             this.grossIncomeBuffer = 0;
@@ -118,12 +139,9 @@ export class EconomyManager {
             this.isFirstSecond = false;
         }
 
-        // 実際の資金と搭乗客数の加算は、フレームごとの正確な値で行う
         this.addFunds(currentNetIncome * delta);
         this.totalPassengers += currentFramePassengers * delta;
 
-        // ★修正: 収益表示の絶対安定化（スムージング処理）
-        // 目標値(lastSecondIncome)に向かって数秒かけてゆっくり追従させることで、パラパラ動くのを完全に殺す
         const lerpFactor = 1.0 - Math.pow(0.05, delta);
         this.displayIncome += (this.lastSecondIncome - this.displayIncome) * lerpFactor;
 
@@ -142,12 +160,14 @@ export class EconomyManager {
     }
 
     _formatMoney(value) {
+        if (value >= 1000000000) return `$ ${(value / 1000000000).toFixed(1)}B`; // 十億(インフレ対応)
         if (value >= 1000000) return `$ ${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$ ${Math.floor(value / 1000)}K`;
         return `$ ${Math.floor(value)}`;
     }
 
     _formatMoneyNumber(value) {
+        if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`; // 十億(インフレ対応)
         if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `${Math.floor(value / 1000)}K`;
         return `${Math.floor(value)}`;
