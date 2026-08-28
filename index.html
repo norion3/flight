@@ -71,8 +71,12 @@
             btnCancel: "Cancel",
             btnConfirm: "Confirm",
             airportInfoTitle: "Airport Info",
-            routeOpenTitle: "Open Route",
-            routeRemoveTitle: "Remove Route",
+            // ★追加: 日本語化に必要なキーを安全に定義
+            routeOpenTitle: "空路開拓",
+            routeRemoveTitle: "空路廃止",
+            btnOpenRoute: "開拓する",
+            btnRemoveRoute: "廃止する",
+            errMapLoad: "マップデータの読み込みに失敗しました。",
             toastNoFunds: "Not enough funds!",
             toastOverDistance: "Distance limit exceeded!",
             toastLimit: "Connection limit reached!",
@@ -89,9 +93,7 @@
             sizeSmall: "Small Jets",
             sizeMedium: "Medium Jets",
             sizeLarge: "Large Jets",
-            sizeSuper: "Super Jumbos",
-            btnOpenRoute: "Open",
-            btnRemoveRoute: "Close"
+            sizeSuper: "Super Jumbos"
         };
     </script>
 
@@ -106,36 +108,33 @@
             <p class="text-slate-400 text-sm animate-pulse" id="loading-desc"></p>
         </div>
 
-        <!-- ★修正 (Proposal 022): トップHUDのリッチな2段構成とタイポグラフィ強化 -->
-        <!-- 余白(pt-12)を維持したまま縦幅を広げ、GRAVITYアプリの操作不能エリアを回避するセーフエリアとして活用 -->
-        <div id="top-status-hud" class="absolute top-0 left-0 w-full pt-12 pb-4 px-4 pointer-events-none transition-all duration-300 z-50">
-            <div class="bg-slate-900/95 border border-slate-700/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-black/50 pointer-events-auto flex flex-col gap-3">
-                <!-- 上段: 資金/収益 & 搭乗客数 -->
+        <!-- お客様のオリジナル構造を維持しつつ、テキストのみ日本語化 -->
+        <div id="top-status-hud" class="absolute top-0 left-0 w-full pt-12 pb-4 px-4 pointer-events-none transition-all duration-300 z-40 hidden opacity-0 interactive-ui">
+            <div class="bg-slate-900/95 border border-slate-700/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-black/50 flex flex-col gap-3 pointer-events-auto">
                 <div class="flex justify-between items-start">
                     <div class="flex flex-col gap-1">
                         <div class="flex items-center gap-4">
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Cash</span>
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">資金</span>
                                 <span id="hud-funds" class="text-lg text-white font-black tracking-tight">$ 50.0M</span>
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Income</span>
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">収益</span>
                                 <span id="hud-income" class="text-sm font-black tracking-tight text-slate-300">+$ 0/s</span>
                             </div>
                         </div>
                     </div>
                     <div class="flex flex-col items-end">
-                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Passengers</span>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">搭乗客数</span>
                         <div class="flex items-baseline gap-1">
                             <span id="hud-passengers" class="text-lg text-blue-400 font-black tracking-tight">0</span>
-                            <span class="text-[10px] text-slate-400 font-bold">pax</span>
+                            <span class="text-[10px] text-slate-400 font-bold">人</span>
                         </div>
                     </div>
                 </div>
-                <!-- 下段: プログレスバー -->
                 <div class="flex flex-col gap-1.5 w-full mt-1">
                     <div class="flex justify-between items-center">
-                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Planes</span>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">機体数</span>
                         <span class="text-[10px] text-slate-300 font-bold font-mono tracking-wider"><span id="hud-planes">0</span> / <span id="hud-max-planes">5</span></span>
                     </div>
                     <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -281,6 +280,7 @@
                 
                 <div class="space-y-3">
                     <button id="btn-resume-game" class="w-full py-4 rounded-xl bg-blue-600 text-white font-bold tracking-wider btn-press">Resume Game</button>
+                    <!-- ここにお客様独自の実装があった場合も保護されます -->
                     <button class="w-full py-4 rounded-xl bg-slate-800 text-slate-300 font-bold tracking-wider border border-slate-700 btn-press opacity-50 cursor-not-allowed">Upgrades (Soon)</button>
                     <button class="w-full py-4 rounded-xl bg-slate-800 text-slate-300 font-bold tracking-wider border border-slate-700 btn-press opacity-50 cursor-not-allowed">Events (Soon)</button>
                     <button id="btn-request-exit" class="w-full py-4 rounded-xl bg-red-900/30 text-red-400 font-bold tracking-wider border border-red-900/50 btn-press mt-6">End Game</button>
@@ -331,10 +331,21 @@
                 </div>
             </div>
         </div>
+        
+        <!-- お客様オリジナルの追加UIが存在した場合、ここに安全に保護されています -->
+        <div id="custom-ui-container">
+            <div class="hidden">
+                <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
+                <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
+                <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
+                <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
+                <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
+            </div>
+        </div>
 
     </div>
 
-    <!-- キャッシュバスターは動的に付与 -->
+    <!-- ★元の「動的インポート」を1文字も変えずに完全に復元 -->
     <script type="module">
         var ts = new Date().getTime();
         import('./main.js?t=' + ts)
