@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: ダイナミック経済システム（絶対安定・ネットワークボーナス版）】
- * 履歴332に基づき、Tailwind CDNのパースをクラッシュさせない極めて安全な構文で
- * 「ネットワーク全体ボーナス」と「平方根カーブによるインフレ制御」を実装しました。
- * 1. 【絶対安定化】: 機体が交差点を曲がるたびにブレていた仕様を完全に廃止。
- * 2. 【安全な文字列結合】: Array.prototype.sort を使わず三項演算子で重複キーを生成し、ブラウザのフリーズを防止。
- * 3. 1秒キャッシュと組み合わせることで、ルートを繋いだ瞬間にだけ収益がガツンと上がり、あとは1ドルの狂いもなく完全に安定する最高の手触りを実現しています。
+ * 【フェーズ1: ダイナミック経済システムの中核（絶対安定・ネットワークボーナス版）】
+ * 1. 【絶対安定化】機体が交差点を曲がるたびにブレていた仕様を完全に廃止し、自社路線網の総延長からボーナスを算出。
+ * 2. 【安全な文字列結合】CSSパーサーをフリーズさせないよう、重複路線の判定に安全な三項演算子を使用。
+ * 3. 1秒キャッシュと組み合わせることで、ルートを繋いだ瞬間にだけ収益がガツンと上がり、あとは完璧に安定するUI挙動を実現。
+ * 4. インフレ対応のフォーマット（B：十億）を追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -18,6 +17,7 @@ export class EconomyManager {
         this.incomePerSecond = 0; 
         this.displayIncome = 0;   
         
+        // 1秒キャッシュ用バッファ
         this.incomeTimer = 0;
         this.grossIncomeBuffer = 0;
         this.upkeepBuffer = 0;
@@ -46,6 +46,7 @@ export class EconomyManager {
         return false;
     }
 
+    // 距離と空港ランクに基づいた動的な空路開拓費用の計算
     calculateRouteCost(fromData, toData) {
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS);
         const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS);
@@ -81,7 +82,7 @@ export class EconomyManager {
                     const idA = originId;
                     const idB = route.id;
                     
-                    // Tailwindのパーサーをフリーズさせない安全で高速な文字列結合
+                    // CSSパーサーをフリーズさせない、安全で高速な文字列結合
                     const routeKey = idA < idB ? idA + '-' + idB : idB + '-' + idA;
                     
                     if (!processedRoutes.has(routeKey)) {
@@ -101,7 +102,7 @@ export class EconomyManager {
 
         // ★追加: 路線を持っている場合のみ、平方根カーブでインフレを制御したボーナスを確定
         if (activeRoutesCount > 0) {
-            networkBonus = 1.0 + Math.sqrt(totalNetworkDistance * CONFIG.ECONOMY.DISTANCE_INCOME_RATE);
+            networkBonus = 1.0 + Math.sqrt(totalNetworkDistance * (CONFIG.ECONOMY.DISTANCE_INCOME_RATE || 10.0));
             averageRankMultiplier = totalMultiplier / activeRoutesCount;
         }
 
@@ -134,10 +135,12 @@ export class EconomyManager {
 
         const currentNetIncome = currentFrameGrossIncome - currentFrameUpkeep;
 
+        // 初回のラグを無くすため、最初の1秒間は現在の収益をそのまま目標値にする
         if (this.isFirstSecond) {
             this.lastSecondIncome = currentNetIncome;
         }
 
+        // 1秒経過したらキャッシュを確定し、バッファをリセット
         if (this.incomeTimer >= 1.0) {
             this.lastSecondIncome = (this.grossIncomeBuffer - this.upkeepBuffer) / this.incomeTimer;
             this.grossIncomeBuffer = 0;
@@ -146,9 +149,11 @@ export class EconomyManager {
             this.isFirstSecond = false;
         }
 
+        // 実際の資金と搭乗客数の加算は、フレームごとの正確な値で行う
         this.addFunds(currentNetIncome * delta);
         this.totalPassengers += currentFramePassengers * delta;
 
+        // 目標値(lastSecondIncome)に向かってゆっくり追従させ、パラパラ動くのを完全に殺す
         const lerpFactor = 1.0 - Math.pow(0.05, delta);
         this.displayIncome += (this.lastSecondIncome - this.displayIncome) * lerpFactor;
 

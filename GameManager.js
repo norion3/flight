@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: 経済連動ロジックのハブ結合（ネットワークボーナス対応）】
- * 履歴332に基づき、`animate` ループ内で `EconomyManager.update` を呼び出す際、
- * `this.networkManager` を追加で渡すように変更しました。
- * これにより、EconomyManagerが全空路の総延長を計算し、収益の絶対安定化が可能になります。
+ * 【フェーズ1: 経済連動ロジックのハブ結合】
+ * 1. 空路開拓確認UI（`showRouteConfirm`）にて、`EconomyManager.calculateRouteCost` で算出した動的コストを表示するよう修正。
+ * 2. 開拓実行時(`onRouteActionConfirmed`)にその動的コストで所持金をチェック・減算。
+ * 3. 機体購入・売却時に Config の動的価格テーブルとリセールバリュー（小型70%、超大型30%）を適用。
+ * 4. 【追加】EconomyManagerが会社全体のネットワーク規模を計算できるよう、update呼び出しに `this.networkManager` を追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -278,7 +279,7 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
         
-        // ★修正: networkManager を渡し、全体ネットワークからのボーナス計算を可能にする
+        // ★修正: EconomyManagerにnetworkManagerを渡し、会社全体のネットワーク規模を計算できるようにする
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager);
         this.rivalManager.update(delta);
         
