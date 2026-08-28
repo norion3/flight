@@ -1,12 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【パネル非表示バグの完全修正】
- * 履歴320に基づき、ユーザー提供のマスターコードを絶対の正解とし、
- * メニューを開いた際に中身が真っ暗（すべて表示されない）になるバグのみをピンポイントで修正しました。
- * * [修正箇所] 
- * `querySelectorAll('#cc-layer-detail > div')` という指定が、パネルの親コンテナ(`flex-1`)ごと
- * 隠してしまっていたため、`'#panel-upgrades, #panel-overview, #panel-rivals'` を
- * 直接指定して隠す安全なロジックへ変更しました。
+ * 【遊び方ガイド（ヘルプパネル）の追加実装】
+ * 履歴326に基づき、左下の「i（btnHelp）」ボタンを押下した際に表示される遊び方ガイドの
+ * パネル開閉イベントを実装しました。
+ * パネル内のテキストは「1行表示＋改行時のインデント」を適用した美しいUIとしてHTML側に構築されており、
+ * 本処理では他の処理や見た目、ゲームバランスを一切壊さないよう、単一の開閉ロジックのみを追加しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -23,6 +21,7 @@ export class UIManager {
         this.connectingCard = document.getElementById('connecting-mode-card'); 
         
         this.exitCard = document.getElementById('exit-confirm-card');
+        this.helpMenu = document.getElementById('help-menu'); // ★追加: 遊び方ガイドの要素取得
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -125,9 +124,28 @@ export class UIManager {
                 if (this.onZoomOut) this.onZoomOut();
             });
         }
+        
+        // ★追加: 遊び方ガイド（ヘルプ）ボタンのイベント
         if (this.btnHelp) {
             this.btnHelp.addEventListener('click', () => {
                 this.soundManager.playTapSound();
+                this.hideAll();
+                if (this.helpMenu) {
+                    this.helpMenu.classList.add('show');
+                    this._toggleMainButtons(false);
+                }
+            });
+        }
+        
+        // ★追加: 遊び方ガイドの閉じるボタンのイベント
+        const btnCloseHelp = document.getElementById('btn-close-help');
+        if (btnCloseHelp) {
+            btnCloseHelp.addEventListener('click', () => {
+                this.soundManager.playTapSound();
+                if (this.helpMenu) {
+                    this.helpMenu.classList.remove('show');
+                    this._toggleMainButtons(true);
+                }
             });
         }
 
@@ -180,7 +198,6 @@ export class UIManager {
                 this.soundManager.playTapSound();
                 const targetId = e.currentTarget.getAttribute('data-target');
                 
-                // ★バグ修正: コンテナ(`flex-1`)全体を隠さず、対象の3つのパネルIDを直接指定して隠す安全な処理
                 document.querySelectorAll('#panel-upgrades, #panel-overview, #panel-rivals').forEach(el => {
                     if (el) el.classList.add('hidden');
                 });
@@ -453,6 +470,7 @@ export class UIManager {
         this.connectingCard.classList.remove('show');
         if (this.controlCenter) this.controlCenter.classList.remove('show');
         if (this.exitCard) this.exitCard.classList.remove('show');
+        if (this.helpMenu) this.helpMenu.classList.remove('show'); // ★追加
         
         this._toggleMainButtons(true);
     }
