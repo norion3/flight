@@ -6,6 +6,8 @@
  * に変更し、紫（0x8a2be2）と並んでも絶対に色が混同しない最強の視認性を確保しています。
  * 【陣営カラーの統一】
  * 履歴283に基づき、プレイヤーの空路の色を機体の色（0x34d399: エメラルド）に統一し、自陣営の所有感と視認性を確立しました。
+ * 【経済パラメータの追加】
+ * フェーズ1設計書に基づき、ECONOMY設定（初期資金、上限、価格テーブル）を追加しました。
  */
 
 export const CONFIG = {
@@ -20,12 +22,20 @@ export const CONFIG = {
     // プレイヤーおよびライバル5社の定義
     // routeColor: 空路の色 / planeColor: 飛行機の色
     COMPANIES: [
-        // ★修正: プレイヤーの空路と機体の色を統一（エメラルド）
         { id: 'player', name: 'Player Airlines', routeColor: 0x34d399, planeColor: 0x34d399 }, 
-        { id: 'rival_eu', name: 'Euro Wings',    routeColor: 0x0044ff, planeColor: 0x0044ff }, // 真っ青（黒背景に沈まないピュアブルー）
-        { id: 'rival_as', name: 'Asia Orient',   routeColor: 0xffff00, planeColor: 0xffff00 }, // まっ黄色
-        { id: 'rival_af', name: 'Africa Star',   routeColor: 0xff1493, planeColor: 0xff1493 }, // 明るめのショッキングピンク
-        { id: 'rival_am', name: 'Americas Air',  routeColor: 0xff0000, planeColor: 0xff0000 }, // 真っ赤
-        { id: 'rival_oc', name: 'Oceania Fly',   routeColor: 0x8a2be2, planeColor: 0x8a2be2 }  // 真紫（ブルーバイオレット）
-    ]
+        { id: 'rival_eu', name: 'Euro Wings',    routeColor: 0x0044ff, planeColor: 0x0044ff }, 
+        { id: 'rival_as', name: 'Asia Orient',   routeColor: 0xffff00, planeColor: 0xffff00 }, 
+        { id: 'rival_af', name: 'Africa Star',   routeColor: 0xff1493, planeColor: 0xff1493 }, 
+        { id: 'rival_am', name: 'Americas Air',  routeColor: 0xff0000, planeColor: 0xff0000 }, 
+        { id: 'rival_oc', name: 'Oceania Fly',   routeColor: 0x8a2be2, planeColor: 0x8a2be2 }  
+    ],
+
+    // 経済システムの設定
+    ECONOMY: {
+        INITIAL_FUNDS: 20000000, // $ 20.0M
+        MAX_PLANES_INITIAL: 5,
+        PLANE_COSTS: { small: 10000000, medium: 25000000, large: 50000000, super: 100000000 },
+        PLANE_SELL_RATES: 0.5,
+        ROUTE_COST: 50000 // $ 50K
+    }
 };

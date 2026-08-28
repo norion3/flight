@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フリート管理UIとバックエンドの連携】
- * 履歴290に基づき、新しく実装された売却機能および所持数のリアルタイムカウントをUIに反映するため、
- * GameManager 側から UIManager と PlaneManager を繋ぐイベントフックを実装しました。
- * パネルが開いた瞬間(onFleetMenuOpen)、購入時(onBuyPlane)、売却時(onSellPlane)のそれぞれのタイミングで
- * 最新の稼働数を取得し、UIの数とボタンの非活性状態を同期させています。
+ * 【フェーズ1: 経済ループの結合と動的化】
+ * 設計書に基づき、`EconomyManager` をインスタンス化し、メインループ(`animate`)へ接続しました。
+ * 1. 機体の購入時(`onBuyPlane`)、売却時(`onSellPlane`)、空路開拓時(`onRouteActionConfirmed`)のそれぞれに、
+ * `canAfford` による資金チェックと増減処理を安全に挟み込みました。
+ * 2. フェーズ1における「上限5機の制限」を導入し、購入前に枠の空きをチェックする処理を追加しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -15,6 +15,7 @@ import { UIManager } from './UIManager.js';
 import { NetworkManager } from './NetworkManager.js';
 import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
+import { EconomyManager } from './EconomyManager.js';
 import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
@@ -38,6 +39,9 @@ export class GameManager {
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.uiManager = new UIManager();
         
+        // ★追加: 金庫番(EconomyManager)のインスタンス化
+        this.economyManager = new EconomyManager(this.uiManager);
+        
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -60,9 +64,20 @@ export class GameManager {
                 const destData = this.selectedDestination.userData.airportData;
 
                 if (actionType === 'add') {
-                    this.networkManager.addRoute(originData, destData); // デフォルトで player
-                    this.planeManager.wakeUpPlanes();
-                    this.uiManager.showRouteConfirm(originData, destData, true);
+                    // ★追加: 空路開拓の事前資金チェック
+                    if (!this.economyManager.canAfford(CONFIG.ECONOMY.ROUTE_COST)) {
+                        this.uiManager.showToast(window.APP_LANG.toastNoFunds);
+                        return;
+                    }
+                    
+                    const success = this.networkManager.addRoute(originData, destData); // デフォルトで player
+                    if (success) {
+                        this.economyManager.deductFunds(CONFIG.ECONOMY.ROUTE_COST); // ★追加: 資金の減算
+                        this.planeManager.wakeUpPlanes();
+                        this.uiManager.showRouteConfirm(originData, destData, true);
+                    } else {
+                        this.uiManager.showToast(window.APP_LANG.toastLimit);
+                    }
                 } else if (actionType === 'remove') {
                     this.networkManager.removeRoute(originData, destData); // デフォルトで player
                     this.planeManager.checkAndReassignPlanes();
@@ -79,27 +94,46 @@ export class GameManager {
             }
         };
 
-        // ★追加: フリート管理パネルが開かれた時、現在の所持数を取得してUIを更新する
         this.uiManager.onFleetMenuOpen = () => {
             const counts = this.planeManager.getPlaneCounts('player');
             this.uiManager.updateFleetPanel(counts);
         };
 
-        // ★修正: 購入成功後、UIの所持数表示を更新する
         this.uiManager.onBuyPlane = (type) => {
+            const cost = CONFIG.ECONOMY.PLANE_COSTS[type] || 10000000;
+            
+            // ★追加: 機体購入の事前資金チェック
+            if (!this.economyManager.canAfford(cost)) {
+                this.uiManager.showToast(window.APP_LANG.toastNoFunds);
+                return;
+            }
+            
+            // ★追加: フリート上限(5機)の制御
+            const counts = this.planeManager.getPlaneCounts('player');
+            const totalPlanes = Object.values(counts).reduce((a, b) => a + b, 0);
+            if (totalPlanes >= this.economyManager.maxPlanes) {
+                this.uiManager.showToast(window.APP_LANG.toastLimitPlanes);
+                return;
+            }
+
             const success = this.planeManager.addPlane(type);
             if (!success) {
                 this.uiManager.showToast(window.APP_LANG.toastNoRoute);
             } else {
-                const counts = this.planeManager.getPlaneCounts('player');
-                this.uiManager.updateFleetPanel(counts);
+                this.economyManager.deductFunds(cost); // ★追加: 資金減算
+                const newCounts = this.planeManager.getPlaneCounts('player');
+                this.uiManager.updateFleetPanel(newCounts);
             }
         };
 
-        // ★追加: 売却処理を実行し、成功後にUIの所持数表示を更新する
         this.uiManager.onSellPlane = (type) => {
             const success = this.planeManager.sellPlane(type);
             if (success) {
+                // ★追加: 売却時の資金払い戻し処理
+                const cost = CONFIG.ECONOMY.PLANE_COSTS[type] || 10000000;
+                const refund = cost * CONFIG.ECONOMY.PLANE_SELL_RATES;
+                this.economyManager.addFunds(refund);
+
                 const counts = this.planeManager.getPlaneCounts('player');
                 this.uiManager.updateFleetPanel(counts);
             }
@@ -223,7 +257,6 @@ export class GameManager {
         if (hnd && cts) this.networkManager.addRoute(hnd, cts);
         if (hnd && fuk) this.networkManager.addRoute(hnd, fuk);
 
-        // PlaneManager側の仕様変更に対応し、sizeTypeを渡して初期化
         this.planeManager.addPlane('small');
         this.planeManager.addPlane('small');
     }
@@ -365,6 +398,9 @@ export class GameManager {
         this.airportManager.updateMarkerScale(this.camera);
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
+        
+        // ★追加: 経済ループ（収益と客数の計算・UI更新）を毎フレーム実行
+        this.economyManager.update(delta, this.planeManager.planes);
         
         this.rivalManager.update(delta);
         

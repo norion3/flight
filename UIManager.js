@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【遊び方ガイド（ヘルプパネル）の追加実装】
- * 履歴326に基づき、左下の「i（btnHelp）」ボタンを押下した際に表示される遊び方ガイドの
- * パネル開閉イベントを実装しました。
- * パネル内のテキストは「1行表示＋改行時のインデント」を適用した美しいUIとしてHTML側に構築されており、
- * 本処理では他の処理や見た目、ゲームバランスを一切壊さないよう、単一の開閉ロジックのみを追加しています。
+ * 履歴326に基づき、左下の「i（btnHelp）」ボタンを押下した際に表示される遊び方ガイドの実装を維持しています。
+ * 【フェーズ1: 経済システムとのUI連携】
+ * EconomyManager から渡される数値を画面上部のHUD（資金、収益、客数、機体数）に
+ * リアルタイム反映させる `updateTopHUD` メソッドを追加しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -21,7 +21,7 @@ export class UIManager {
         this.connectingCard = document.getElementById('connecting-mode-card'); 
         
         this.exitCard = document.getElementById('exit-confirm-card');
-        this.helpMenu = document.getElementById('help-menu'); // ★追加: 遊び方ガイドの要素取得
+        this.helpMenu = document.getElementById('help-menu');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -125,7 +125,6 @@ export class UIManager {
             });
         }
         
-        // ★追加: 遊び方ガイド（ヘルプ）ボタンのイベント
         if (this.btnHelp) {
             this.btnHelp.addEventListener('click', () => {
                 this.soundManager.playTapSound();
@@ -137,7 +136,6 @@ export class UIManager {
             });
         }
         
-        // ★追加: 遊び方ガイドの閉じるボタンのイベント
         const btnCloseHelp = document.getElementById('btn-close-help');
         if (btnCloseHelp) {
             btnCloseHelp.addEventListener('click', () => {
@@ -172,10 +170,6 @@ export class UIManager {
                 }
             });
         }
-
-        // =========================================================
-        // コントロールセンターのイベント
-        // =========================================================
 
         if (this.btnMainMenu) {
             this.btnMainMenu.addEventListener('click', () => {
@@ -222,10 +216,6 @@ export class UIManager {
             });
         }
 
-        // =========================================================
-        // ライバル比較とグラフ情報のUIイベント
-        // =========================================================
-
         document.querySelectorAll('.rival-accordion-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -252,14 +242,10 @@ export class UIManager {
             });
         });
 
-        // =========================================================
-        // 終了確認フローとランキング連携ダミー処理
-        // =========================================================
         const btnExitGame = document.getElementById('btn-exit-game');
         if (btnExitGame) {
             btnExitGame.addEventListener('click', () => {
                 this.soundManager.playWarningSound(); 
-                
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
@@ -283,25 +269,12 @@ export class UIManager {
             btnSubmitExit.addEventListener('click', () => {
                 this.soundManager.playSuccessSound();
                 this.exitCard.classList.remove('show');
-
-                window.gameScorePayload = {
-                    timestamp: new Date().toISOString(),
-                    finalScore: 1204500,  
-                    cash: "$ 12.4M",
-                    income: "+$ 45K/s",
-                    planes: 2
-                };
-                console.log("【GRAVITY API (Mock)】スコアデータ保持完了:", window.gameScorePayload);
-                
                 setTimeout(() => {
                     window.location.reload();
                 }, 500);
             });
         }
 
-        // =========================================================
-        // 上部ステータスHUDのON/OFFトグル処理
-        // =========================================================
         let isHudOn = false;
         const btnToggleHud = document.getElementById('btn-toggle-hud');
         if (btnToggleHud) {
@@ -338,6 +311,19 @@ export class UIManager {
         if (this.btnHelp) this.btnHelp.style.transform = `scale(${scale})`;
         if (this.btnSound) this.btnSound.style.transform = `scale(${scale})`;
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
+    }
+
+    // ★追加: EconomyManagerから渡された数値をHUDに反映
+    updateTopHUD(fundsStr, incomeStr, planeCount, maxPlanes, passengersStr) {
+        const elFunds = document.getElementById('hud-funds');
+        const elIncome = document.getElementById('hud-income');
+        const elPlanes = document.getElementById('hud-planes');
+        const elPassengers = document.getElementById('hud-passengers');
+
+        if (elFunds) elFunds.innerText = fundsStr;
+        if (elIncome) elIncome.innerText = incomeStr;
+        if (elPlanes) elPlanes.innerHTML = `${planeCount} <span class="text-slate-500 text-[10px]">/ ${maxPlanes}</span>`;
+        if (elPassengers) elPassengers.innerText = passengersStr;
     }
 
     updateFleetPanel(counts) {
@@ -470,7 +456,7 @@ export class UIManager {
         this.connectingCard.classList.remove('show');
         if (this.controlCenter) this.controlCenter.classList.remove('show');
         if (this.exitCard) this.exitCard.classList.remove('show');
-        if (this.helpMenu) this.helpMenu.classList.remove('show'); // ★追加
+        if (this.helpMenu) this.helpMenu.classList.remove('show'); 
         
         this._toggleMainButtons(true);
     }
