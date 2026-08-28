@@ -1,10 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【遊び方ガイド（ヘルプパネル）の追加実装】
- * 履歴326に基づき、左下の「i（btnHelp）」ボタンを押下した際に表示される遊び方ガイドの実装を維持しています。
- * 【フェーズ1: 経済システムとのUI連携】
- * EconomyManager から渡される数値を画面上部のHUD（資金、収益、客数、機体数）に
- * リアルタイム反映させる `updateTopHUD` メソッドを追加しました。
+ * 【動的開拓コストのUI表示】
+ * 空路開拓確認モーダル（`showRouteConfirm`）にて、動的に算出された開拓費用（例: -$ 125K や -$ 1.2M）を
+ * フォーマットして綺麗にボタン内に表示するよう修正しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -313,7 +311,6 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★追加: EconomyManagerから渡された数値をHUDに反映
     updateTopHUD(fundsStr, incomeStr, planeCount, maxPlanes, passengersStr) {
         const elFunds = document.getElementById('hud-funds');
         const elIncome = document.getElementById('hud-income');
@@ -405,7 +402,7 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    showRouteConfirm(fromData, toData, isConnected) {
+    showRouteConfirm(fromData, toData, isConnected, routeCost = 50000) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
         document.getElementById('route-from').innerText = fromData.id;
@@ -415,6 +412,8 @@ export class UIManager {
         const btnAction = document.getElementById('btn-action-route');
 
         this.currentRouteAction = isConnected ? 'remove' : 'add';
+
+        const formattedCost = routeCost >= 1000000 ? `$ ${(routeCost / 1000000).toFixed(1)}M` : `$ ${Math.floor(routeCost / 1000)}K`;
 
         if (isConnected) {
             titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
@@ -436,7 +435,7 @@ export class UIManager {
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
-                    <span class="text-[11px] text-slate-300 font-mono tracking-wider">-$ 50K</span>
+                    <span class="text-[11px] text-slate-300 font-mono tracking-wider">-${formattedCost}</span>
                 </div>
             `;
             btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors";

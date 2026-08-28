@@ -1,13 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【視認性を極大化する原色カラーパレットの採用】
- * 履歴270に基づき、マゼンタと紫が同化してしまうバグを修正しました。
- * ユーザー様の指示通り、ピンク色を青みの強いマゼンタから「明るめのショッキングピンク（0xff1493）」
- * に変更し、紫（0x8a2be2）と並んでも絶対に色が混同しない最強の視認性を確保しています。
- * 【陣営カラーの統一】
- * 履歴283に基づき、プレイヤーの空路の色を機体の色（0x34d399: エメラルド）に統一し、自陣営の所有感と視認性を確立しました。
- * 【経済パラメータの追加】
- * フェーズ1設計書に基づき、ECONOMY設定（初期資金、上限、価格テーブル）を追加しました。
+ * 【フェーズ1: ダイナミック経済システムの定数定義】
+ * 距離や空港ランクに応じた動的変動を行うための経済パラメータ、機体別の価格・売却率(リセールバリュー)・維持費・需要係数を定義しています。
  */
 
 export const CONFIG = {
@@ -19,8 +13,6 @@ export const CONFIG = {
     },
     MAP_DATA_URL: 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json',
     
-    // プレイヤーおよびライバル5社の定義
-    // routeColor: 空路の色 / planeColor: 飛行機の色
     COMPANIES: [
         { id: 'player', name: 'Player Airlines', routeColor: 0x34d399, planeColor: 0x34d399 }, 
         { id: 'rival_eu', name: 'Euro Wings',    routeColor: 0x0044ff, planeColor: 0x0044ff }, 
@@ -30,12 +22,27 @@ export const CONFIG = {
         { id: 'rival_oc', name: 'Oceania Fly',   routeColor: 0x8a2be2, planeColor: 0x8a2be2 }  
     ],
 
-    // 経済システムの設定
     ECONOMY: {
         INITIAL_FUNDS: 20000000, // $ 20.0M
         MAX_PLANES_INITIAL: 5,
-        PLANE_COSTS: { small: 10000000, medium: 25000000, large: 50000000, super: 100000000 },
-        PLANE_SELL_RATES: 0.5,
-        ROUTE_COST: 50000 // $ 50K
+        
+        // 機体購入費、売却率(リセールバリュー)、維持費(毎秒)、基本需要キャップ
+        PLANES: {
+            small:  { cost: 10000000, sellRate: 0.70, upkeep: 200,   baseDemand: 30,  incomeBase: 1500 },
+            medium: { cost: 25000000, sellRate: 0.60, upkeep: 600,   baseDemand: 70,  incomeBase: 4000 },
+            large:  { cost: 50000000, sellRate: 0.45, upkeep: 1500,  baseDemand: 150, incomeBase: 10000 },
+            super:  { cost: 100000000,sellRate: 0.30, upkeep: 3500,  baseDemand: 300, incomeBase: 25000 }
+        },
+
+        // 空港ランクに応じた需要・係数
+        AIRPORT_RANKS: {
+            'major':     { multiplier: 3.0, demandCap: 500 },
+            'local':     { multiplier: 1.5, demandCap: 120 },
+            'fictional': { multiplier: 1.0, demandCap: 50  }
+        },
+
+        // 空路開拓の距離係数
+        ROUTE_BASE_COST: 20000,
+        ROUTE_DISTANCE_COST_RATE: 150000
     }
 };

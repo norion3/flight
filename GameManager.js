@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: 経済ループの結合と動的化】
- * 設計書に基づき、`EconomyManager` をインスタンス化し、メインループ(`animate`)へ接続しました。
- * 1. 機体の購入時(`onBuyPlane`)、売却時(`onSellPlane`)、空路開拓時(`onRouteActionConfirmed`)のそれぞれに、
- * `canAfford` による資金チェックと増減処理を安全に挟み込みました。
- * 2. フェーズ1における「上限5機の制限」を導入し、購入前に枠の空きをチェックする処理を追加しています。
+ * 【フェーズ1: 経済連動ロジックのハブ結合】
+ * 1. 空路開拓確認UI（`showRouteConfirm`）にて、`EconomyManager.calculateRouteCost` で算出した動的コストを表示するよう修正。
+ * 2. 開拓実行時(`onRouteActionConfirmed`)にその動的コストで所持金をチェック・減算。
+ * 3. 機体購入・売却時に Config の動的価格テーブルとリセールバリュー（小型70%、超大型30%）を適用。
  */
 
 import { CONFIG } from './Config.js';
@@ -39,9 +38,7 @@ export class GameManager {
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.uiManager = new UIManager();
         
-        // ★追加: 金庫番(EconomyManager)のインスタンス化
         this.economyManager = new EconomyManager(this.uiManager);
-        
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -64,26 +61,29 @@ export class GameManager {
                 const destData = this.selectedDestination.userData.airportData;
 
                 if (actionType === 'add') {
-                    // ★追加: 空路開拓の事前資金チェック
-                    if (!this.economyManager.canAfford(CONFIG.ECONOMY.ROUTE_COST)) {
+                    // 動的開拓費用の算出
+                    const routeCost = this.economyManager.calculateRouteCost(originData, destData);
+                    
+                    if (!this.economyManager.canAfford(routeCost)) {
                         this.uiManager.showToast(window.APP_LANG.toastNoFunds);
                         return;
                     }
                     
-                    const success = this.networkManager.addRoute(originData, destData); // デフォルトで player
+                    const success = this.networkManager.addRoute(originData, destData);
                     if (success) {
-                        this.economyManager.deductFunds(CONFIG.ECONOMY.ROUTE_COST); // ★追加: 資金の減算
+                        this.economyManager.deductFunds(routeCost);
                         this.planeManager.wakeUpPlanes();
-                        this.uiManager.showRouteConfirm(originData, destData, true);
+                        this.uiManager.showRouteConfirm(originData, destData, true, routeCost);
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
                 } else if (actionType === 'remove') {
-                    this.networkManager.removeRoute(originData, destData); // デフォルトで player
+                    this.networkManager.removeRoute(originData, destData);
                     this.planeManager.checkAndReassignPlanes();
                     
                     if (this.networkManager.canConnect(originData, destData)) {
-                        this.uiManager.showRouteConfirm(originData, destData, false);
+                        const routeCost = this.economyManager.calculateRouteCost(originData, destData);
+                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost);
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
@@ -100,15 +100,14 @@ export class GameManager {
         };
 
         this.uiManager.onBuyPlane = (type) => {
-            const cost = CONFIG.ECONOMY.PLANE_COSTS[type] || 10000000;
+            const planeConf = CONFIG.ECONOMY.PLANES[type];
+            const cost = planeConf ? planeConf.cost : 10000000;
             
-            // ★追加: 機体購入の事前資金チェック
             if (!this.economyManager.canAfford(cost)) {
                 this.uiManager.showToast(window.APP_LANG.toastNoFunds);
                 return;
             }
             
-            // ★追加: フリート上限(5機)の制御
             const counts = this.planeManager.getPlaneCounts('player');
             const totalPlanes = Object.values(counts).reduce((a, b) => a + b, 0);
             if (totalPlanes >= this.economyManager.maxPlanes) {
@@ -120,7 +119,7 @@ export class GameManager {
             if (!success) {
                 this.uiManager.showToast(window.APP_LANG.toastNoRoute);
             } else {
-                this.economyManager.deductFunds(cost); // ★追加: 資金減算
+                this.economyManager.deductFunds(cost);
                 const newCounts = this.planeManager.getPlaneCounts('player');
                 this.uiManager.updateFleetPanel(newCounts);
             }
@@ -129,9 +128,8 @@ export class GameManager {
         this.uiManager.onSellPlane = (type) => {
             const success = this.planeManager.sellPlane(type);
             if (success) {
-                // ★追加: 売却時の資金払い戻し処理
-                const cost = CONFIG.ECONOMY.PLANE_COSTS[type] || 10000000;
-                const refund = cost * CONFIG.ECONOMY.PLANE_SELL_RATES;
+                const planeConf = CONFIG.ECONOMY.PLANES[type];
+                const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 5000000;
                 this.economyManager.addFunds(refund);
 
                 const counts = this.planeManager.getPlaneCounts('player');
@@ -341,9 +339,10 @@ export class GameManager {
                 const destData = this.selectedDestination.userData.airportData;
 
                 const isConnected = this.networkManager.isConnected(originData.id, destData.id);
+                const routeCost = this.economyManager.calculateRouteCost(originData, destData);
 
                 if (isConnected) {
-                    this.uiManager.showRouteConfirm(originData, destData, true); 
+                    this.uiManager.showRouteConfirm(originData, destData, true, routeCost); 
                 } else {
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
                     const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
@@ -356,7 +355,7 @@ export class GameManager {
                         this.airportManager.clearHighlight('dest'); 
                         this.uiManager.setConnectingMode();
                     } else if (this.networkManager.canConnect(originData, destData)) {
-                        this.uiManager.showRouteConfirm(originData, destData, false); 
+                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost); 
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
@@ -399,9 +398,7 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta);
         
-        // ★追加: 経済ループ（収益と客数の計算・UI更新）を毎フレーム実行
         this.economyManager.update(delta, this.planeManager.planes);
-        
         this.rivalManager.update(delta);
         
         this.controls.update(); 

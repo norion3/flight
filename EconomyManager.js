@@ -1,11 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: 経済ループの動的化】
- * 資金の増減、毎秒の収益計算、搭乗客数のカウントを行う「金庫番」クラスです。
- * 資金がマイナスになることを防ぐアサーション（防波堤）を `deductFunds` に組み込んでいます。
+ * 【フェーズ1: ダイナミック経済システムの中核】
+ * 1. 距離と空港ランクに応じた動的な空路開拓費の算出 (`calculateRouteCost`)
+ * 2. 機体のサイズ、空港の需要キャップ、距離に応じた動的収益と維持費の計算 (`update`)
+ * 3. 資金がマイナスにならない防波堤機構 (`deductFunds`) を完備。
  */
 
 import { CONFIG } from './Config.js';
+import { Utils } from './Utils.js';
 
 export class EconomyManager {
     constructor(uiManager) {
@@ -14,10 +16,6 @@ export class EconomyManager {
         this.incomePerSecond = 0;
         this.totalPassengers = 0;
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
-
-        // 1機あたりの毎秒の収益と客数ベース（フライト中の機体から算出）
-        this.incomeRates = { small: 2000, medium: 5000, large: 12000, super: 25000 };
-        this.passengerRates = { small: 15, medium: 45, large: 120, super: 300 };
     }
 
     canAfford(amount) {
@@ -31,47 +29,79 @@ export class EconomyManager {
     deductFunds(amount) {
         if (this.funds >= amount) {
             this.funds -= amount;
-            // リファクタリング1: 資金マイナスバグの完全防止機構
             if (this.funds < 0) this.funds = 0;
             return true;
         }
         return false;
     }
 
+    // ★追加: 距離と空港ランクに基づいた動的な空路開拓費用の計算
+    calculateRouteCost(fromData, toData) {
+        const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS);
+        const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS);
+        const distance = posA.distanceTo(posB); // 3D上の大円距離
+
+        const rankA = CONFIG.ECONOMY.AIRPORT_RANKS[fromData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
+        const rankB = CONFIG.ECONOMY.AIRPORT_RANKS[toData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
+        const rankMultiplier = (rankA.multiplier + rankB.multiplier) / 2;
+
+        const cost = CONFIG.ECONOMY.ROUTE_BASE_COST + (distance * CONFIG.ECONOMY.ROUTE_DISTANCE_COST_RATE * rankMultiplier);
+        return Math.round(cost / 1000) * 1000; // 1,000単位で丸める
+    }
+
     update(delta, playerPlanes) {
-        let currentIncome = 0;
+        let grossIncome = 0;
+        let totalUpkeep = 0;
         let currentPassengers = 0;
         let totalPlanesCount = 0;
 
         playerPlanes.forEach(plane => {
             if (plane.companyId === 'player') {
                 totalPlanesCount++;
-                // 飛行中の機体のみ収益を発生させる
-                if (plane.currentRoute) {
+                if (plane.currentRoute && plane.currentRoute.data) {
                     const type = plane.sizeType || 'small';
-                    currentIncome += (this.incomeRates[type] || 0);
-                    currentPassengers += (this.passengerRates[type] || 0);
+                    const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
+                    
+                    // 維持費の加算
+                    totalUpkeep += planeConf.upkeep;
+
+                    // 目的地の空港ランクによる需要キャップ・メリハリ計算
+                    const destData = plane.currentRoute.data;
+                    const rankConf = CONFIG.ECONOMY.AIRPORT_RANKS[destData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
+                    
+                    // 需要キャップを超えると効率が頭打ちになる（小さな空港に大型機を飛ばすと赤字リスク）
+                    const effectiveDemand = Math.min(planeConf.baseDemand, rankConf.demandCap);
+                    const demandRatio = effectiveDemand / planeConf.baseDemand;
+
+                    const routeIncome = planeConf.incomeBase * rankConf.multiplier * demandRatio;
+                    const routePassengers = Math.floor(effectiveDemand * 0.5);
+
+                    grossIncome += routeIncome;
+                    currentPassengers += routePassengers;
                 }
             }
         });
 
-        this.incomePerSecond = currentIncome;
+        // ネット収益（総収入 - 維持費）
+        this.incomePerSecond = grossIncome - totalUpkeep;
         
-        // 収益と客数の加算
+        // 資金と搭乗客数の加算
         this.addFunds(this.incomePerSecond * delta);
         this.totalPassengers += currentPassengers * delta;
 
         // UIへの反映（HUD更新）
+        const incomePrefix = this.incomePerSecond >= 0 ? '+$ ' : '-$ ';
+        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(this.incomePerSecond))}/s`;
+
         this.uiManager.updateTopHUD(
             this._formatMoney(this.funds),
-            `+$ ${this._formatMoneyNumber(this.incomePerSecond)}/s`,
+            formattedIncome,
             totalPlanesCount,
             this.maxPlanes,
             this._formatNumber(Math.floor(this.totalPassengers))
         );
     }
 
-    // 文字列フォーマット用ユーティリティ
     _formatMoney(value) {
         if (value >= 1000000) return `$ ${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$ ${Math.floor(value / 1000)}K`;
