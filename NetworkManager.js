@@ -3,8 +3,9 @@
  * 【選択的純白ブレンドによる白ボケ防止と視認性向上】
  * 履歴286に基づき、すべての色に純白を混ぜるのではなく、色の「輝度（Luminance）」を計算し、
  * 輝度が0.5未満の暗い色（赤、青、紫、ピンク）にのみ白をブレンドしてネオン発光させるように修正しました。
- * これにより、元々明るい黄色やエメラルドグリーンが「白ボケ」してしまう現象を防ぎ、
- * すべての陣営の空路カラーが強烈で美しいピュアカラーとして画面上に発色するようになります。
+ * * 【フェーズ1: ネットワーク規模の算出 (Proposal 017)】
+ * 会社全体が所有している「ネットワーク総延長距離」を算出する getTotalNetworkLength メソッドを追加。
+ * 双方向のルート重複を排除して正確な距離を合算します。
  */
 
 import { CONFIG } from './Config.js';
@@ -81,7 +82,7 @@ export class NetworkManager {
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
         
-        // ★修正: 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
+        // 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
         const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
         if (luminance < 0.5) {
             neonColor.lerp(new THREE.Color(0xffffff), 0.2); // 暗い色のみ発光させる
@@ -152,5 +153,29 @@ export class NetworkManager {
         const connectedIds = Object.keys(this.network[companyId]).filter(id => this.network[companyId][id].length > 0);
         if (connectedIds.length === 0) return null;
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
+    }
+
+    // ★追加: 会社のネットワーク総延長（距離の合計）を算出するメソッド (重複カウント排除)
+    getTotalNetworkLength(companyId = 'player') {
+        let totalLength = 0;
+        const compNetwork = this.network[companyId];
+        if (!compNetwork) return 0;
+        
+        const processedRoutes = new Set();
+        
+        for (const originId in compNetwork) {
+            const routes = compNetwork[originId];
+            routes.forEach(route => {
+                // A -> B と B -> A を重複カウントしないように一意のキーを作成
+                const routeKey1 = `${originId}-${route.id}`;
+                const routeKey2 = `${route.id}-${originId}`;
+                
+                if (!processedRoutes.has(routeKey1) && !processedRoutes.has(routeKey2)) {
+                    totalLength += route.length;
+                    processedRoutes.add(routeKey1);
+                }
+            });
+        }
+        return totalLength;
     }
 }

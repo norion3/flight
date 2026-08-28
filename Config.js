@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: ダイナミック経済システムの定数定義】
- * 距離や空港ランクに応じた動的変動を行うための経済パラメータ、機体別の価格・売却率(リセールバリュー)・維持費・需要係数を定義しています。
- * 【絶対安定・ネットワークボーナス対応】
- * 超インフレを防ぎつつ長距離開拓のリターンを保証するため、平方根(Math.sqrt)カーブ計算用の係数 `DISTANCE_INCOME_RATE` を追加しました。
+ * 【フェーズ1: ダイナミック経済システムの定数定義（絶対安定化版）】
+ * Proposal 017に基づき、個別路線の「距離ボーナス」を廃止し、
+ * ネットワーク全体の総延長に応じた「平方根カーブボーナス（NETWORK_BONUS_MULTIPLIER）」へ移行しました。
+ * 長距離・大規模ネットワークによる旨味は残しつつ、200機体制でのインフレ破綻を防ぎます。
  */
 
 export const CONFIG = {
@@ -25,7 +25,7 @@ export const CONFIG = {
     ],
 
     ECONOMY: {
-        INITIAL_FUNDS: 20000000, // $ 20.0M
+        INITIAL_FUNDS: 50000000, // $ 50.0M (立ち上がりストレスフリー化)
         MAX_PLANES_INITIAL: 5,
         
         // 機体購入費、売却率(リセールバリュー)、維持費(毎秒)、基本需要キャップ
@@ -36,7 +36,7 @@ export const CONFIG = {
             super:  { cost: 100000000,sellRate: 0.30, upkeep: 3500,  baseDemand: 300, incomeBase: 25000 }
         },
 
-        // 空港ランクに応じた需要・係数
+        // 空港ランクに応じた需要・係数 (※新計算式ではルート開拓コスト等でのみ使用)
         AIRPORT_RANKS: {
             'major':     { multiplier: 3.0, demandCap: 500 },
             'local':     { multiplier: 1.5, demandCap: 120 },
@@ -47,7 +47,8 @@ export const CONFIG = {
         ROUTE_BASE_COST: 20000,
         ROUTE_DISTANCE_COST_RATE: 150000,
         
-        // ★追加: ネットワーク総延長に対する平方根カーブ用係数
-        DISTANCE_INCOME_RATE: 10.0
+        // ★修正 (Proposal 017): ルート単体の距離係数を廃止し、ネットワーク全体の規模に応じたボーナスへ変更
+        // ネットワーク総延長距離の平方根(Math.sqrt)に対して掛ける係数。インフレを緩やかに抑え込む。
+        NETWORK_BONUS_MULTIPLIER: 2.5
     }
 };

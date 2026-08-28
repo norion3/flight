@@ -1,14 +1,15 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1: ダイナミック経済システムの中核（絶対安定・ネットワークボーナス版）】
- * 1. 【絶対安定化】機体が交差点を曲がるたびにブレていた仕様を完全に廃止し、自社路線網の総延長からボーナスを算出。
- * 2. 【安全な文字列結合】CSSパーサーをフリーズさせないよう、重複路線の判定に安全な三項演算子を使用。
- * 3. 1秒キャッシュと組み合わせることで、ルートを繋いだ瞬間にだけ収益がガツンと上がり、あとは完璧に安定するUI挙動を実現。
- * 4. インフレ対応のフォーマット（B：十億）を追加。
+ * 【フェーズ1: 収益の絶対安定化とインフレ制御 (Proposal 017)】
+ * 1. 【絶対安定化】: 機体が飛んでいる「個別のルート・ランク」への依存を完全に廃止しました。
+ * 代わりに、会社全体が構築した「ネットワーク総延長」からボーナスを算出し、全機体に一律で適用します。
+ * プレイヤーがルートや機体をいじらない限り、収益は1ドルの狂いもなく完全にピタッと固定されます。
+ * 2. 【インフレ制御】: ネットワーク総延長に対するボーナスを平方根(Math.sqrt)のカーブにすることで、
+ * 長距離のロマンを残しつつも、後半の「最大200機」運用時の桁あふれを美しく防ぎます。
+ * 3. 既存の1秒ごとのバッファとLerpは「表示のスムージング（演出）」としてのみ残し、高級感を維持しています。
  */
 
 import { CONFIG } from './Config.js';
-import { Utils } from './Utils.js';
 
 export class EconomyManager {
     constructor(uiManager) {
@@ -22,8 +23,9 @@ export class EconomyManager {
         this.grossIncomeBuffer = 0;
         this.upkeepBuffer = 0;
         
+        // 確定した1秒間の平均値
         this.lastSecondIncome = 0;
-        this.isFirstSecond = true;
+        this.isFirstSecond = true; // 初回のラグ防止用
 
         this.totalPassengers = 0;
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
@@ -46,10 +48,11 @@ export class EconomyManager {
         return false;
     }
 
-    // 距離と空港ランクに基づいた動的な空路開拓費用の計算
     calculateRouteCost(fromData, toData) {
-        const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS);
-        const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS);
+        // ★注: Utils が import されていない場合はグローバル等から取得するか、距離計算を代替する等の工夫が必要ですが
+        // ここでは距離計算用に元のコードと同様に扱います
+        const posA = this._latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS);
+        const posB = this._latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS);
         const distance = posA.distanceTo(posB); 
 
         const rankA = CONFIG.ECONOMY.AIRPORT_RANKS[fromData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
@@ -60,73 +63,54 @@ export class EconomyManager {
         return Math.round(cost / 1000) * 1000; 
     }
 
+    // 内部用の簡易ユーティリティ (calculateRouteCost用)
+    _latLonToVector3(lat, lon, radius) {
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lon + 180) * (Math.PI / 180);
+        const x = -(radius * Math.sin(phi) * Math.cos(theta));
+        const z = radius * Math.sin(phi) * Math.sin(theta);
+        const y = radius * Math.cos(phi);
+        // Mathのオブジェクトとして返す（THREE.Vector3が無くても距離計算できるようにする簡易実装）
+        return {
+            x, y, z,
+            distanceTo: function(v) {
+                const dx = this.x - v.x;
+                const dy = this.y - v.y;
+                const dz = this.z - v.z;
+                return Math.sqrt(dx*dx + dy*dy + dz*dz);
+            }
+        };
+    }
+
+    // ★修正: 引数に networkManager を追加し、ルートへの依存を廃止
     update(delta, playerPlanes, networkManager) {
         let currentFrameGrossIncome = 0;
         let currentFrameUpkeep = 0;
         let currentFramePassengers = 0;
         let totalPlanesCount = 0;
 
-        // ★追加: ネットワーク全体の規模ボーナスと平均ランクの算出
-        let totalNetworkDistance = 0;
-        let totalMultiplier = 0;
-        let activeRoutesCount = 0;
+        // ★追加 (Proposal 017): ネットワーク総延長と平方根カーブによるボーナス倍率の計算
+        const totalNetworkLength = networkManager ? networkManager.getTotalNetworkLength('player') : 0;
+        const networkBonus = 1.0 + (Math.sqrt(totalNetworkLength) * CONFIG.ECONOMY.NETWORK_BONUS_MULTIPLIER);
 
-        if (networkManager && networkManager.network['player']) {
-            const playerNetwork = networkManager.network['player'];
-            const processedRoutes = new Set();
-
-            for (const originId in playerNetwork) {
-                const routes = playerNetwork[originId];
-                for (let i = 0; i < routes.length; i++) {
-                    const route = routes[i];
-                    const idA = originId;
-                    const idB = route.id;
-                    
-                    // CSSパーサーをフリーズさせない、安全で高速な文字列結合
-                    const routeKey = idA < idB ? idA + '-' + idB : idB + '-' + idA;
-                    
-                    if (!processedRoutes.has(routeKey)) {
-                        processedRoutes.add(routeKey);
-                        totalNetworkDistance += route.length;
-                        
-                        const destRankConf = CONFIG.ECONOMY.AIRPORT_RANKS[route.data.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
-                        totalMultiplier += destRankConf.multiplier;
-                        activeRoutesCount++;
-                    }
-                }
-            }
-        }
-
-        let networkBonus = 1.0;
-        let averageRankMultiplier = 1.0;
-
-        // ★追加: 路線を持っている場合のみ、平方根カーブでインフレを制御したボーナスを確定
-        if (activeRoutesCount > 0) {
-            networkBonus = 1.0 + Math.sqrt(totalNetworkDistance * (CONFIG.ECONOMY.DISTANCE_INCOME_RATE || 10.0));
-            averageRankMultiplier = totalMultiplier / activeRoutesCount;
-        }
-
-        // ★修正: 機体がどこを飛んでいても、会社が保有するネットワークの力で一律の収益を生み出す
-        for (let i = 0; i < playerPlanes.length; i++) {
-            const plane = playerPlanes[i];
+        playerPlanes.forEach(plane => {
             if (plane.companyId === 'player') {
                 totalPlanesCount++;
                 const type = plane.sizeType || 'small';
                 const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
                 
-                // 維持費は常にかかる
+                // 維持費の加算
                 currentFrameUpkeep += planeConf.upkeep;
 
-                // ネットワーク（路線網）が存在すれば収益が発生する
-                if (activeRoutesCount > 0) {
-                    const routeIncome = planeConf.incomeBase * averageRankMultiplier * networkBonus;
-                    const routePassengers = Math.floor(planeConf.baseDemand * 0.5 * averageRankMultiplier * networkBonus);
+                // ★修正 (Proposal 017): 個別のルート・目的地ランクへの依存を排除し、完全固定化
+                // 収益 = 機体の基本性能 × 会社全体のネットワーク規模ボーナス
+                const routeIncome = planeConf.incomeBase * networkBonus;
+                const routePassengers = planeConf.baseDemand * 0.5 * networkBonus;
 
-                    currentFrameGrossIncome += routeIncome;
-                    currentFramePassengers += routePassengers;
-                }
+                currentFrameGrossIncome += routeIncome;
+                currentFramePassengers += routePassengers;
             }
-        }
+        });
 
         // 1秒間のキャッシュバッファに積分して加算
         this.grossIncomeBuffer += currentFrameGrossIncome * delta;
@@ -141,6 +125,7 @@ export class EconomyManager {
         }
 
         // 1秒経過したらキャッシュを確定し、バッファをリセット
+        // (総延長が変化しない限り、毎秒全く同じ値が確定値となるため完全に安定する)
         if (this.incomeTimer >= 1.0) {
             this.lastSecondIncome = (this.grossIncomeBuffer - this.upkeepBuffer) / this.incomeTimer;
             this.grossIncomeBuffer = 0;
@@ -153,7 +138,7 @@ export class EconomyManager {
         this.addFunds(currentNetIncome * delta);
         this.totalPassengers += currentFramePassengers * delta;
 
-        // 目標値(lastSecondIncome)に向かってゆっくり追従させ、パラパラ動くのを完全に殺す
+        // UI表示用のスムージング処理（目標値が変わった瞬間だけ滑らかに動く）
         const lerpFactor = 1.0 - Math.pow(0.05, delta);
         this.displayIncome += (this.lastSecondIncome - this.displayIncome) * lerpFactor;
 
@@ -172,14 +157,12 @@ export class EconomyManager {
     }
 
     _formatMoney(value) {
-        if (value >= 1000000000) return `$ ${(value / 1000000000).toFixed(1)}B`;
         if (value >= 1000000) return `$ ${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$ ${Math.floor(value / 1000)}K`;
         return `$ ${Math.floor(value)}`;
     }
 
     _formatMoneyNumber(value) {
-        if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`;
         if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `${Math.floor(value / 1000)}K`;
         return `${Math.floor(value)}`;
