@@ -1,10 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【マスターコードへの安全な機能追加】
- * 履歴318に基づき、マスターのUIデザイン（ダークテーマ、プログレスバー付きアップグレード等）を
- * 完全維持したまま、以下の2つのイベントリスナーを安全に追加しました。
- * 1. グラフ情報のタブ切り替えアニメーション（ノイズレスチャート用）
- * 2. ライバル能力比較パネルのアコーディオン展開（1vs1フォーカス用）
+ * 【パネル非表示バグの完全修正】
+ * 履歴320に基づき、ユーザー提供のマスターコードを絶対の正解とし、
+ * メニューを開いた際に中身が真っ暗（すべて表示されない）になるバグのみをピンポイントで修正しました。
+ * * [修正箇所] 
+ * `querySelectorAll('#cc-layer-detail > div')` という指定が、パネルの親コンテナ(`flex-1`)ごと
+ * 隠してしまっていたため、`'#panel-upgrades, #panel-overview, #panel-rivals'` を
+ * 直接指定して隠す安全なロジックへ変更しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -178,7 +180,10 @@ export class UIManager {
                 this.soundManager.playTapSound();
                 const targetId = e.currentTarget.getAttribute('data-target');
                 
-                document.querySelectorAll('#cc-layer-detail > div > div').forEach(div => div.classList.add('hidden'));
+                // ★バグ修正: コンテナ(`flex-1`)全体を隠さず、対象の3つのパネルIDを直接指定して隠す安全な処理
+                document.querySelectorAll('#panel-upgrades, #panel-overview, #panel-rivals').forEach(el => {
+                    if (el) el.classList.add('hidden');
+                });
                 
                 const targetPanel = document.getElementById(targetId);
                 if (targetPanel) {
@@ -201,10 +206,9 @@ export class UIManager {
         }
 
         // =========================================================
-        // ★追加: ライバル比較とグラフ情報のUIイベント（マスターコードへの安全な統合）
+        // ライバル比較とグラフ情報のUIイベント
         // =========================================================
 
-        // ライバルアコーディオンのトグル
         document.querySelectorAll('.rival-accordion-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -220,20 +224,16 @@ export class UIManager {
             });
         });
 
-        // グラフタブのトグル
         document.querySelectorAll('.graph-tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
-                // 一旦すべてのタブを非アクティブにする
                 const tabs = e.currentTarget.parentElement.querySelectorAll('.graph-tab-btn');
                 tabs.forEach(t => {
                     t.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors";
                 });
-                // クリックされたタブをアクティブにする
                 e.currentTarget.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors";
             });
         });
-
 
         // =========================================================
         // 終了確認フローとランキング連携ダミー処理
