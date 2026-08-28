@@ -1,12 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【終了フローの人間工学とスコア送信準備】
- * 履歴310に基づき、以下のUI改修を行いました。
- * 1. メニュー（コントロールセンター）に「終了ボタン」を追加。
- * 項目が増えてもスクロールさせないよう、各ボタンのパディングとギャップを圧縮（p-3, gap-2等）しています。
- * 2. 終了ボタン押下時は直接終了せず、親指ゾーンに「終了確認パネル（exitCard）」をスライドアップさせます。
- * 3. 最終決定（btn-submit-exit）が行われた際、将来のGRAVITYランキングAPIへの連携を見据え、
- * ダミーのスコアデータ（gameScorePayload）を変数に保持し、コンソールへ出力する仕組みを実装しました。
+ * 【トーストの動的色彩変更と終了フローの完全初期化】
+ * 履歴312に基づき、以下のUI改修を行いました。
+ * 1. `showToast` メソッドを改修し、エラー時（赤色）と通常時（ダークシアン）で色を動的に変更。
+ * プレイヤーに無用なアラート感（不安）を与えない設計へと変更しました。
+ * 2. 空路マネジメントのボタンに `-$ 50K`、`+$ 25K` などの金額（コスト・リターン）を明記し、
+ * ローグライクな経営ジレンマをUI上に可視化しました。
+ * 3. 終了ボタン（btn-submit-exit）押下時は、無用なトースト表示を削除し、
+ * スコアデータを保持した直後に `window.location.reload()` を発動させて画面を完全に初期化します。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -22,7 +23,6 @@ export class UIManager {
         this.toast = document.getElementById('toast-notification');
         this.connectingCard = document.getElementById('connecting-mode-card'); 
         
-        // ★追加: 終了確認パネル
         this.exitCard = document.getElementById('exit-confirm-card');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
@@ -204,15 +204,13 @@ export class UIManager {
         }
 
         // =========================================================
-        // ★追加: 終了確認フローとランキング連携ダミー処理
+        // 終了確認フローとランキング連携ダミー処理
         // =========================================================
         const btnExitGame = document.getElementById('btn-exit-game');
         if (btnExitGame) {
             btnExitGame.addEventListener('click', () => {
-                // 危険な操作なので警告音で注意を促す
-                this.soundManager.playWarningSound();
+                this.soundManager.playWarningSound(); // 注意を促す警告音
                 
-                // メニューを閉じて、終了確認パネル（ボトムシート）を開く
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
@@ -222,7 +220,6 @@ export class UIManager {
             });
         }
 
-        // キャンセルして再開
         const btnCancelExit = document.getElementById('btn-cancel-exit');
         if (btnCancelExit) {
             btnCancelExit.addEventListener('click', () => {
@@ -232,28 +229,27 @@ export class UIManager {
             });
         }
 
-        // 終了してスコアを送信（保持）
+        // ★修正: トースト表示を消し、データを保持して完全にリロード（初期化）する
         const btnSubmitExit = document.getElementById('btn-submit-exit');
         if (btnSubmitExit) {
             btnSubmitExit.addEventListener('click', () => {
                 this.soundManager.playSuccessSound();
                 this.exitCard.classList.remove('show');
-                this._toggleMainButtons(true);
 
-                // 将来GRAVITYのAPIへ送るためのペイロード（JSONオブジェクト）を作成して保持
+                // 将来GRAVITYのAPIへ送るためのペイロードを作成して保持
                 window.gameScorePayload = {
                     timestamp: new Date().toISOString(),
-                    finalScore: 1204500,  // 搭乗客数をスコアとして送信
+                    finalScore: 1204500,  
                     cash: "$ 12.4M",
                     income: "+$ 45K/s",
                     planes: 2
                 };
-                
-                // コンソールへ出力（連携準備完了）
                 console.log("【GRAVITY API (Mock)】スコアデータ保持完了:", window.gameScorePayload);
                 
-                // トーストで送信完了を通知
-                this.showToast("スコアを送信しました！");
+                // 少し待ってから画面をリロードし、クリーンな起動初期状態へ戻す
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
             });
         }
 
@@ -315,10 +311,22 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
-    showToast(message) {
-        // スコア送信のトーストは成功音、それ以外は警告音などと分けることも可能だが、
-        // 今回は汎用的にそのまま残す。基本はエラー系で呼ばれる想定。
+    // ★修正: 引数 `type` により、エラー時(赤)と通常時(シアン)で色と音を動的に切り替える
+    showToast(message, type = 'error') {
+        const baseClasses = "fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50";
+        
+        if (type === 'error') {
+            this.soundManager.playWarningSound();
+            this.toast.className = `${baseClasses} bg-rose-600/90 text-white shadow-rose-900/50`;
+        } else {
+            this.soundManager.playEventSound();
+            // 通常のお知らせ用デザイン (ダークグレー背景にシアン文字)
+            this.toast.className = `${baseClasses} bg-slate-800/95 text-cyan-400 border border-slate-700 shadow-slate-900/50`;
+        }
+        
         this.toast.innerText = message;
+        // ブラウザの再描画を強制してアニメーションを確実にする
+        void this.toast.offsetWidth;
         this.toast.classList.add('toast-show');
         
         if (this.toastTimeout) clearTimeout(this.toastTimeout);
@@ -368,6 +376,7 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
+    // ★修正: 開拓/廃止ボタンにダミーの金額を追加し、経済的ジレンマを表現
     showRouteConfirm(fromData, toData, isConnected) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
@@ -383,14 +392,28 @@ export class UIManager {
             titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
             titleEl.className = "text-xs text-red-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
-            btnAction.innerText = window.APP_LANG.btnRemoveRoute || "廃止する";
-            btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50";
+            
+            // 廃止時は払い戻しがあることを視覚化
+            btnAction.innerHTML = `
+                <div class="flex items-center justify-center gap-3">
+                    <span>${window.APP_LANG.btnRemoveRoute || "廃止する"}</span>
+                    <span class="text-[11px] text-emerald-300 font-mono tracking-wider">+$ 25K</span>
+                </div>
+            `;
+            btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50 transition-colors";
         } else {
             titleEl.innerText = window.APP_LANG.routeOpenTitle || "空路開拓";
             titleEl.className = "text-xs text-yellow-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute show";
-            btnAction.innerText = window.APP_LANG.btnOpenRoute || "開拓する";
-            btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50";
+            
+            // 開拓時はコストがかかることを視覚化
+            btnAction.innerHTML = `
+                <div class="flex items-center justify-center gap-3">
+                    <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
+                    <span class="text-[11px] text-slate-300 font-mono tracking-wider">-$ 50K</span>
+                </div>
+            `;
+            btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors";
         }
 
         this._toggleMainButtons(false);
@@ -406,7 +429,6 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         if (this.controlCenter) this.controlCenter.classList.remove('show');
-        // ★追加: 終了確認パネルも確実に閉じる
         if (this.exitCard) this.exitCard.classList.remove('show');
         
         this._toggleMainButtons(true);

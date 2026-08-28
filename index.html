@@ -134,7 +134,8 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <div id="toast-notification" class="fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 bg-red-600/90 text-white text-sm font-bold rounded-full shadow-lg shadow-red-900/50 opacity-0 pointer-events-none transition-all duration-300 z-50">
+    <!-- ★修正: ハードコーディングされていた bg-red-600 等を外し、JS側で色を動的付与するためのベースクラスに変更 -->
+    <div id="toast-notification" class="fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50">
         Message
     </div>
 
@@ -179,7 +180,6 @@
             </div>
         </div>
 
-        <!-- ★追加: 終了確認パネル（親指ゾーンに配置） -->
         <div id="exit-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-rose-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-rose-900/20 absolute">
             <h3 class="text-sm font-bold tracking-wider mb-2 text-rose-400 text-center">ゲーム終了の確認</h3>
             <p class="text-xs text-slate-300 text-center mb-4">現在のスコア（搭乗客数）を記録し、ゲームを終了しますか？</p>
@@ -348,7 +348,6 @@
             </div>
         </div>
 
-        <!-- ★修正: 高さを h-[420px] から h-[400px] に抑え、項目が増えてもスクロールさせない設計 -->
         <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[400px]">
             
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
@@ -359,7 +358,6 @@
 
             <div class="relative w-full h-full overflow-hidden flex-1">
                 
-                <!-- ★修正: p-4 -> p-3, gap-3 -> gap-2 へ圧縮し、全項目をスクロール無しで収める -->
                 <div id="cc-layer-main" class="absolute inset-0 w-full h-full transition-transform duration-300 flex flex-col p-3 gap-2 overflow-y-auto translate-x-0">
                     
                     <div class="flex items-center justify-between bg-slate-800/80 rounded-xl p-3 border border-slate-700/50">
@@ -399,7 +397,6 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
 
-                    <!-- ★追加: 終了ボタン。雰囲気を壊さない上品なローズ色で危険な操作を明示 -->
                     <div class="mt-1"></div>
                     <button id="btn-exit-game" class="flex items-center justify-between bg-slate-800/80 rounded-xl p-3 border border-slate-700/50 active:bg-slate-700 transition-colors">
                         <div class="flex items-center gap-3">
