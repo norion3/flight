@@ -1,13 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【トーストの動的色彩変更と終了フローの完全初期化】
- * 履歴312に基づき、以下のUI改修を行いました。
- * 1. `showToast` メソッドを改修し、エラー時（赤色）と通常時（ダークシアン）で色を動的に変更。
- * プレイヤーに無用なアラート感（不安）を与えない設計へと変更しました。
- * 2. 空路マネジメントのボタンに `-$ 50K`、`+$ 25K` などの金額（コスト・リターン）を明記し、
- * ローグライクな経営ジレンマをUI上に可視化しました。
- * 3. 終了ボタン（btn-submit-exit）押下時は、無用なトースト表示を削除し、
- * スコアデータを保持した直後に `window.location.reload()` を発動させて画面を完全に初期化します。
+ * 【マスターコードへの安全な機能追加】
+ * 履歴318に基づき、マスターのUIデザイン（ダークテーマ、プログレスバー付きアップグレード等）を
+ * 完全維持したまま、以下の2つのイベントリスナーを安全に追加しました。
+ * 1. グラフ情報のタブ切り替えアニメーション（ノイズレスチャート用）
+ * 2. ライバル能力比較パネルのアコーディオン展開（1vs1フォーカス用）
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -204,12 +201,47 @@ export class UIManager {
         }
 
         // =========================================================
+        // ★追加: ライバル比較とグラフ情報のUIイベント（マスターコードへの安全な統合）
+        // =========================================================
+
+        // ライバルアコーディオンのトグル
+        document.querySelectorAll('.rival-accordion-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.soundManager.playTapSound();
+                const content = e.currentTarget.nextElementSibling;
+                const icon = e.currentTarget.querySelector('.accordion-icon');
+                if (content.classList.contains('hidden')) {
+                    content.classList.remove('hidden');
+                    icon.classList.add('rotate-180');
+                } else {
+                    content.classList.add('hidden');
+                    icon.classList.remove('rotate-180');
+                }
+            });
+        });
+
+        // グラフタブのトグル
+        document.querySelectorAll('.graph-tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.soundManager.playTapSound();
+                // 一旦すべてのタブを非アクティブにする
+                const tabs = e.currentTarget.parentElement.querySelectorAll('.graph-tab-btn');
+                tabs.forEach(t => {
+                    t.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors";
+                });
+                // クリックされたタブをアクティブにする
+                e.currentTarget.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors";
+            });
+        });
+
+
+        // =========================================================
         // 終了確認フローとランキング連携ダミー処理
         // =========================================================
         const btnExitGame = document.getElementById('btn-exit-game');
         if (btnExitGame) {
             btnExitGame.addEventListener('click', () => {
-                this.soundManager.playWarningSound(); // 注意を促す警告音
+                this.soundManager.playWarningSound(); 
                 
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
@@ -229,14 +261,12 @@ export class UIManager {
             });
         }
 
-        // ★修正: トースト表示を消し、データを保持して完全にリロード（初期化）する
         const btnSubmitExit = document.getElementById('btn-submit-exit');
         if (btnSubmitExit) {
             btnSubmitExit.addEventListener('click', () => {
                 this.soundManager.playSuccessSound();
                 this.exitCard.classList.remove('show');
 
-                // 将来GRAVITYのAPIへ送るためのペイロードを作成して保持
                 window.gameScorePayload = {
                     timestamp: new Date().toISOString(),
                     finalScore: 1204500,  
@@ -246,7 +276,6 @@ export class UIManager {
                 };
                 console.log("【GRAVITY API (Mock)】スコアデータ保持完了:", window.gameScorePayload);
                 
-                // 少し待ってから画面をリロードし、クリーンな起動初期状態へ戻す
                 setTimeout(() => {
                     window.location.reload();
                 }, 500);
@@ -311,7 +340,6 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
-    // ★修正: 引数 `type` により、エラー時(赤)と通常時(シアン)で色と音を動的に切り替える
     showToast(message, type = 'error') {
         const baseClasses = "fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50";
         
@@ -320,12 +348,10 @@ export class UIManager {
             this.toast.className = `${baseClasses} bg-rose-600/90 text-white shadow-rose-900/50`;
         } else {
             this.soundManager.playEventSound();
-            // 通常のお知らせ用デザイン (ダークグレー背景にシアン文字)
             this.toast.className = `${baseClasses} bg-slate-800/95 text-cyan-400 border border-slate-700 shadow-slate-900/50`;
         }
         
         this.toast.innerText = message;
-        // ブラウザの再描画を強制してアニメーションを確実にする
         void this.toast.offsetWidth;
         this.toast.classList.add('toast-show');
         
@@ -376,7 +402,6 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    // ★修正: 開拓/廃止ボタンにダミーの金額を追加し、経済的ジレンマを表現
     showRouteConfirm(fromData, toData, isConnected) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
@@ -393,7 +418,6 @@ export class UIManager {
             titleEl.className = "text-xs text-red-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
             
-            // 廃止時は払い戻しがあることを視覚化
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnRemoveRoute || "廃止する"}</span>
@@ -406,7 +430,6 @@ export class UIManager {
             titleEl.className = "text-xs text-yellow-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute show";
             
-            // 開拓時はコストがかかることを視覚化
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
