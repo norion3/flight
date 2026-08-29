@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【機体管理（売却）機能と安全な解体処理の追加】
- * 履歴290に基づき、フリート（機体）の所持数を管理し、増減させる機能を追加しました。
- * 1. 機体生成時(`addPlane`)に `sizeType` を記憶させ、`getPlaneCounts` でリアルタイムな所持数をカウントします。
- * 2. 売却時(`sellPlane`)には、見えなくするだけでなく必ず `planeGroup.remove` を行い、
- * Three.jsの `geometry.dispose()` と `material.dispose()` を実行してメモリリーク（処理落ち）を完全に防いでいます。
+ * 【Phase 2.4: 投資効果（速度アップ）の適用】
+ * GameManager から update() の第2引数として `speedMultiplier` (速度倍率) を受け取るように修正。
+ * アップグレード（フライト速度強化）によるボーナスが、実際の機体の移動速度に反映されるようになりました。
+ * メモリリーク防止や売却処理などの既存機能はすべて保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -118,7 +117,6 @@ export class PlaneManager {
         return routes[routes.length - 1];
     }
 
-    // ★追加: プレイヤーが所有する機体をサイズごとにカウントして返す
     getPlaneCounts(companyId = 'player') {
         const counts = { small: 0, medium: 0, large: 0, super: 0 };
         this.planes.forEach(plane => {
@@ -129,20 +127,15 @@ export class PlaneManager {
         return counts;
     }
 
-    // ★追加: 指定したサイズの機体を1機だけ安全に売却（解体）する
     sellPlane(sizeType, companyId = 'player') {
-        // 配列の後ろから検索することで、直近生成されたものなどを消しやすくする
         for (let i = this.planes.length - 1; i >= 0; i--) {
             const plane = this.planes[i];
             if (plane.companyId === companyId && plane.sizeType === sizeType) {
                 
-                // 1. 3D空間(Group)から取り除く
                 this.planeGroup.remove(plane.mesh);
                 
-                // 2. メモリリークを防ぐため、Geometry と Material を完全に破棄(Dispose)する
                 if (plane.mesh.geometry) plane.mesh.geometry.dispose();
                 if (plane.mesh.material) {
-                    // 機体は複数マテリアル（配列）を使用しているため、ループして破棄
                     if (Array.isArray(plane.mesh.material)) {
                         plane.mesh.material.forEach(m => m.dispose());
                     } else {
@@ -150,13 +143,12 @@ export class PlaneManager {
                     }
                 }
                 
-                // 3. 管理配列から削除
                 this.planes.splice(i, 1);
                 
-                return true; // 売却成功
+                return true; 
             }
         }
-        return false; // 売却する機体が無かった
+        return false; 
     }
 
     addPlane(sizeType, companyId = 'player') {
@@ -208,7 +200,7 @@ export class PlaneManager {
             originalScale: scale,
             companyId: companyId,
             altitudeOffset: altitudeOffset,
-            sizeType: sizeType // ★追加: 売却やカウントの識別に使うためサイズを記憶する
+            sizeType: sizeType 
         });
 
         return true;
@@ -310,7 +302,8 @@ export class PlaneManager {
         });
     }
 
-    update(delta) {
+    // ★修正: 引数に speedMultiplier (初期値1.0) を追加
+    update(delta, speedMultiplier = 1.0) {
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
             
@@ -319,7 +312,11 @@ export class PlaneManager {
             const curve = plane.currentRoute.curve;
             const length = plane.currentRoute.length;
             
-            const speedFactor = plane.baseSpeed / length;
+            // ★修正: 基本速度に GameManager から渡された speedMultiplier を掛ける
+            // (プレイヤー以外のAIライバルには引数が渡されないため 1.0 のままとなる)
+            const currentSpeed = plane.companyId === 'player' ? plane.baseSpeed * speedMultiplier : plane.baseSpeed;
+            
+            const speedFactor = currentSpeed / length;
             plane.progress += speedFactor * delta;
 
             if (plane.progress >= 1.0) {
