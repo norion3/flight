@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ2.4: 投資効果（収益アップ）の適用】
- * GameManager から update() の第4引数として `upgradeManager` を受け取るように修正し、
- * アップグレードされた `incomeRate` (収益倍率) を実際の収益計算に適用しました。
- * ※錬金術防止や処理落ち防止のロジックはそのまま完全に維持しています。
+ * 【フェーズ2.5: 投資効果の確実な反映とUIリアルタイム更新】
+ * 1. 顧客満足度(satisfaction)が、単なる客数アップだけでなく、確実な収益倍率（ブランド力）としても
+ * 計算式（upgradeIncomeRate）に加算されるようバランス調整を行いました。
+ * 2. 毎フレームの update() 内から UIManager.checkUpgradeButtons() を呼び出すことで、
+ * パネルを開いたまま資金が貯まった瞬間にボタンが緑色に点灯する（UX向上）ようにしました。
  */
 
 import { CONFIG } from './Config.js';
@@ -25,6 +26,9 @@ export class EconomyManager {
 
         this.totalPassengers = 0;
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
+        
+        // パネルを開きっぱなしの時のリアルタイム更新用インターバル
+        this.uiUpdateTimer = 0;
     }
 
     canAfford(amount) {
@@ -57,7 +61,6 @@ export class EconomyManager {
         return Math.round(cost / 1000) * 1000; 
     }
 
-    // ★修正: 第4引数に upgradeManager を追加
     update(delta, playerPlanes, networkManager, upgradeManager) {
         let currentFrameGrossIncome = 0;
         let currentFrameUpkeep = 0;
@@ -67,14 +70,18 @@ export class EconomyManager {
         const totalNetworkLength = networkManager ? networkManager.playerTotalNetworkLength : 0;
         const networkBonus = 1.0 + (Math.sqrt(totalNetworkLength) * CONFIG.ECONOMY.NETWORK_BONUS_MULTIPLIER);
 
-        // ★追加: UpgradeManager から現在のボーナスを取得
         let upgradeIncomeRate = 1.0;
-        let upgradePassengerRate = 1.0; // 今後の拡張用
+        let upgradePassengerRate = 1.0; 
+        
         if (upgradeManager) {
             const bonuses = upgradeManager.getBonuses();
             upgradeIncomeRate = bonuses.incomeRate;
-            // 満足度に応じて客数も微増させる仕様にする場合など
-            upgradePassengerRate = 1.0 + (bonuses.satisfaction / 500); 
+            
+            // ★変更: 顧客満足度を「確実な収益（ブランド力）」と「客数」のダブルボーナスにする
+            // 満足度100あたり収益+20%、客数+50%のバフがかかる
+            const satisfactionBonus = bonuses.satisfaction / 100;
+            upgradeIncomeRate += (satisfactionBonus * 0.20); 
+            upgradePassengerRate = 1.0 + (satisfactionBonus * 0.50); 
         }
 
         playerPlanes.forEach(plane => {
@@ -86,7 +93,6 @@ export class EconomyManager {
                 currentFrameUpkeep += planeConf.upkeep;
 
                 if (plane.currentRoute) {
-                    // ★修正: upgradeIncomeRate（アップグレードによる収益倍率）を掛け算する
                     const routeIncome = planeConf.incomeBase * networkBonus * upgradeIncomeRate;
                     const routePassengers = planeConf.baseDemand * 0.5 * networkBonus * upgradePassengerRate;
 
@@ -99,6 +105,7 @@ export class EconomyManager {
         this.grossIncomeBuffer += currentFrameGrossIncome * delta;
         this.upkeepBuffer += currentFrameUpkeep * delta;
         this.incomeTimer += delta;
+        this.uiUpdateTimer += delta;
 
         const currentNetIncome = currentFrameGrossIncome - currentFrameUpkeep;
 
@@ -112,6 +119,14 @@ export class EconomyManager {
             this.upkeepBuffer = 0;
             this.incomeTimer = 0;
             this.isFirstSecond = false;
+        }
+
+        // ★追加: 0.5秒に1回、UIManagerのボタン状態をリアルタイムにチェック（パネルが開いている時だけ）
+        if (this.uiUpdateTimer >= 0.5) {
+            if (upgradeManager && this.uiManager.isUpgradePanelOpen()) {
+                this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
+            }
+            this.uiUpdateTimer = 0;
         }
 
         this.addFunds(currentNetIncome * delta);

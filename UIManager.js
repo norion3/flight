@@ -1,15 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.4: 投資UIの動的化と連動】に加え、機体価格のハードコーディングを解消しました。
- * 1. Data_Upgrades.js と UpgradeManager の情報をもとに、投資パネル内の HTML を動的に生成します。
- * 2. プレイヤーの所持金やレベルに応じて、ボタンの表示（グレーアウト等）を制御します。
- * 3. ボタンが押された際、GameManager へイベントを発火させます。
- * 4. 【追加】 `_initFleetPrices()` にて、Config の機体価格データを読み込み、購入・売却ボタンの金額表示を動的に更新します。
+ * 【Phase 2.5: 投資UIのリアルタイム更新機能の追加】
+ * パネルを開いたままお金が貯まった際、ボタンが自動的に「押せる状態」に変わるよう、
+ * `isUpgradePanelOpen()` と `checkUpgradeButtons()` メソッドを追加しました。
  */
 
 import { SoundManager } from './SoundManager.js';
 import { UPGRADE_DATA } from './Data_Upgrades.js';
-import { CONFIG } from './Config.js'; // ★追加: 機体価格の動的読み込みのため
+import { CONFIG } from './Config.js'; 
 
 export class UIManager {
     constructor() {
@@ -52,12 +50,14 @@ export class UIManager {
         this.onUpgradeRequested = null;
         
         this.currentRouteAction = null; 
+        
+        // パネル開閉状態のフラグ
+        this._isUpgradesOpen = false;
 
-        this._initFleetPrices(); // ★追加: 初期化時に機体価格をバインド
+        this._initFleetPrices(); 
         this._bindEvents();
     }
 
-    // ★追加: 機体の購入・売却価格をConfigから動的に表示する
     _initFleetPrices() {
         ['small', 'medium', 'large', 'super'].forEach(type => {
             const planeConf = CONFIG.ECONOMY.PLANES[type];
@@ -210,6 +210,7 @@ export class UIManager {
         document.getElementById('btn-close-cc').addEventListener('click', () => {
             this.soundManager.playTapSound();
             this.controlCenter.classList.remove('show');
+            this._isUpgradesOpen = false; // パネルを閉じた
             this._toggleMainButtons(true);
             setTimeout(() => this._resetControlCenterView(), 300);
         });
@@ -231,6 +232,9 @@ export class UIManager {
                     
                     this.ccLayerMain.style.transform = 'translateX(-100%)';
                     this.ccLayerDetail.style.transform = 'translateX(0)';
+                    
+                    // 投資パネルが開かれたフラグ
+                    this._isUpgradesOpen = (targetId === 'panel-upgrades');
                 }
             });
         });
@@ -240,6 +244,7 @@ export class UIManager {
             btnSideBack.addEventListener('click', () => {
                 this.soundManager.playTapSound();
                 this._resetControlCenterView();
+                this._isUpgradesOpen = false; // 一覧へ戻った
             });
         }
 
@@ -486,7 +491,41 @@ export class UIManager {
         if (this.exitCard) this.exitCard.classList.remove('show');
         if (this.helpMenu) this.helpMenu.classList.remove('show'); 
         
+        this._isUpgradesOpen = false;
         this._toggleMainButtons(true);
+    }
+
+    // ★追加: パネルが開いているかどうかを外部(Economy)に教える
+    isUpgradePanelOpen() {
+        return this._isUpgradesOpen;
+    }
+
+    // ★追加: 資金の変動に合わせて、ボタンの状態（色とdisabled）だけを更新する軽量メソッド
+    checkUpgradeButtons(upgradeManager, currentFunds) {
+        const panel = document.getElementById('panel-upgrades');
+        if (!panel) return;
+
+        const buttons = panel.querySelectorAll('.upgrade-action-btn');
+        buttons.forEach(btn => {
+            const upgradeId = btn.getAttribute('data-id');
+            const nextCost = upgradeManager.getNextCost(upgradeId);
+            
+            // MAXの場合は無視（すでに disabled で「MAX」と表示されている）
+            if (nextCost === null) return;
+
+            const canAfford = currentFunds >= nextCost;
+            
+            if (canAfford !== !btn.disabled) {
+                // 状態が変化した時だけクラスを書き換える
+                if (canAfford) {
+                    btn.disabled = false;
+                    btn.className = `upgrade-action-btn bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
+                } else {
+                    btn.disabled = true;
+                    btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
+                }
+            }
+        });
     }
 
     updateUpgradePanel(upgradeManager, currentFunds) {
@@ -536,7 +575,7 @@ export class UIManager {
                     else if (nextData.speedMultiplier !== undefined) effectText = `フライト時間 -${Math.round((nextData.speedMultiplier - 1) * 100)}%`;
                     else if (nextData.bonusIncomeRate !== undefined) effectText = `1フライトの収益 +${Math.round(nextData.bonusIncomeRate * 100)}%`;
                     else if (nextData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${nextData.bonusSatisfaction}`;
-                    else if (nextData.turnaroundReduction !== undefined) effectText = `折り返し時間 -${Math.round(nextData.turnaroundReduction * 100)}%`;
+                    // 不要になった turnaroundReduction の分岐は削除しました
                     
                     if (key === 'fleet_capacity') effectColor = 'text-amber-400';
                     else if (cat.id === 'staff') effectColor = 'text-blue-400';
