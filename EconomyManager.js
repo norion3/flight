@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.2: 収益計算へのシェア反映とバグ修正】
- * 1. 致命的バグ修正: planes 配列を処理する際、自社('player')の機体のみを対象とするフィルターを追加。
- * 2. 各機体が向かっている空港の「シェア率」を competitionManager から取得し、収益に掛け合わせる処理を実装。
+ * 【フェーズ3.2: 収益計算へのシェア反映と赤字回避保証】
+ * 1. 致命的バグ修正: planes 配列を処理する際、自社('player')の機体のみを対象とするフィルターを維持。
+ * 2. 激戦区でのシェア低下による「理不尽な赤字化」を防ぐため、シェア効果の最低保証(50%)を設定。
+ * 3. 万が一シェア減衰で収益が落ち込んでも、絶対に「機体維持費(upkeep)」を下回らないセーフティネットを追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -56,7 +57,7 @@ export class EconomyManager {
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
 
-        // ★バグ修正: プレイヤーの機体のみを抽出して渡す
+        // プレイヤーの機体のみを抽出して渡す
         const playerPlanes = planes.filter(p => p.companyId === 'player');
 
         const { income, passengers } = this._calculateCurrentIncome(playerPlanes, networkManager, upgradeManager, competitionManager);
@@ -88,7 +89,7 @@ export class EconomyManager {
             this.incomeTimer = 0;
         }
 
-        const totalPlanesCount = playerPlanes.length; // ★修正: HUDやUIに渡す数もプレイヤー機のみに
+        const totalPlanesCount = playerPlanes.length; 
 
         if (this.uiUpdateTimer >= 0.5) {
             this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
@@ -115,7 +116,7 @@ export class EconomyManager {
         this.uiManager.updateTopHUD(
             this._formatMoney(this.funds),
             formattedIncome,
-            totalPlanesCount, // ★修正: プレイヤー機のみの数を渡す
+            totalPlanesCount, 
             this.maxPlanes,
             this._formatNumber(Math.floor(this.totalPassengers))
         );
@@ -140,15 +141,22 @@ export class EconomyManager {
                 targetAirportId = plane.currentAirportId;
             }
 
-            // ★ Phase 3.2: CompetitionManagerからシェア率を取得
             let share = 1.0;
             if (targetAirportId && competitionManager) {
                 share = competitionManager.getShare(targetAirportId, 'player');
             }
 
-            // ★ Phase 3.2: 需要と基本収益にシェアを掛ける（競合していると稼げなくなる）
-            let demand = (planeConf.baseDemand * brandPower) * share;
-            let incomeBase = (planeConf.incomeBase * upgradeIncomeRate) * share;
+            // ★修正: 最低でも本来の50%のシェア（集客力）は確保するセーフティネット
+            const effectiveShare = Math.max(0.5, share);
+
+            let demand = (planeConf.baseDemand * brandPower) * effectiveShare;
+            let incomeBase = (planeConf.incomeBase * upgradeIncomeRate) * effectiveShare;
+
+            // ★修正: どんなにシェアを奪われても、機体の「維持費(upkeep) + 10%」の利益は絶対に出るように赤字回避
+            const minIncome = planeConf.upkeep * 1.1;
+            if (incomeBase < minIncome) {
+                incomeBase = minIncome;
+            }
 
             totalPassengers += demand;
             totalIncome += incomeBase;
