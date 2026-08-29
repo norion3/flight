@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.2: 収益計算へのシェア反映の統合】
+ * 【フェーズ3.1: CompetitionManagerの統合とUI描画トリガーの修正】
  * 1. ユーザー提供の完全なベースコードを維持し、タイポを完全に排除（THREE.OrbitControlsを維持）。
- * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを計算 (Phase 3.1 完了部分)。
- * 3. 投資パネル（cc-link-btn）のUI初期描画トリガーを維持。
- * 4. ★Phase 3.2 追加: economyManager.update() の第5引数に competitionManager を渡し、収益にシェアを反映。
+ * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを計算。
+ * 3. 投資パネル（cc-link-btn）を開いた際に `updateUpgradePanel` を呼び出してUIを初期描画する処理を確実に追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -17,6 +16,7 @@ import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
+// ★Phase 3.1 追加: インポート
 import { CompetitionManager } from './CompetitionManager.js';
 import { Utils } from './Utils.js';
 
@@ -45,6 +45,7 @@ export class GameManager {
         this.upgradeManager = new UpgradeManager();
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
 
+        // ★Phase 3.1 追加: 初期化
         this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -157,6 +158,7 @@ export class GameManager {
             }
         };
 
+        // ★修正: 投資パネルが開かれた際の中身（HTML）の初期描画トリガー
         document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
@@ -425,10 +427,10 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
+        // ★Phase 3.1 追加: 毎フレーム、全空港のシェアを再計算する
         this.competitionManager.update(delta);
         
-        // ★ Phase 3.2 追加: economyManager に competitionManager を渡し、シェアを収益に反映させる
-        this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
+        this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager);
         this.rivalManager.update(delta);
         
         this.controls.update(); 
