@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ2.4: 投資UIの動的化と連動 (GameManager)】
- * 1. UpgradeManager と UIManager を接続し、コントロールセンターの「投資・アップグレード」パネルを動的生成。
- * 2. プレイヤーからのアップグレード要求 (onUpgradeRequested) を受け取り、資金消費とレベルアップを実行。
- * 3. アニメーションループ内にて、拡張された「機体上限」と「ボーナス」を各マネージャーへリアルタイムに供給。
- * ※修正: アップグレード成功時のサウンド呼び出しエラー(playCashSound)を playSuccessSound に修正しました。
+ * 【フェーズ3.1: CompetitionManagerの統合】
+ * 1. 新規作成した CompetitionManager をインポートし、インスタンス化。
+ * 2. アニメーションループ (update) 内に組み込み、裏側でのシェア計算を開始。
+ * ※まだ UI や 収益への影響（バグの元）は組み込んでいません。純粋なロジック連携のみ。
  */
 
 import { CONFIG } from './Config.js';
@@ -17,6 +16,8 @@ import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
+// ★ Phase 3.1: CompetitionManagerの追加
+import { CompetitionManager } from './CompetitionManager.js';
 import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
@@ -43,6 +44,9 @@ export class GameManager {
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
+        
+        // ★ Phase 3.1: CompetitionManager の初期化
+        this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
@@ -142,33 +146,17 @@ export class GameManager {
 
         this.uiManager.onZoomIn = () => this.zoomCamera(-4.0);
         this.uiManager.onZoomOut = () => this.zoomCamera(4.0);
-
-        // ============================================================================
-        // ★Phase 2.4: 投資・アップグレードUIとの連動処理
-        // ============================================================================
         
-        // パネル内のアップグレードボタンが押された時の処理
         this.uiManager.onUpgradeRequested = (upgradeId) => {
             const success = this.upgradeManager.upgrade(upgradeId, this.economyManager);
             if (success) {
-                // ★修正: 存在しない playCashSound() ではなく、playSuccessSound() を呼び出す
                 this.uiManager.soundManager.playSuccessSound();
-                
-                // 成功したら、資金が減った状態の最新パネルを即座に再描画する
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
             } else {
                 this.uiManager.soundManager.playErrorSound();
                 this.uiManager.showToast(window.APP_LANG.toastNoFunds, "error");
             }
         };
-
-        // コントロールセンターの「投資・アップグレード」タブが開かれた時にパネルを初期描画
-        document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
-            });
-        });
-
 
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
@@ -432,6 +420,9 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
         
+        // ★ Phase 3.1: 毎フレーム、全空港のシェアを再計算する
+        this.competitionManager.update(delta);
+
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager);
         this.rivalManager.update(delta);
         
