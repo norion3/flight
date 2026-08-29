@@ -1,13 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1.5: 経済ロジックの完成 (Proposal 022)】
- * 1. 【錬金術の防止】: 待機中（路線なし）の機体は、維持費はかかるものの、
- * 収益と客数を生まないように正確なタイクーンロジック(`plane.currentRoute` 判定)を実装。
- * 2. 【処理落ち防止】: `NetworkManager` のキャッシュされた総延長距離を参照することで、
- * 毎フレームの負荷をゼロに。
- * 3. 【1ドルのチカチカ現象解消】: スムージング（Lerp）の目標値との差額が0.5未満になった際、
- * スナップさせてUIの数字をピタッと完全に停止させる処理を追加。
- * 4. 【Utils のインポート保証】: 不要な内部計算メソッドを削除し、クリーンアップ。
+ * 【フェーズ2.4: 投資効果（収益アップ）の適用】
+ * GameManager から update() の第4引数として `upgradeManager` を受け取るように修正し、
+ * アップグレードされた `incomeRate` (収益倍率) を実際の収益計算に適用しました。
+ * ※錬金術防止や処理落ち防止のロジックはそのまま完全に維持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -61,15 +57,25 @@ export class EconomyManager {
         return Math.round(cost / 1000) * 1000; 
     }
 
-    update(delta, playerPlanes, networkManager) {
+    // ★修正: 第4引数に upgradeManager を追加
+    update(delta, playerPlanes, networkManager, upgradeManager) {
         let currentFrameGrossIncome = 0;
         let currentFrameUpkeep = 0;
         let currentFramePassengers = 0;
         let totalPlanesCount = 0;
 
-        // ★修正 (Proposal 022): 毎フレーム計算ではなく、キャッシュされた値(軽量)を読み取る
         const totalNetworkLength = networkManager ? networkManager.playerTotalNetworkLength : 0;
         const networkBonus = 1.0 + (Math.sqrt(totalNetworkLength) * CONFIG.ECONOMY.NETWORK_BONUS_MULTIPLIER);
+
+        // ★追加: UpgradeManager から現在のボーナスを取得
+        let upgradeIncomeRate = 1.0;
+        let upgradePassengerRate = 1.0; // 今後の拡張用
+        if (upgradeManager) {
+            const bonuses = upgradeManager.getBonuses();
+            upgradeIncomeRate = bonuses.incomeRate;
+            // 満足度に応じて客数も微増させる仕様にする場合など
+            upgradePassengerRate = 1.0 + (bonuses.satisfaction / 500); 
+        }
 
         playerPlanes.forEach(plane => {
             if (plane.companyId === 'player') {
@@ -77,14 +83,12 @@ export class EconomyManager {
                 const type = plane.sizeType || 'small';
                 const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
                 
-                // 維持費は、待機中であってもすべての機体から引かれる（タイクーンの基本原則）
                 currentFrameUpkeep += planeConf.upkeep;
 
-                // ★修正 (Proposal 022): 有効な路線を飛んでいる機体のみが収益と客数を生み出す（錬金術の防止）
-                // 地球儀の裏側にいる機体も currentRoute は保持しているため正常に稼働します
                 if (plane.currentRoute) {
-                    const routeIncome = planeConf.incomeBase * networkBonus;
-                    const routePassengers = planeConf.baseDemand * 0.5 * networkBonus;
+                    // ★修正: upgradeIncomeRate（アップグレードによる収益倍率）を掛け算する
+                    const routeIncome = planeConf.incomeBase * networkBonus * upgradeIncomeRate;
+                    const routePassengers = planeConf.baseDemand * 0.5 * networkBonus * upgradePassengerRate;
 
                     currentFrameGrossIncome += routeIncome;
                     currentFramePassengers += routePassengers;
@@ -116,7 +120,6 @@ export class EconomyManager {
         const lerpFactor = 1.0 - Math.pow(0.05, delta);
         this.displayIncome += (this.lastSecondIncome - this.displayIncome) * lerpFactor;
         
-        // ★追加 (Proposal 022): チカチカ現象を解消し、完全に停止（スナップ）させる
         if (Math.abs(this.lastSecondIncome - this.displayIncome) < 0.5) {
             this.displayIncome = this.lastSecondIncome;
         }
@@ -125,8 +128,6 @@ export class EconomyManager {
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
         const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}/s`;
 
-        // 引数に実際の数値(displayVal)は渡さず、フォーマット文字列だけを渡す元の仕様を維持
-        // （UIManager側で文字列先頭の '+/ -' を判定して色を変えます）
         this.uiManager.updateTopHUD(
             this._formatMoney(this.funds),
             formattedIncome,
