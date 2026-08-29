@@ -3,7 +3,7 @@
  * 【フェーズ2.5: 投資効果の確実な反映とUIリアルタイム更新】
  * 1. 顧客満足度(satisfaction)が、単なる客数アップだけでなく、確実な収益倍率（ブランド力）としても
  * 計算式（upgradeIncomeRate）に加算されるようバランス調整を行いました。
- * 2. 毎フレームの update() 内から UIManager.checkUpgradeButtons() を呼び出すことで、
+ * 2. 毎フレームの update() 内から UIManager.checkUpgradeButtons() と checkBuyPlaneButtons() を呼び出すことで、
  * パネルを開いたまま資金が貯まった瞬間にボタンが緑色に点灯する（UX向上）ようにしました。
  */
 
@@ -77,7 +77,7 @@ export class EconomyManager {
             const bonuses = upgradeManager.getBonuses();
             upgradeIncomeRate = bonuses.incomeRate;
             
-            // ★変更: 顧客満足度を「確実な収益（ブランド力）」と「客数」のダブルボーナスにする
+            // 顧客満足度を「確実な収益（ブランド力）」と「客数」のダブルボーナスにする
             // 満足度100あたり収益+20%、客数+50%のバフがかかる
             const satisfactionBonus = bonuses.satisfaction / 100;
             upgradeIncomeRate += (satisfactionBonus * 0.20); 
@@ -123,8 +123,13 @@ export class EconomyManager {
 
         // ★追加: 0.5秒に1回、UIManagerのボタン状態をリアルタイムにチェック（パネルが開いている時だけ）
         if (this.uiUpdateTimer >= 0.5) {
+            // アップグレードパネルの更新
             if (upgradeManager && this.uiManager.isUpgradePanelOpen()) {
                 this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
+            }
+            // ★追加: 機体購入メニューの更新
+            if (this.uiManager.isBuyMenuOpen()) {
+                this.uiManager.checkBuyPlaneButtons(this.funds);
             }
             this.uiUpdateTimer = 0;
         }

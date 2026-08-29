@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.5: 投資UIのリアルタイム更新機能の追加】
- * パネルを開いたままお金が貯まった際、ボタンが自動的に「押せる状態」に変わるよう、
+ * 【Phase 2.5: 投資UIと機体購入UIのリアルタイム更新機能】
+ * 1. 投資パネル(`panel-upgrades`)を開いたままお金が貯まった際、ボタンが自動的に「押せる状態」に変わるよう、
  * `isUpgradePanelOpen()` と `checkUpgradeButtons()` メソッドを追加しました。
+ * 2. 機体購入メニュー(`buy-plane-menu`)についても同様に、所持金に応じて購入ボタンが
+ * リアルタイムに有効/無効(グレーアウト)が切り替わるよう `isBuyMenuOpen()` と `checkBuyPlaneButtons()` を追加しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -53,6 +55,8 @@ export class UIManager {
         
         // パネル開閉状態のフラグ
         this._isUpgradesOpen = false;
+        // ★追加: 機体購入メニュー開閉フラグ
+        this._isBuyMenuOpen = false;
 
         this._initFleetPrices(); 
         this._bindEvents();
@@ -69,7 +73,11 @@ export class UIManager {
 
             const buyBtn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
             if (buyBtn) {
+                // 初期表示を設定
                 buyBtn.innerHTML = `<span>購入</span> <span class="font-mono text-emerald-200">${buyCostStr}</span>`;
+                // 初期状態は一旦disabledにしておく (後で checkBuyPlaneButtons で上書きされる)
+                buyBtn.disabled = true;
+                buyBtn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1`;
             }
 
             const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
@@ -106,12 +114,14 @@ export class UIManager {
             if (this.onFleetMenuOpen) this.onFleetMenuOpen(); 
             this.hideAll();
             this.buyMenu.classList.add('show');
+            this._isBuyMenuOpen = true; // ★追加
             this._toggleMainButtons(false);
         });
 
         document.getElementById('btn-close-buy').addEventListener('click', () => {
             this.soundManager.playTapSound();
             this.buyMenu.classList.remove('show');
+            this._isBuyMenuOpen = false; // ★追加
             this._toggleMainButtons(true);
         });
 
@@ -125,6 +135,11 @@ export class UIManager {
 
         document.querySelectorAll('.buy-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                // disabled判定を追加
+                if (btn.disabled) {
+                    this.soundManager.playErrorSound();
+                    return;
+                }
                 this.soundManager.playSuccessSound(); 
                 const type = e.currentTarget.getAttribute('data-type');
                 if (this.onBuyPlane) this.onBuyPlane(type);
@@ -492,15 +507,50 @@ export class UIManager {
         if (this.helpMenu) this.helpMenu.classList.remove('show'); 
         
         this._isUpgradesOpen = false;
+        this._isBuyMenuOpen = false; // ★追加
         this._toggleMainButtons(true);
     }
 
-    // ★追加: パネルが開いているかどうかを外部(Economy)に教える
     isUpgradePanelOpen() {
         return this._isUpgradesOpen;
     }
 
-    // ★追加: 資金の変動に合わせて、ボタンの状態（色とdisabled）だけを更新する軽量メソッド
+    // ★追加: 機体購入メニューが開いているかを教える
+    isBuyMenuOpen() {
+        return this._isBuyMenuOpen;
+    }
+
+    // ★追加: 資金の変動に合わせて、機体購入ボタンの状態をリアルタイム更新する
+    checkBuyPlaneButtons(currentFunds) {
+        if (!this._isBuyMenuOpen) return;
+        
+        ['small', 'medium', 'large', 'super'].forEach(type => {
+            const planeConf = CONFIG.ECONOMY.PLANES[type];
+            if (!planeConf) return;
+            
+            const btn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
+            if (!btn) return;
+            
+            const canAfford = currentFunds >= planeConf.cost;
+            
+            if (canAfford !== !btn.disabled) {
+                if (canAfford) {
+                    btn.disabled = false;
+                    btn.className = `buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
+                    // 中のspan要素の色を戻す
+                    const priceSpan = btn.querySelector('span:nth-child(2)');
+                    if (priceSpan) priceSpan.className = 'font-mono text-emerald-200';
+                } else {
+                    btn.disabled = true;
+                    btn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1`;
+                    // 中のspan要素の色をグレーに
+                    const priceSpan = btn.querySelector('span:nth-child(2)');
+                    if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
+                }
+            }
+        });
+    }
+
     checkUpgradeButtons(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
