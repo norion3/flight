@@ -5,6 +5,7 @@
  * 計算式（upgradeIncomeRate）に加算されるようバランス調整を行いました。
  * 2. 毎フレームの update() 内から UIManager.checkUpgradeButtons() と checkBuyPlaneButtons() を呼び出すことで、
  * パネルを開いたまま資金が貯まった瞬間にボタンが緑色に点灯する（UX向上）ようにしました。
+ * ※修正: checkBuyPlaneButtons() へ現在の機体数と上限数も渡し、購入上限のリアルタイム制御を可能にしました。
  */
 
 import { CONFIG } from './Config.js';
@@ -78,7 +79,6 @@ export class EconomyManager {
             upgradeIncomeRate = bonuses.incomeRate;
             
             // 顧客満足度を「確実な収益（ブランド力）」と「客数」のダブルボーナスにする
-            // 満足度100あたり収益+20%、客数+50%のバフがかかる
             const satisfactionBonus = bonuses.satisfaction / 100;
             upgradeIncomeRate += (satisfactionBonus * 0.20); 
             upgradePassengerRate = 1.0 + (satisfactionBonus * 0.50); 
@@ -86,7 +86,7 @@ export class EconomyManager {
 
         playerPlanes.forEach(plane => {
             if (plane.companyId === 'player') {
-                totalPlanesCount++;
+                totalPlanesCount++; // プレイヤーの現在機体数をカウント
                 const type = plane.sizeType || 'small';
                 const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
                 
@@ -121,15 +121,15 @@ export class EconomyManager {
             this.isFirstSecond = false;
         }
 
-        // ★追加: 0.5秒に1回、UIManagerのボタン状態をリアルタイムにチェック（パネルが開いている時だけ）
+        // 0.5秒に1回、UIManagerのボタン状態をリアルタイムにチェック（パネルが開いている時だけ）
         if (this.uiUpdateTimer >= 0.5) {
             // アップグレードパネルの更新
             if (upgradeManager && this.uiManager.isUpgradePanelOpen()) {
                 this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
             }
-            // ★追加: 機体購入メニューの更新
+            // 機体購入メニューの更新（★修正: 現在の機体数と上限数も渡す）
             if (this.uiManager.isBuyMenuOpen()) {
-                this.uiManager.checkBuyPlaneButtons(this.funds);
+                this.uiManager.checkBuyPlaneButtons(this.funds, totalPlanesCount, this.maxPlanes);
             }
             this.uiUpdateTimer = 0;
         }

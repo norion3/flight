@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【Phase 2.5: 投資UIと機体購入UIのリアルタイム更新機能】
- * 1. 投資パネル(`panel-upgrades`)を開いたままお金が貯まった際、ボタンが自動的に「押せる状態」に変わるよう、
- * `isUpgradePanelOpen()` と `checkUpgradeButtons()` メソッドを追加しました。
- * 2. 機体購入メニュー(`buy-plane-menu`)についても同様に、所持金に応じて購入ボタンが
- * リアルタイムに有効/無効(グレーアウト)が切り替わるよう `isBuyMenuOpen()` と `checkBuyPlaneButtons()` を追加しました。
+ * 1. 投資パネル(`panel-upgrades`)を開いたままお金が貯まった際、ボタンが自動的に「押せる状態」に変わる機能。
+ * 2. 機体購入メニュー(`buy-plane-menu`)についても同様に、所持金に応じて購入ボタンが有効/無効切り替わる機能。
+ * ※修正: pointer-events-none を追加して、無効なボタンをタップした際のイベント貫通を完全に防ぎました。
+ * ※修正: 資金があっても機体上限に達している場合はボタンをグレーアウトし、「上限到達」と表示するようにしました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -55,7 +55,7 @@ export class UIManager {
         
         // パネル開閉状態のフラグ
         this._isUpgradesOpen = false;
-        // ★追加: 機体購入メニュー開閉フラグ
+        // 機体購入メニュー開閉フラグ
         this._isBuyMenuOpen = false;
 
         this._initFleetPrices(); 
@@ -71,18 +71,19 @@ export class UIManager {
             const sellCostValue = planeConf.cost * planeConf.sellRate;
             const sellCostStr = sellCostValue >= 1000000 ? `$${(sellCostValue / 1000000).toFixed(0)}M` : `$${Math.floor(sellCostValue / 1000)}K`;
 
+            // ★修正: 初期状態からクリック貫通防止（pointer-events-none）とグレー文字を適用
             const buyBtn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
             if (buyBtn) {
-                // 初期表示を設定
-                buyBtn.innerHTML = `<span>購入</span> <span class="font-mono text-emerald-200">${buyCostStr}</span>`;
-                // 初期状態は一旦disabledにしておく (後で checkBuyPlaneButtons で上書きされる)
+                buyBtn.innerHTML = `<span>購入</span> <span class="font-mono text-slate-400">${buyCostStr}</span>`;
                 buyBtn.disabled = true;
-                buyBtn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1`;
+                buyBtn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
             }
 
             const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
             if (sellBtn) {
-                sellBtn.innerHTML = `<span>売却</span> <span class="font-mono text-rose-300">${sellCostStr}</span>`;
+                sellBtn.innerHTML = `<span>売却</span> <span class="font-mono text-slate-400">${sellCostStr}</span>`;
+                sellBtn.disabled = true;
+                sellBtn.className = `sell-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
             }
         });
     }
@@ -114,14 +115,14 @@ export class UIManager {
             if (this.onFleetMenuOpen) this.onFleetMenuOpen(); 
             this.hideAll();
             this.buyMenu.classList.add('show');
-            this._isBuyMenuOpen = true; // ★追加
+            this._isBuyMenuOpen = true; 
             this._toggleMainButtons(false);
         });
 
         document.getElementById('btn-close-buy').addEventListener('click', () => {
             this.soundManager.playTapSound();
             this.buyMenu.classList.remove('show');
-            this._isBuyMenuOpen = false; // ★追加
+            this._isBuyMenuOpen = false; 
             this._toggleMainButtons(true);
         });
 
@@ -135,7 +136,7 @@ export class UIManager {
 
         document.querySelectorAll('.buy-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // disabled判定を追加
+                // 安全弁: disabledなら確実に弾く
                 if (btn.disabled) {
                     this.soundManager.playErrorSound();
                     return;
@@ -148,6 +149,7 @@ export class UIManager {
 
         document.querySelectorAll('.sell-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                if (btn.disabled) return;
                 this.soundManager.playSuccessSound(); 
                 const type = e.currentTarget.getAttribute('data-type');
                 if (this.onSellPlane) this.onSellPlane(type);
@@ -225,7 +227,7 @@ export class UIManager {
         document.getElementById('btn-close-cc').addEventListener('click', () => {
             this.soundManager.playTapSound();
             this.controlCenter.classList.remove('show');
-            this._isUpgradesOpen = false; // パネルを閉じた
+            this._isUpgradesOpen = false; 
             this._toggleMainButtons(true);
             setTimeout(() => this._resetControlCenterView(), 300);
         });
@@ -248,7 +250,6 @@ export class UIManager {
                     this.ccLayerMain.style.transform = 'translateX(-100%)';
                     this.ccLayerDetail.style.transform = 'translateX(0)';
                     
-                    // 投資パネルが開かれたフラグ
                     this._isUpgradesOpen = (targetId === 'panel-upgrades');
                 }
             });
@@ -259,7 +260,7 @@ export class UIManager {
             btnSideBack.addEventListener('click', () => {
                 this.soundManager.playTapSound();
                 this._resetControlCenterView();
-                this._isUpgradesOpen = false; // 一覧へ戻った
+                this._isUpgradesOpen = false; 
             });
         }
 
@@ -379,7 +380,19 @@ export class UIManager {
             
             const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
             if (sellBtn) {
-                sellBtn.disabled = (counts[type] === 0);
+                const canSell = (counts[type] > 0);
+                sellBtn.disabled = !canSell;
+                
+                // ★修正: 売却ボタンも貫通防止と文字色変更を行う
+                if (canSell) {
+                    sellBtn.className = `sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
+                    const priceSpan = sellBtn.querySelector('span:nth-child(2)');
+                    if (priceSpan) priceSpan.className = 'font-mono text-rose-300';
+                } else {
+                    sellBtn.className = `sell-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
+                    const priceSpan = sellBtn.querySelector('span:nth-child(2)');
+                    if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
+                }
             }
         });
     }
@@ -507,7 +520,7 @@ export class UIManager {
         if (this.helpMenu) this.helpMenu.classList.remove('show'); 
         
         this._isUpgradesOpen = false;
-        this._isBuyMenuOpen = false; // ★追加
+        this._isBuyMenuOpen = false;
         this._toggleMainButtons(true);
     }
 
@@ -515,14 +528,15 @@ export class UIManager {
         return this._isUpgradesOpen;
     }
 
-    // ★追加: 機体購入メニューが開いているかを教える
     isBuyMenuOpen() {
         return this._isBuyMenuOpen;
     }
 
-    // ★追加: 資金の変動に合わせて、機体購入ボタンの状態をリアルタイム更新する
-    checkBuyPlaneButtons(currentFunds) {
+    // ★修正: 機体上限も加味して購入ボタンを制御し、クリック貫通(pointer-events-none)を防ぐ
+    checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
         if (!this._isBuyMenuOpen) return;
+        
+        const isFull = currentPlanes >= maxPlanes;
         
         ['small', 'medium', 'large', 'super'].forEach(type => {
             const planeConf = CONFIG.ECONOMY.PLANES[type];
@@ -532,25 +546,43 @@ export class UIManager {
             if (!btn) return;
             
             const canAfford = currentFunds >= planeConf.cost;
+            const canBuy = canAfford && !isFull;
             
-            if (canAfford !== !btn.disabled) {
-                if (canAfford) {
+            if (canBuy !== !btn.disabled) {
+                if (canBuy) {
                     btn.disabled = false;
                     btn.className = `buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
-                    // 中のspan要素の色を戻す
+                    const textSpan = btn.querySelector('span:nth-child(1)');
+                    if (textSpan) textSpan.innerText = '購入';
                     const priceSpan = btn.querySelector('span:nth-child(2)');
                     if (priceSpan) priceSpan.className = 'font-mono text-emerald-200';
                 } else {
                     btn.disabled = true;
-                    btn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1`;
-                    // 中のspan要素の色をグレーに
+                    // disabled:pointer-events-none で物理的にタップを無効化
+                    btn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
+                    
+                    const textSpan = btn.querySelector('span:nth-child(1)');
+                    if (textSpan) textSpan.innerText = isFull ? '上限到達' : '購入';
+                    
                     const priceSpan = btn.querySelector('span:nth-child(2)');
                     if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
+                }
+            } else {
+                // 状態が同じ(disabled)でも、理由が変わった時（お金がない状態から、上限到達状態へ変わった等）のテキスト更新
+                if (!canBuy) {
+                    const textSpan = btn.querySelector('span:nth-child(1)');
+                    if (textSpan) {
+                        const expectedText = isFull ? '上限到達' : '購入';
+                        if (textSpan.innerText !== expectedText) {
+                            textSpan.innerText = expectedText;
+                        }
+                    }
                 }
             }
         });
     }
 
+    // ★修正: 投資ボタンもクリック貫通を防止する
     checkUpgradeButtons(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -560,24 +592,24 @@ export class UIManager {
             const upgradeId = btn.getAttribute('data-id');
             const nextCost = upgradeManager.getNextCost(upgradeId);
             
-            // MAXの場合は無視（すでに disabled で「MAX」と表示されている）
             if (nextCost === null) return;
 
             const canAfford = currentFunds >= nextCost;
             
             if (canAfford !== !btn.disabled) {
-                // 状態が変化した時だけクラスを書き換える
                 if (canAfford) {
                     btn.disabled = false;
                     btn.className = `upgrade-action-btn bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
                 } else {
                     btn.disabled = true;
-                    btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
+                    // disabled:pointer-events-none を追加
+                    btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none`;
                 }
             }
         });
     }
 
+    // ★修正: 投資ボタン初期描画時のクリック貫通防止
     updateUpgradePanel(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -625,7 +657,6 @@ export class UIManager {
                     else if (nextData.speedMultiplier !== undefined) effectText = `フライト時間 -${Math.round((nextData.speedMultiplier - 1) * 100)}%`;
                     else if (nextData.bonusIncomeRate !== undefined) effectText = `1フライトの収益 +${Math.round(nextData.bonusIncomeRate * 100)}%`;
                     else if (nextData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${nextData.bonusSatisfaction}`;
-                    // 不要になった turnaroundReduction の分岐は削除しました
                     
                     if (key === 'fleet_capacity') effectColor = 'text-amber-400';
                     else if (cat.id === 'staff') effectColor = 'text-blue-400';
@@ -634,12 +665,12 @@ export class UIManager {
 
                 let btnHtml = '';
                 if (currentLevel >= maxLevel) {
-                    btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center" disabled>MAX</button>`;
+                    btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none" disabled>MAX</button>`;
                 } else {
                     const canAfford = currentFunds >= nextCost;
                     const btnClass = canAfford ? 
                         `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
-                        `bg-slate-700 text-slate-400 opacity-70`;
+                        `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
                     
                     const costStr = nextCost >= 1000000 ? `$${(nextCost/1000000).toFixed(1)}M` : `$${Math.floor(nextCost/1000)}K`;
 
