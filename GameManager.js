@@ -4,6 +4,7 @@
  * 1. UpgradeManager と UIManager を接続し、コントロールセンターの「投資・アップグレード」パネルを動的生成。
  * 2. プレイヤーからのアップグレード要求 (onUpgradeRequested) を受け取り、資金消費とレベルアップを実行。
  * 3. アニメーションループ内にて、拡張された「機体上限」と「ボーナス」を各マネージャーへリアルタイムに供給。
+ * ※修正: アップグレード成功時のサウンド呼び出しエラー(playCashSound)を playSuccessSound に修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -150,7 +151,9 @@ export class GameManager {
         this.uiManager.onUpgradeRequested = (upgradeId) => {
             const success = this.upgradeManager.upgrade(upgradeId, this.economyManager);
             if (success) {
-                this.uiManager.soundManager.playCashSound();
+                // ★修正: 存在しない playCashSound() ではなく、playSuccessSound() を呼び出す
+                this.uiManager.soundManager.playSuccessSound();
+                
                 // 成功したら、資金が減った状態の最新パネルを即座に再描画する
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
             } else {
@@ -427,10 +430,8 @@ export class GameManager {
         this.airportManager.updateMarkerScale(this.camera);
         
         this.planeManager.updateScale(this.camera);
-        // PlaneManager に速度ボーナスを渡すように更新
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
         
-        // EconomyManager には UpgradeManager 自身を渡す (今後の機能拡張のため)
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager);
         this.rivalManager.update(delta);
         
