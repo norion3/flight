@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.1: CompetitionManagerの統合】
- * 1. ユーザー提供の完全なベースコードを維持し、タイポや先祖返りを完全に排除。
- * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを裏側で計算。
+ * 【フェーズ3.1: CompetitionManagerの統合とUI描画トリガーの修正】
+ * 1. ユーザー提供の完全なベースコードを維持し、タイポを完全に排除（THREE.OrbitControlsを維持）。
+ * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを計算。
+ * 3. 投資パネル（cc-link-btn）を開いた際に `updateUpgradePanel` を呼び出してUIを初期描画する処理を確実に追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -15,6 +16,7 @@ import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
+// ★Phase 3.1 追加: インポート
 import { CompetitionManager } from './CompetitionManager.js';
 import { Utils } from './Utils.js';
 
@@ -42,7 +44,8 @@ export class GameManager {
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
-        
+
+        // ★Phase 3.1 追加: 初期化
         this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -154,6 +157,13 @@ export class GameManager {
                 this.uiManager.showToast(window.APP_LANG.toastNoFunds, "error");
             }
         };
+
+        // ★修正: 投資パネルが開かれた際の中身（HTML）の初期描画トリガー
+        document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
+            });
+        });
 
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
@@ -416,9 +426,10 @@ export class GameManager {
         
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
-        
-        this.competitionManager.update(delta);
 
+        // ★Phase 3.1 追加: 毎フレーム、全空港のシェアを再計算する
+        this.competitionManager.update(delta);
+        
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager);
         this.rivalManager.update(delta);
         
