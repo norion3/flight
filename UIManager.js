@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.6: 投資プログレスシステムの導入 (Step 3)】
- * 1. 投資パネル(`panel-upgrades`)を新しい「フェーズとステップ」のデータ構造に対応。
- * 2. 常に5マスのゲージを表示し、現在の step に応じて点灯させる。
- * 3. 5回目の投資でレベルが上がる（ゲージが空に戻る）UXを実現。
- * 4. MAXレベル（Lv10）到達時の表示を最適化。
+ * 【Phase 2.7: 投資プログレスシステムの達成感最大化 (Step 3)】
+ * 1. 6段階のデータ構造（step: 0〜5）にUIを完全対応させました。
+ * 2. step: 5（5回投資後）のリーチ状態の時は、プログレスバーを5つ全て点灯させます。
+ * 3. リーチ状態の時は、ボタンのテキストに「昇格」という文字を加え、6回目の投資を促します。
+ * 4. 派手な装飾は避け、既存のカラースキーム（エメラルド/スレート）を維持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -574,6 +574,7 @@ export class UIManager {
         });
     }
 
+    // 投資ボタンのリアルタイム更新（※昇格時もデザインは通常ボタンのまま）
     checkUpgradeButtons(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -600,7 +601,7 @@ export class UIManager {
     }
 
     // ============================================================================
-    // ★Phase 2.6: 新しい「レベル＆ステップ」構造に対応したUIパネル生成
+    // ★Phase 2.7: 「昇格（6段階）」に対応したUIパネル生成
     // ============================================================================
     updateUpgradePanel(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
@@ -627,19 +628,17 @@ export class UIManager {
                 const maxLevel = upgradeManager.getMaxLevel(key);
                 const nextCost = upgradeManager.getNextCost(key);
                 
-                // 現在のレベルのデータを取得
                 const currentLevelData = data.levels.find(l => l.level === currentLevel);
                 let currentStepData = null;
                 if (currentLevelData && currentLevelData.steps) {
                     currentStepData = currentLevelData.steps.find(s => s.step === currentStep);
                 }
 
-                // 「次のステップ（投資後）」のデータを取得（ボーナスの変化を表示するため）
                 let nextStepData = null;
                 if (currentLevel < maxLevel) {
                     let searchLevel = currentLevel;
                     let searchStep = currentStep + 1;
-                    if (searchStep >= 5) {
+                    if (searchStep >= 6) { // ★修正: 6で次レベルへ
                         searchLevel++;
                         searchStep = 0;
                     }
@@ -649,66 +648,69 @@ export class UIManager {
                     }
                 }
 
-                // ゲージの作成（常に5マスを描画し、現在のstepに応じて色を変える）
-                let dotsHtml = '';
                 const isMax = currentLevel >= maxLevel;
+
+                // ゲージの作成
+                let dotsHtml = '';
                 for (let i = 0; i < 5; i++) {
-                    // MAXの場合は全部光らせる。それ以外は現在のstepより小さければ光る
-                    if (isMax || i < currentStep) {
+                    // ★修正: step:5（リーチ）の時は5つ全て光らせる
+                    if (isMax || currentStep === 5 || i < currentStep) {
                         const dotColor = key === 'fleet_capacity' ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.3)]' : 
                                          (cat.id === 'staff' ? 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.3)]' : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)]');
-                        dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full"></div>`;
+                        dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full transition-all duration-300"></div>`;
                     } else {
-                        dotsHtml += `<div class="h-1.5 w-full bg-slate-700 rounded-full"></div>`;
+                        dotsHtml += `<div class="h-1.5 w-full bg-slate-700 rounded-full transition-all duration-300"></div>`;
                     }
                 }
 
                 let effectText = 'MAX レベル達成';
                 let effectColor = 'text-slate-400';
                 
-                // 次のステップが存在すれば、次で得られる効果を表示する
                 if (nextStepData && currentStepData) {
-                    if (nextStepData.capacity !== undefined) {
-                        effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
-                    } else if (nextStepData.speedMultiplier !== undefined) {
-                        const curSpd = Math.round((currentStepData.speedMultiplier - 1) * 100);
-                        const nxtSpd = Math.round((nextStepData.speedMultiplier - 1) * 100);
-                        effectText = `フライト時間短縮 ${curSpd}% ➔ ${nxtSpd}%`;
-                    } else if (nextStepData.bonusIncomeRate !== undefined) {
-                        const curInc = Math.round(currentStepData.bonusIncomeRate * 100);
-                        const nxtInc = Math.round(nextStepData.bonusIncomeRate * 100);
-                        effectText = `収益ボーナス +${curInc}% ➔ +${nxtInc}%`;
-                    } else if (nextStepData.bonusSatisfaction !== undefined) {
-                        effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
-                    }
+                    if (nextStepData.capacity !== undefined) effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
+                    else if (nextStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% ➔ ${Math.round((nextStepData.speedMultiplier - 1) * 100)}%`;
+                    else if (nextStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% ➔ +${Math.round(nextStepData.bonusIncomeRate * 100)}%`;
+                    else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
                     
                     if (key === 'fleet_capacity') effectColor = 'text-amber-400';
                     else if (cat.id === 'staff') effectColor = 'text-blue-400';
                     else effectColor = 'text-emerald-400';
                 } else if (isMax && currentStepData) {
-                    // MAXの場合の最終ステータス表示
                     if (currentStepData.capacity !== undefined) effectText = `機体上限 ${currentStepData.capacity} 機 (MAX)`;
                     else if (currentStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% (MAX)`;
                     else if (currentStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% (MAX)`;
                     else if (currentStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} (MAX)`;
                 }
 
-                // ボタンの状態とテキスト
+                // ボタンの生成
                 let btnHtml = '';
                 if (isMax) {
                     btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none" disabled>MAX</button>`;
                 } else {
                     const canAfford = currentFunds >= nextCost;
-                    const btnClass = canAfford ? 
-                        `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
-                        `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
-                    
                     const costStr = nextCost >= 1000000 ? `$${(nextCost/1000000).toFixed(1)}M` : `$${Math.floor(nextCost/1000)}K`;
-
-                    btnHtml = `<button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center" data-id="${key}" ${canAfford ? '' : 'disabled'}>${costStr}</button>`;
+                    
+                    // ★修正: リーチ状態(step===5)の時は「昇格」という文字をボタン内に入れる（デザイン・色はそのまま）
+                    if (currentStep === 5) {
+                        const btnClass = canAfford ? 
+                            `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
+                            `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
+                            
+                        btnHtml = `
+                            <button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center flex flex-col items-center justify-center leading-none" data-id="${key}" ${canAfford ? '' : 'disabled'}>
+                                <span class="text-[9px] mb-1 font-sans font-black tracking-widest text-emerald-100">昇格</span>
+                                <span>${costStr}</span>
+                            </button>
+                        `;
+                    } else {
+                        const btnClass = canAfford ? 
+                            `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
+                            `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
+                        
+                        btnHtml = `<button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center" data-id="${key}" ${canAfford ? '' : 'disabled'}>${costStr}</button>`;
+                    }
                 }
 
-                // 表示用のLvは1からスタートする (内部データは0始まり)
                 const displayLevel = isMax ? 'MAX' : `Lv ${currentLevel + 1}`;
 
                 html += `
