@@ -1,10 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.2: 収益計算へのシェア反映】
- * 1. update() および _calculateCurrentIncome() に competitionManager を受け取るよう変更。
- * 2. 各機体が向かっている空港（または現在地）の「シェア率(0.0〜1.0)」を competitionManager から取得。
- * 3. 顧客満足度（brandPower）でブーストされた「客数(demand)」と「収益(incomeBase)」に対し、シェア率を掛け合わせて最終収益とする。
- * 4. これにより「シェアを奪われると儲からなくなる」「投資してシェアを奪い返すと大儲けする」タイクーンのコア要素が成立。
+ * 【フェーズ3.2: 収益計算へのシェア反映とバグ修正】
+ * 1. 致命的バグ修正: planes 配列を処理する際、自社('player')の機体のみを対象とするフィルターを追加。
+ * 2. 各機体が向かっている空港の「シェア率」を competitionManager から取得し、収益に掛け合わせる処理を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -27,7 +25,6 @@ export class EconomyManager {
         this.totalPassengers = 0;
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
         
-        // パネルを開きっぱなしの時のリアルタイム更新用インターバル
         this.uiUpdateTimer = 0;
     }
 
@@ -55,18 +52,19 @@ export class EconomyManager {
         return Math.floor(distance * 200000); 
     }
 
-    // ★ Phase 3.2 変更: competitionManager を引数に追加
     update(delta, planes, networkManager, upgradeManager, competitionManager) {
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
 
-        // ★ Phase 3.2 変更: competitionManager を渡す
-        const { income, passengers } = this._calculateCurrentIncome(planes, networkManager, upgradeManager, competitionManager);
+        // ★バグ修正: プレイヤーの機体のみを抽出して渡す
+        const playerPlanes = planes.filter(p => p.companyId === 'player');
+
+        const { income, passengers } = this._calculateCurrentIncome(playerPlanes, networkManager, upgradeManager, competitionManager);
         let currentGrossIncome = income;
         let currentFramePassengers = passengers;
 
         let totalUpkeep = 0;
-        planes.forEach(plane => {
+        playerPlanes.forEach(plane => {
             const planeConf = CONFIG.ECONOMY.PLANES[plane.type];
             if (planeConf) {
                 totalUpkeep += planeConf.upkeep;
@@ -90,14 +88,11 @@ export class EconomyManager {
             this.incomeTimer = 0;
         }
 
+        const totalPlanesCount = playerPlanes.length; // ★修正: HUDやUIに渡す数もプレイヤー機のみに
+
         if (this.uiUpdateTimer >= 0.5) {
             this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
             if (this.uiManager.isBuyMenuOpen()) {
-                const counts = planes.reduce((acc, p) => {
-                    acc[p.type] = (acc[p.type] || 0) + 1;
-                    return acc;
-                }, {});
-                const totalPlanesCount = Object.values(counts).reduce((a, b) => a + b, 0);
                 this.uiManager.checkBuyPlaneButtons(this.funds, totalPlanesCount, this.maxPlanes);
             }
             this.uiUpdateTimer = 0;
@@ -117,31 +112,27 @@ export class EconomyManager {
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
         const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}/s`;
 
-        const totalPlanesCount = planes.length;
         this.uiManager.updateTopHUD(
             this._formatMoney(this.funds),
             formattedIncome,
-            totalPlanesCount,
+            totalPlanesCount, // ★修正: プレイヤー機のみの数を渡す
             this.maxPlanes,
             this._formatNumber(Math.floor(this.totalPassengers))
         );
     }
 
-    // ★ Phase 3.2 変更: competitionManager を引数に追加し、シェア率による減衰を実装
-    _calculateCurrentIncome(planes, networkManager, upgradeManager, competitionManager) {
+    _calculateCurrentIncome(playerPlanes, networkManager, upgradeManager, competitionManager) {
         let totalIncome = 0;
         let totalPassengers = 0;
 
         const bonuses = upgradeManager.getBonuses();
         const upgradeIncomeRate = bonuses.incomeRate || 1.0;
-        // 顧客満足度によるブランド力（1.0 + 満足度/100）
         const brandPower = 1.0 + ((bonuses.satisfaction || 0) / 100);
 
-        planes.forEach(plane => {
+        playerPlanes.forEach(plane => {
             const planeConf = CONFIG.ECONOMY.PLANES[plane.type];
             if (!planeConf) return;
 
-            // 機体が向かっている目的地の空港IDを取得
             let targetAirportId = null;
             if (plane.currentRoute && plane.currentRoute.id) {
                 targetAirportId = plane.currentRoute.id;
@@ -149,13 +140,13 @@ export class EconomyManager {
                 targetAirportId = plane.currentAirportId;
             }
 
-            // CompetitionManager から該当空港の自社シェア率 (0.0〜1.0) を取得
+            // ★ Phase 3.2: CompetitionManagerからシェア率を取得
             let share = 1.0;
             if (targetAirportId && competitionManager) {
                 share = competitionManager.getShare(targetAirportId, 'player');
             }
 
-            // 客数と収益にシェアを掛ける（シェアが低いほど稼げなくなる）
+            // ★ Phase 3.2: 需要と基本収益にシェアを掛ける（競合していると稼げなくなる）
             let demand = (planeConf.baseDemand * brandPower) * share;
             let incomeBase = (planeConf.incomeBase * upgradeIncomeRate) * share;
 
