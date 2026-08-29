@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【有機的なネットワーク発展と、停滞バグの完全防止】
- * 履歴199に基づき、ライバルAIを極めて賢く美しいアルゴリズムに昇華させました。
- * 1. 行動の空振りを防ぐため、起点を選ぶ際は「まだ接続上限に達していない空港」のみをフィルタリングします。
- * 2. 接続先を探す際は、絶対的な最短距離ではなく「距離が近い上位4つの候補の中からランダムに選ぶ」ことで、
- * プレイするたびに毎回違う、美しく有機的なクモの巣状の発展を遂げるようにしています。
+ * 【ライバルAIの無限増殖防止】
+ * 履歴199の有機的なネットワーク発展アルゴリズムを維持した上で、
+ * AIに「機体数の上限」を導入しました。
+ * （現在開拓している有効な路線数に応じて上限が算出され、それを超える場合は機体を購入しません）
  */
 
 import { CONFIG } from './Config.js';
@@ -69,10 +68,22 @@ export class RivalManager {
         });
     }
 
+    // ★追加: ライバルAIの現在の接続路線総数を計算する
+    _getRivalRouteCount(companyId) {
+        let routeCount = 0;
+        const net = this.networkManager.network[companyId];
+        if (!net) return 0;
+        
+        // 双方向で登録されているため2で割る
+        for (const originId in net) {
+            routeCount += net[originId].length;
+        }
+        return Math.floor(routeCount / 2);
+    }
+
     performAction(companyId) {
         const net = this.networkManager.network[companyId];
         
-        // ★修正（空振り防止）:
         // 繋がっている空港のうち、「まだ接続上限(MAX)に達していない空港」だけをリストアップする
         const connectedIds = Object.keys(net).filter(id => {
             if (net[id].length === 0) return false;
@@ -80,10 +91,9 @@ export class RivalManager {
             if (!airportNode) return false;
             
             const maxConns = this.networkManager.MAX_CONNECTIONS[airportNode.type];
-            return net[id].length < maxConns; // 上限未満の空港だけを残す
+            return net[id].length < maxConns; 
         });
 
-        // どこからも線を引けない場合は行動パス（ただし空振り防止策により基本発生しない）
         if (connectedIds.length === 0) return;
 
         // 70%の確率で空路開拓、30%の確率で飛行機購入
@@ -92,10 +102,25 @@ export class RivalManager {
             const originNode = this.airportManager.getAirportById(originId);
             this.expandNetwork(companyId, originNode);
         } else {
-            // ユーザー様の4種類の機体からランダムに購入
-            const types = ['small', 'medium', 'large', 'super'];
-            const randomType = types[Math.floor(Math.random() * types.length)];
-            this.planeManager.addPlane(randomType, companyId);
+            // ★修正: AIの機体無限増殖を防ぐためのキャップ処理
+            const currentPlaneCounts = Object.values(this.planeManager.getPlaneCounts(companyId)).reduce((a, b) => a + b, 0);
+            const currentRouteCount = this._getRivalRouteCount(companyId);
+            
+            // 路線数の1.5倍をAIの機体上限とする（例: 10路線持っていれば15機まで買える）
+            // 序盤に機体が全く買えないのを防ぐため、最低でも5機は保証する
+            const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
+            
+            if (currentPlaneCounts < aiMaxPlanes) {
+                // 上限未満ならランダムな機体を購入
+                const types = ['small', 'medium', 'large', 'super'];
+                const randomType = types[Math.floor(Math.random() * types.length)];
+                this.planeManager.addPlane(randomType, companyId);
+            } else {
+                // 上限に達している場合は代わりに空路開拓を行う
+                const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
+                const originNode = this.airportManager.getAirportById(originId);
+                this.expandNetwork(companyId, originNode);
+            }
         }
     }
 
@@ -103,7 +128,6 @@ export class RivalManager {
         const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
-        // ★修正（安全確実な候補選定）: 
         // 接続可能な空港（距離制限内、未接続、上限未到達）だけを先に絞り込む
         const validCandidates = allCandidates.filter(destNode => {
             if (originNode.id === destNode.id) return false;
@@ -129,9 +153,7 @@ export class RivalManager {
             return posOrigin.distanceTo(posA) - posOrigin.distanceTo(posB);
         });
 
-        // ★修正（有機的なアルゴリズムの導入）:
         // 一番近い空港だけを絶対視せず、距離が近い「上位最大4つ」の中からランダムに選ぶ
-        // これにより、プレイするたびに毎回違う自然な（有機的な）ネットワークが形成される
         const poolSize = Math.min(validCandidates.length, 4);
         const selectedDest = validCandidates[Math.floor(Math.random() * poolSize)];
 
