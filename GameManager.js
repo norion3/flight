@@ -4,6 +4,9 @@
  * 1. ユーザー提供の完全なベースコードを維持し、タイポを完全に排除（THREE.OrbitControlsを維持）。
  * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを計算。
  * 3. 投資パネル（cc-link-btn）を開いた際に `updateUpgradePanel` を呼び出してUIを初期描画する処理を確実に追加。
+ * * ★【Phase 1: 競争システムの統合 (バグ修正版)】
+ * 見えない制御文字(ゼロ幅スペース)を完全に排除し、クリーンな状態で各Managerのupdateへ
+ * competitionManagerを渡すように修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,7 +19,6 @@ import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
-// ★Phase 3.1 追加: インポート
 import { CompetitionManager } from './CompetitionManager.js';
 import { Utils } from './Utils.js';
 
@@ -44,8 +46,6 @@ export class GameManager {
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
-
-        // ★Phase 3.1 追加: 初期化
         this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -158,7 +158,6 @@ export class GameManager {
             }
         };
 
-        // ★修正: 投資パネルが開かれた際の中身（HTML）の初期描画トリガー
         document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
@@ -427,11 +426,11 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
-        // ★Phase 3.1 追加: 毎フレーム、全空港のシェアを再計算する
         this.competitionManager.update(delta);
         
-        this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager⁠, this.competitionManager);
-        this.rivalManager.update(delta⁠, this.competitionManager);
+        // ★修正済: 見えない制御文字(ゼロ幅スペース)を排除し、正しくcompetitionManagerを渡す
+        this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
+        this.rivalManager.update(delta, this.competitionManager);
         
         this.controls.update(); 
         this.renderer.render(this.scene, this.camera);
