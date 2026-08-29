@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.1: CompetitionManagerの統合】
- * 1. 新規作成した CompetitionManager をインポートし、インスタンス化。
- * 2. アニメーションループ (update) 内に組み込み、裏側でのシェア計算を開始。
- * ※まだ UI や 収益への影響（バグの元）は組み込んでいません。純粋なロジック連携のみ。
+ * 【フェーズ3.1: CompetitionManagerの統合とUIバグ修正】
+ * 1. CompetitionManager をインポートし、ループ内で全空港のシェアを裏側で計算。
+ * 2. 履歴300付近で先祖返り消失していた「投資パネルを開いた時の初期描画(updateUpgradePanel)の呼び出し」を完全に復旧。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,7 +15,6 @@ import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
-// ★ Phase 3.1: CompetitionManagerの追加
 import { CompetitionManager } from './CompetitionManager.js';
 import { Utils } from './Utils.js';
 
@@ -45,7 +43,6 @@ export class GameManager {
         this.upgradeManager = new UpgradeManager();
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
         
-        // ★ Phase 3.1: CompetitionManager の初期化
         this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -158,6 +155,13 @@ export class GameManager {
             }
         };
 
+        // ★消失していたUIの描画トリガーを復元
+        document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
+            });
+        });
+
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
         this.selectedHitMesh = null;
@@ -203,7 +207,7 @@ export class GameManager {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.container.appendChild(this.renderer.domElement);
 
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enablePan = false;
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.04;
@@ -420,7 +424,6 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
         
-        // ★ Phase 3.1: 毎フレーム、全空港のシェアを再計算する
         this.competitionManager.update(delta);
 
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager);
