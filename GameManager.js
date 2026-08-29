@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ2.3: UpgradeManagerの安全な統合】
- * 先祖返り（start()メソッド名の改変エラー）を完全に修正しました。
- * 1. UpgradeManager をインポートし、インスタンス化。
- * 2. animateループ内で currentBonuses を取得し、economyManager の maxPlanes に安全に適用。
- * 既存のUIやイベントハンドラは一切破壊していません。
+ * 【フェーズ2.4: 投資UIの動的化と連動 (GameManager)】
+ * 1. UpgradeManager と UIManager を接続し、コントロールセンターの「投資・アップグレード」パネルを動的生成。
+ * 2. プレイヤーからのアップグレード要求 (onUpgradeRequested) を受け取り、資金消費とレベルアップを実行。
+ * 3. アニメーションループ内にて、拡張された「機体上限」と「ボーナス」を各マネージャーへリアルタイムに供給。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,7 +15,7 @@ import { NetworkManager } from './NetworkManager.js';
 import { PlaneManager } from './PlaneManager.js';
 import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
-import { UpgradeManager } from './UpgradeManager.js'; // ★追加
+import { UpgradeManager } from './UpgradeManager.js';
 import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
@@ -41,7 +40,7 @@ export class GameManager {
         this.uiManager = new UIManager();
         
         this.economyManager = new EconomyManager(this.uiManager);
-        this.upgradeManager = new UpgradeManager(); // ★追加
+        this.upgradeManager = new UpgradeManager();
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
 
         this.uiManager.onConnectRequested = () => {
@@ -64,7 +63,6 @@ export class GameManager {
                 const destData = this.selectedDestination.userData.airportData;
 
                 if (actionType === 'add') {
-                    // 動的開拓費用の算出
                     const routeCost = this.economyManager.calculateRouteCost(originData, destData);
                     
                     if (!this.economyManager.canAfford(routeCost)) {
@@ -114,7 +112,6 @@ export class GameManager {
             const counts = this.planeManager.getPlaneCounts('player');
             const totalPlanes = Object.values(counts).reduce((a, b) => a + b, 0);
             
-            // EconomyManager が保持する maxPlanes (UpgradeManagerで変動する) を見て判定
             if (totalPlanes >= this.economyManager.maxPlanes) {
                 this.uiManager.showToast(window.APP_LANG.toastLimitPlanes);
                 return;
@@ -144,6 +141,31 @@ export class GameManager {
 
         this.uiManager.onZoomIn = () => this.zoomCamera(-4.0);
         this.uiManager.onZoomOut = () => this.zoomCamera(4.0);
+
+        // ============================================================================
+        // ★Phase 2.4: 投資・アップグレードUIとの連動処理
+        // ============================================================================
+        
+        // パネル内のアップグレードボタンが押された時の処理
+        this.uiManager.onUpgradeRequested = (upgradeId) => {
+            const success = this.upgradeManager.upgrade(upgradeId, this.economyManager);
+            if (success) {
+                this.uiManager.soundManager.playCashSound();
+                // 成功したら、資金が減った状態の最新パネルを即座に再描画する
+                this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
+            } else {
+                this.uiManager.soundManager.playErrorSound();
+                this.uiManager.showToast(window.APP_LANG.toastNoFunds, "error");
+            }
+        };
+
+        // コントロールセンターの「投資・アップグレード」タブが開かれた時にパネルを初期描画
+        document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
+            });
+        });
+
 
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
@@ -399,15 +421,17 @@ export class GameManager {
             }
         }
 
-        // ★追加: UpgradeManagerからボーナスを取得し、EconomyManagerの機体上限にセットする
         const currentBonuses = this.upgradeManager.getBonuses();
         this.economyManager.maxPlanes = currentBonuses.maxPlanes;
 
         this.airportManager.updateMarkerScale(this.camera);
-        this.planeManager.updateScale(this.camera);
-        this.planeManager.update(delta);
         
-        this.economyManager.update(delta, this.planeManager.planes, this.networkManager);
+        this.planeManager.updateScale(this.camera);
+        // PlaneManager に速度ボーナスを渡すように更新
+        this.planeManager.update(delta, currentBonuses.speedMultiplier);
+        
+        // EconomyManager には UpgradeManager 自身を渡す (今後の機能拡張のため)
+        this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager);
         this.rivalManager.update(delta);
         
         this.controls.update(); 

@@ -1,11 +1,14 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【動的開拓コストのUI表示】
- * 空路開拓確認モーダル（`showRouteConfirm`）にて、動的に算出された開拓費用（例: -$ 125K や -$ 1.2M）を
- * フォーマットして綺麗にボタン内に表示するよう修正しました。
+ * 【Phase 2.4: 投資UIの動的化と連動】
+ * UIManager に `updateUpgradePanel()` メソッドを追加しました。
+ * 1. Data_Upgrades.js と UpgradeManager の情報をもとに、投資パネル内の HTML を動的に生成します。
+ * 2. プレイヤーの所持金やレベルに応じて、ボタンの表示（グレーアウト等）を制御します。
+ * 3. ボタンが押された際、GameManager へイベントを発火させます。
  */
 
 import { SoundManager } from './SoundManager.js';
+import { UPGRADE_DATA } from './Data_Upgrades.js'; // ★Phase 2.4 追加
 
 export class UIManager {
     constructor() {
@@ -44,6 +47,9 @@ export class UIManager {
         this.onSellPlane = null;     
         this.onZoomIn = null;
         this.onZoomOut = null;
+        
+        // ★Phase 2.4 追加: アップグレード要求イベント
+        this.onUpgradeRequested = null;
         
         this.currentRouteAction = null; 
 
@@ -458,5 +464,127 @@ export class UIManager {
         if (this.helpMenu) this.helpMenu.classList.remove('show'); 
         
         this._toggleMainButtons(true);
+    }
+
+    // ============================================================================
+    // ★Phase 2.4: 投資・アップグレードパネルの動的生成と更新
+    // ============================================================================
+    
+    /**
+     * UIパネル上の投資リストを Data_Upgrades のデータに基づいて描画・更新します。
+     * @param {UpgradeManager} upgradeManager - レベルやコストを取得するためのマネージャー
+     * @param {number} currentFunds - 現在の所持金（ボタンのグレーアウト判定に使用）
+     */
+    updateUpgradePanel(upgradeManager, currentFunds) {
+        const panel = document.getElementById('panel-upgrades');
+        if (!panel) return;
+
+        // カテゴリごとにグループ分けして表示するための設定
+        const categories = [
+            { id: 'special', title: '特別拡張枠', keys: ['fleet_capacity'], color: 'text-amber-400' },
+            { id: 'finance', title: '財務・運航', keys: ['ticket_price', 'flight_speed', 'cabin_comfort'], color: 'text-cyan-400' },
+            { id: 'staff',   title: '人員・スタッフ', keys: ['pilot_training', 'ground_ops', 'hr_management'], color: 'text-cyan-400' },
+            { id: 'service', title: 'サービス', keys: ['catering', 'entertainment', 'vip_lounge'], color: 'text-cyan-400' }
+        ];
+
+        let html = '';
+
+        categories.forEach(cat => {
+            html += `<div class="text-xs font-bold ${cat.color} mt-2 mb-1 tracking-widest uppercase">${cat.title}</div>`;
+
+            cat.keys.forEach(key => {
+                const data = UPGRADE_DATA[key];
+                if (!data) return;
+
+                const currentLevel = upgradeManager.getCurrentLevel(key);
+                const maxLevel = upgradeManager.getMaxLevel(key);
+                const nextCost = upgradeManager.getNextCost(key);
+                
+                // 次のレベルの情報を取得（表示用）
+                const currentData = data.levels.find(l => l.level === currentLevel);
+                const nextData = currentLevel < maxLevel ? data.levels.find(l => l.level === currentLevel + 1) : null;
+
+                // ゲージの作成（最大5マス）
+                let dotsHtml = '';
+                const displayMax = key === 'fleet_capacity' ? 4 : 5; // 機体枠はLv4がMAX、他は5
+                for (let i = 1; i <= displayMax; i++) {
+                    if (i <= currentLevel) {
+                        // 特殊枠は琥珀色、他はエメラルド/ブルー系（モックアップに準拠）
+                        const dotColor = key === 'fleet_capacity' ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.3)]' : 
+                                         (cat.id === 'staff' ? 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.3)]' : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)]');
+                        dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full"></div>`;
+                    } else {
+                        dotsHtml += `<div class="h-1.5 w-full bg-slate-700 rounded-full"></div>`;
+                    }
+                }
+
+                // ボーナス内容のテキスト生成
+                let effectText = 'MAX レベル達成';
+                let effectColor = 'text-slate-400';
+                
+                if (nextData) {
+                    if (nextData.capacity !== undefined) effectText = `機体上限を ${nextData.capacity} 機へ拡張`;
+                    else if (nextData.speedMultiplier !== undefined) effectText = `フライト時間 -${Math.round((nextData.speedMultiplier - 1) * 100)}%`;
+                    else if (nextData.bonusIncomeRate !== undefined) effectText = `1フライトの収益 +${Math.round(nextData.bonusIncomeRate * 100)}%`;
+                    else if (nextData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${nextData.bonusSatisfaction}`;
+                    else if (nextData.turnaroundReduction !== undefined) effectText = `折り返し時間 -${Math.round(nextData.turnaroundReduction * 100)}%`;
+                    
+                    // 色分け
+                    if (key === 'fleet_capacity') effectColor = 'text-amber-400';
+                    else if (cat.id === 'staff') effectColor = 'text-blue-400';
+                    else effectColor = 'text-emerald-400';
+                }
+
+                // ボタンの状態とテキスト
+                let btnHtml = '';
+                if (currentLevel >= maxLevel) {
+                    btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center" disabled>MAX</button>`;
+                } else {
+                    const canAfford = currentFunds >= nextCost;
+                    const btnClass = canAfford ? 
+                        `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
+                        `bg-slate-700 text-slate-400 opacity-70`;
+                    
+                    // コストの整形 ($ 25M など)
+                    const costStr = nextCost >= 1000000 ? `$${(nextCost/1000000).toFixed(1)}M` : `$${Math.floor(nextCost/1000)}K`;
+
+                    btnHtml = `<button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center" data-id="${key}" ${canAfford ? '' : 'disabled'}>${costStr}</button>`;
+                }
+
+                html += `
+                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner mb-2">
+                    <div class="flex-1 pr-3">
+                        <div class="text-sm font-bold text-slate-200 flex items-baseline">
+                            ${data.name} <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv ${currentLevel}</span>
+                        </div>
+                        <div class="text-[11px] font-bold ${effectColor} mt-0.5">${effectText}</div>
+                        <div class="flex gap-1 mt-1.5">${dotsHtml}</div>
+                    </div>
+                    ${btnHtml}
+                </div>`;
+            });
+        });
+
+        // 最後に余白を追加
+        html += `<div class="h-4"></div>`;
+        
+        // HTMLの流し込み
+        panel.innerHTML = html;
+
+        // 生成したボタンにイベントリスナーを再バインド
+        panel.querySelectorAll('.upgrade-action-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (btn.disabled) {
+                    this.soundManager.playErrorSound();
+                    return;
+                }
+                const upgradeId = e.currentTarget.getAttribute('data-id');
+                // GameManagerへイベントを通知
+                if (this.onUpgradeRequested) {
+                    this.onUpgradeRequested(upgradeId);
+                }
+            });
+        });
     }
 }
