@@ -1,9 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【ライバルAIの無限増殖防止】
- * 履歴199の有機的なネットワーク発展アルゴリズムを維持した上で、
- * AIに「機体数の上限」を導入しました。
- * （現在開拓している有効な路線数に応じて上限が算出され、それを超える場合は機体を購入しません）
+ * 履歴199の有機的なネットワーク発展アルゴリズムを維持した上で、AIに「機体数の上限」を導入しました。
+ * * ★【Phase 1: AI撤退ロジックの統合 (ロードマップ対応)】
+ * 1. update と performAction の引数に competitionManager を追加。
+ * 2. 行動時、自身のシェアが 10%未満 (0.1) の路線があれば、新規開拓せずに「撤退（路線削除）」を行います。
+ * 3. 撤退に伴う機体のフリーズを防ぐため `planeManager.checkAndReassignPlanes` をフックさせています。
  */
 
 import { CONFIG } from './Config.js';
@@ -55,7 +57,8 @@ export class RivalManager {
         this.isInitialized = true;
     }
 
-    update(delta) {
+    // ★修正: 引数に competitionManager を追加
+    update(delta, competitionManager) {
         if (!this.isInitialized) return;
 
         this.rivals.forEach(rival => {
@@ -63,26 +66,59 @@ export class RivalManager {
             // 正確に1分(60秒)間隔で行動
             if (this.timers[rival.id] >= 60) {
                 this.timers[rival.id] = 0; 
-                this.performAction(rival.id);
+                this.performAction(rival.id, competitionManager);
             }
         });
     }
 
-    // ★追加: ライバルAIの現在の接続路線総数を計算する
     _getRivalRouteCount(companyId) {
         let routeCount = 0;
         const net = this.networkManager.network[companyId];
         if (!net) return 0;
         
-        // 双方向で登録されているため2で割る
         for (const originId in net) {
             routeCount += net[originId].length;
         }
         return Math.floor(routeCount / 2);
     }
 
-    performAction(companyId) {
+    // ★修正: 引数に competitionManager を追加
+    performAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
+        
+        // ★Phase 1追加: ライバルの撤退（リストラ）ロジック
+        if (competitionManager) {
+            let didWithdraw = false;
+            for (const originId of Object.keys(net)) {
+                if (net[originId].length === 0) continue;
+                
+                // その空港での自社シェアを取得
+                const myShare = competitionManager.getShare(originId, companyId);
+                
+                // プレイヤーの投資によりシェアが10%未満に追い込まれた場合、撤退する
+                if (myShare < 0.1) {
+                    const routeToRemove = net[originId][0]; // 最初の路線をリストラ対象とする
+                    const originNode = this.airportManager.getAirportById(originId);
+                    const destNode = routeToRemove.data; 
+
+                    if (originNode && destNode) {
+                        this.networkManager.removeRoute(originNode, destNode, companyId);
+                        // 撤退時、対象路線を飛んでいた機体がバグらないように強制再配置
+                        this.planeManager.checkAndReassignPlanes(companyId);
+                        didWithdraw = true;
+                        
+                        // ※Phase 2のUI通知用にコンソール出力を残しておく
+                        console.log(`[Rival Withdrawal] ${companyId} withdrew from ${originId} to ${destNode.id}`);
+                        break; // 1ターンの行動につき1路線のみ撤退（一気に消えないようにする）
+                    }
+                }
+            }
+            // 撤退行動を行った場合は、新規開拓や機体購入は行わずにターンを終える
+            if (didWithdraw) return;
+        }
+
+
+        // --- 以下、既存の開拓・購入ロジック ---
         
         // 繋がっている空港のうち、「まだ接続上限(MAX)に達していない空港」だけをリストアップする
         const connectedIds = Object.keys(net).filter(id => {
@@ -102,21 +138,16 @@ export class RivalManager {
             const originNode = this.airportManager.getAirportById(originId);
             this.expandNetwork(companyId, originNode);
         } else {
-            // ★修正: AIの機体無限増殖を防ぐためのキャップ処理
             const currentPlaneCounts = Object.values(this.planeManager.getPlaneCounts(companyId)).reduce((a, b) => a + b, 0);
             const currentRouteCount = this._getRivalRouteCount(companyId);
             
-            // 路線数の1.5倍をAIの機体上限とする（例: 10路線持っていれば15機まで買える）
-            // 序盤に機体が全く買えないのを防ぐため、最低でも5機は保証する
             const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
             
             if (currentPlaneCounts < aiMaxPlanes) {
-                // 上限未満ならランダムな機体を購入
                 const types = ['small', 'medium', 'large', 'super'];
                 const randomType = types[Math.floor(Math.random() * types.length)];
                 this.planeManager.addPlane(randomType, companyId);
             } else {
-                // 上限に達している場合は代わりに空路開拓を行う
                 const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
                 const originNode = this.airportManager.getAirportById(originId);
                 this.expandNetwork(companyId, originNode);
@@ -128,36 +159,29 @@ export class RivalManager {
         const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
-        // 接続可能な空港（距離制限内、未接続、上限未到達）だけを先に絞り込む
         const validCandidates = allCandidates.filter(destNode => {
             if (originNode.id === destNode.id) return false;
             if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) return false;
             
-            // 航続距離の制限チェック（1.25倍）
             const posDest = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);
             if (posOrigin.distanceTo(posDest) > CONFIG.GLOBE_RADIUS * 1.25) return false;
 
-            // 接続上限のチェック
             if (!this.networkManager.canConnect(originNode, destNode, companyId)) return false;
             
             return true;
         });
 
-        // 繋げる先が一つもない場合は終了
         if (validCandidates.length === 0) return;
 
-        // 距離順にソート（近い順）
         validCandidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
             const posB = Utils.latLonToVector3(b.lat, b.lon, CONFIG.GLOBE_RADIUS);
             return posOrigin.distanceTo(posA) - posOrigin.distanceTo(posB);
         });
 
-        // 一番近い空港だけを絶対視せず、距離が近い「上位最大4つ」の中からランダムに選ぶ
         const poolSize = Math.min(validCandidates.length, 4);
         const selectedDest = validCandidates[Math.floor(Math.random() * poolSize)];
 
-        // 確実に線を引いて飛行機を飛ばす
         this.networkManager.addRoute(originNode, selectedDest, companyId);
         this.planeManager.wakeUpPlanes(companyId);
     }

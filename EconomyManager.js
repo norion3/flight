@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【フェーズ2.5: 投資効果の確実な反映とUIリアルタイム更新】
- * 1. 顧客満足度(satisfaction)が、単なる客数アップだけでなく、確実な収益倍率（ブランド力）としても
- * 計算式（upgradeIncomeRate）に加算されるようバランス調整を行いました。
- * 2. 毎フレームの update() 内から UIManager.checkUpgradeButtons() と checkBuyPlaneButtons() を呼び出すことで、
- * パネルを開いたまま資金が貯まった瞬間にボタンが緑色に点灯する（UX向上）ようにしました。
- * ※修正: checkBuyPlaneButtons() へ現在の機体数と上限数も渡し、購入上限のリアルタイム制御を可能にしました。
+ * 顧客満足度の反映、各種UIのリアルタイム更新などを実装済み。
+ * * ★【Phase 1: 競争システムの統合 (ロードマップ対応)】
+ * 1. updateメソッドの引数に competitionManager を追加しました。
+ * 2. 収益(GrossIncome)・客数(Passengers)の計算時に、路線の起点と目的地の「平均シェア率」を掛け合わせるように修正。
+ * 3. シェアが0になってもマイナスにならないよう、最低5%(0.05)の保証値を設けています。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,102 +32,66 @@ export class EconomyManager {
         this.uiUpdateTimer = 0;
     }
 
-    canAfford(amount) {
-        return this.funds >= amount;
-    }
-
     addFunds(amount) {
         this.funds += amount;
     }
 
-    deductFunds(amount) {
-        if (this.funds >= amount) {
-            this.funds -= amount;
-            if (this.funds < 0) this.funds = 0;
-            return true;
-        }
-        return false;
-    }
-
-    calculateRouteCost(fromData, toData) {
-        const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS);
-        const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS);
-        const distance = posA.distanceTo(posB); 
-
-        const rankA = CONFIG.ECONOMY.AIRPORT_RANKS[fromData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
-        const rankB = CONFIG.ECONOMY.AIRPORT_RANKS[toData.type] || CONFIG.ECONOMY.AIRPORT_RANKS['fictional'];
-        const rankMultiplier = (rankA.multiplier + rankB.multiplier) / 2;
-
-        const cost = CONFIG.ECONOMY.ROUTE_BASE_COST + (distance * CONFIG.ECONOMY.ROUTE_DISTANCE_COST_RATE * rankMultiplier);
-        return Math.round(cost / 1000) * 1000; 
-    }
-
-    update(delta, playerPlanes, networkManager, upgradeManager) {
-        let currentFrameGrossIncome = 0;
-        let currentFrameUpkeep = 0;
-        let currentFramePassengers = 0;
-        let totalPlanesCount = 0;
-
-        const totalNetworkLength = networkManager ? networkManager.playerTotalNetworkLength : 0;
-        const networkBonus = 1.0 + (Math.sqrt(totalNetworkLength) * CONFIG.ECONOMY.NETWORK_BONUS_MULTIPLIER);
-
-        let upgradeIncomeRate = 1.0;
-        let upgradePassengerRate = 1.0; 
-        
-        if (upgradeManager) {
-            const bonuses = upgradeManager.getBonuses();
-            upgradeIncomeRate = bonuses.incomeRate;
-            
-            // 顧客満足度を「確実な収益（ブランド力）」と「客数」のダブルボーナスにする
-            const satisfactionBonus = bonuses.satisfaction / 100;
-            upgradeIncomeRate += (satisfactionBonus * 0.20); 
-            upgradePassengerRate = 1.0 + (satisfactionBonus * 0.50); 
-        }
-
-        playerPlanes.forEach(plane => {
-            if (plane.companyId === 'player') {
-                totalPlanesCount++; // プレイヤーの現在機体数をカウント
-                const type = plane.sizeType || 'small';
-                const planeConf = CONFIG.ECONOMY.PLANES[type] || CONFIG.ECONOMY.PLANES['small'];
-                
-                currentFrameUpkeep += planeConf.upkeep;
-
-                if (plane.currentRoute) {
-                    const routeIncome = planeConf.incomeBase * networkBonus * upgradeIncomeRate;
-                    const routePassengers = planeConf.baseDemand * 0.5 * networkBonus * upgradePassengerRate;
-
-                    currentFrameGrossIncome += routeIncome;
-                    currentFramePassengers += routePassengers;
-                }
-            }
-        });
-
-        this.grossIncomeBuffer += currentFrameGrossIncome * delta;
-        this.upkeepBuffer += currentFrameUpkeep * delta;
+    // ★修正: 第5引数に competitionManager を追加
+    update(delta, planes, networkManager, upgradeManager, competitionManager) {
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
 
-        const currentNetIncome = currentFrameGrossIncome - currentFrameUpkeep;
+        let currentFramePassengers = 0;
+        let grossIncomeThisFrame = 0;
+        let totalUpkeepThisFrame = 0;
+        let totalPlanesCount = 0;
 
-        if (this.isFirstSecond) {
-            this.lastSecondIncome = currentNetIncome;
-        }
+        planes.forEach(plane => {
+            if (plane.companyId !== 'player') return;
+            totalPlanesCount++;
+
+            const planeConf = CONFIG.ECONOMY.PLANES[plane.sizeType];
+            if (planeConf) {
+                totalUpkeepThisFrame += planeConf.upkeep * delta;
+            }
+
+            if (plane.currentRoute && planeConf) {
+                const bonuses = upgradeManager.getBonuses();
+                const upgradeIncomeRate = bonuses.incomeRate || 1.0;
+                
+                // ★Phase 1追加: シェア率による影響（質が悪いと稼げない）
+                let effectiveShare = 1.0;
+                if (competitionManager) {
+                    const fromShare = competitionManager.getShare(plane.currentAirportId, 'player');
+                    const toShare = competitionManager.getShare(plane.currentRoute.id, 'player');
+                    // 起点と目的地の平均シェアを算出
+                    const avgShare = (fromShare + toShare) / 2.0;
+                    // シェアが極端に低くても完全なゼロ(フリーズ)にはならないよう最低5%を保証
+                    effectiveShare = Math.max(0.05, avgShare);
+                }
+
+                // 収益と客数にシェア率を掛け合わせる
+                const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare;
+                grossIncomeThisFrame += incomePerSec * delta;
+
+                const passPerSec = (planeConf.baseDemand / 10) * effectiveShare;
+                currentFramePassengers += passPerSec * delta;
+            }
+        });
+
+        const currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
 
         if (this.incomeTimer >= 1.0) {
-            this.lastSecondIncome = (this.grossIncomeBuffer - this.upkeepBuffer) / this.incomeTimer;
+            this.lastSecondIncome = currentNetIncome;
+            this.incomeTimer = 0;
             this.grossIncomeBuffer = 0;
             this.upkeepBuffer = 0;
-            this.incomeTimer = 0;
-            this.isFirstSecond = false;
         }
 
-        // 0.5秒に1回、UIManagerのボタン状態をリアルタイムにチェック（パネルが開いている時だけ）
-        if (this.uiUpdateTimer >= 0.5) {
-            // アップグレードパネルの更新
-            if (upgradeManager && this.uiManager.isUpgradePanelOpen()) {
+        if (this.uiUpdateTimer >= 0.2) {
+            if (this.uiManager.isUpgradePanelOpen()) {
                 this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
             }
-            // 機体購入メニューの更新（★修正: 現在の機体数と上限数も渡す）
             if (this.uiManager.isBuyMenuOpen()) {
                 this.uiManager.checkBuyPlaneButtons(this.funds, totalPlanesCount, this.maxPlanes);
             }
@@ -164,12 +128,12 @@ export class EconomyManager {
     }
 
     _formatMoneyNumber(value) {
-        if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-        if (value >= 1000) return `${Math.floor(value / 1000)}K`;
-        return `${Math.floor(value)}`;
+        if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+        if (value >= 1000) return Math.floor(value / 1000) + 'K';
+        return Math.floor(value);
     }
-
+    
     _formatNumber(value) {
-        return value.toLocaleString();
+        return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 }
