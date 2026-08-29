@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.5: 投資UIと機体購入UIのリアルタイム更新機能】
- * 1. 投資パネル(`panel-upgrades`)を開いたままお金が貯まった際、ボタンが自動的に「押せる状態」に変わる機能。
- * 2. 機体購入メニュー(`buy-plane-menu`)についても同様に、所持金に応じて購入ボタンが有効/無効切り替わる機能。
- * ※修正: pointer-events-none を追加して、無効なボタンをタップした際のイベント貫通を完全に防ぎました。
- * ※修正: 資金があっても機体上限に達している場合はボタンをグレーアウトし、「上限到達」と表示するようにしました。
+ * 【Phase 2.6: 投資プログレスシステムの導入 (Step 3)】
+ * 1. 投資パネル(`panel-upgrades`)を新しい「フェーズとステップ」のデータ構造に対応。
+ * 2. 常に5マスのゲージを表示し、現在の step に応じて点灯させる。
+ * 3. 5回目の投資でレベルが上がる（ゲージが空に戻る）UXを実現。
+ * 4. MAXレベル（Lv10）到達時の表示を最適化。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -53,9 +53,7 @@ export class UIManager {
         
         this.currentRouteAction = null; 
         
-        // パネル開閉状態のフラグ
         this._isUpgradesOpen = false;
-        // 機体購入メニュー開閉フラグ
         this._isBuyMenuOpen = false;
 
         this._initFleetPrices(); 
@@ -71,7 +69,6 @@ export class UIManager {
             const sellCostValue = planeConf.cost * planeConf.sellRate;
             const sellCostStr = sellCostValue >= 1000000 ? `$${(sellCostValue / 1000000).toFixed(0)}M` : `$${Math.floor(sellCostValue / 1000)}K`;
 
-            // ★修正: 初期状態からクリック貫通防止（pointer-events-none）とグレー文字を適用
             const buyBtn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
             if (buyBtn) {
                 buyBtn.innerHTML = `<span>購入</span> <span class="font-mono text-slate-400">${buyCostStr}</span>`;
@@ -136,7 +133,6 @@ export class UIManager {
 
         document.querySelectorAll('.buy-plane-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // 安全弁: disabledなら確実に弾く
                 if (btn.disabled) {
                     this.soundManager.playErrorSound();
                     return;
@@ -383,7 +379,6 @@ export class UIManager {
                 const canSell = (counts[type] > 0);
                 sellBtn.disabled = !canSell;
                 
-                // ★修正: 売却ボタンも貫通防止と文字色変更を行う
                 if (canSell) {
                     sellBtn.className = `sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
                     const priceSpan = sellBtn.querySelector('span:nth-child(2)');
@@ -532,7 +527,6 @@ export class UIManager {
         return this._isBuyMenuOpen;
     }
 
-    // ★修正: 機体上限も加味して購入ボタンを制御し、クリック貫通(pointer-events-none)を防ぐ
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
         if (!this._isBuyMenuOpen) return;
         
@@ -558,7 +552,6 @@ export class UIManager {
                     if (priceSpan) priceSpan.className = 'font-mono text-emerald-200';
                 } else {
                     btn.disabled = true;
-                    // disabled:pointer-events-none で物理的にタップを無効化
                     btn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
                     
                     const textSpan = btn.querySelector('span:nth-child(1)');
@@ -568,7 +561,6 @@ export class UIManager {
                     if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
                 }
             } else {
-                // 状態が同じ(disabled)でも、理由が変わった時（お金がない状態から、上限到達状態へ変わった等）のテキスト更新
                 if (!canBuy) {
                     const textSpan = btn.querySelector('span:nth-child(1)');
                     if (textSpan) {
@@ -582,7 +574,6 @@ export class UIManager {
         });
     }
 
-    // ★修正: 投資ボタンもクリック貫通を防止する
     checkUpgradeButtons(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -602,14 +593,15 @@ export class UIManager {
                     btn.className = `upgrade-action-btn bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
                 } else {
                     btn.disabled = true;
-                    // disabled:pointer-events-none を追加
                     btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none`;
                 }
             }
         });
     }
 
-    // ★修正: 投資ボタン初期描画時のクリック貫通防止
+    // ============================================================================
+    // ★Phase 2.6: 新しい「レベル＆ステップ」構造に対応したUIパネル生成
+    // ============================================================================
     updateUpgradePanel(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -631,16 +623,38 @@ export class UIManager {
                 if (!data) return;
 
                 const currentLevel = upgradeManager.getCurrentLevel(key);
+                const currentStep = upgradeManager.getCurrentStep(key);
                 const maxLevel = upgradeManager.getMaxLevel(key);
                 const nextCost = upgradeManager.getNextCost(key);
                 
-                const currentData = data.levels.find(l => l.level === currentLevel);
-                const nextData = currentLevel < maxLevel ? data.levels.find(l => l.level === currentLevel + 1) : null;
+                // 現在のレベルのデータを取得
+                const currentLevelData = data.levels.find(l => l.level === currentLevel);
+                let currentStepData = null;
+                if (currentLevelData && currentLevelData.steps) {
+                    currentStepData = currentLevelData.steps.find(s => s.step === currentStep);
+                }
 
+                // 「次のステップ（投資後）」のデータを取得（ボーナスの変化を表示するため）
+                let nextStepData = null;
+                if (currentLevel < maxLevel) {
+                    let searchLevel = currentLevel;
+                    let searchStep = currentStep + 1;
+                    if (searchStep >= 5) {
+                        searchLevel++;
+                        searchStep = 0;
+                    }
+                    const nLvlData = data.levels.find(l => l.level === searchLevel);
+                    if (nLvlData && nLvlData.steps) {
+                        nextStepData = nLvlData.steps.find(s => s.step === searchStep);
+                    }
+                }
+
+                // ゲージの作成（常に5マスを描画し、現在のstepに応じて色を変える）
                 let dotsHtml = '';
-                const displayMax = key === 'fleet_capacity' ? 4 : 5; 
-                for (let i = 1; i <= displayMax; i++) {
-                    if (i <= currentLevel) {
+                const isMax = currentLevel >= maxLevel;
+                for (let i = 0; i < 5; i++) {
+                    // MAXの場合は全部光らせる。それ以外は現在のstepより小さければ光る
+                    if (isMax || i < currentStep) {
                         const dotColor = key === 'fleet_capacity' ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.3)]' : 
                                          (cat.id === 'staff' ? 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.3)]' : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)]');
                         dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full"></div>`;
@@ -652,19 +666,36 @@ export class UIManager {
                 let effectText = 'MAX レベル達成';
                 let effectColor = 'text-slate-400';
                 
-                if (nextData) {
-                    if (nextData.capacity !== undefined) effectText = `機体上限を ${nextData.capacity} 機へ拡張`;
-                    else if (nextData.speedMultiplier !== undefined) effectText = `フライト時間 -${Math.round((nextData.speedMultiplier - 1) * 100)}%`;
-                    else if (nextData.bonusIncomeRate !== undefined) effectText = `1フライトの収益 +${Math.round(nextData.bonusIncomeRate * 100)}%`;
-                    else if (nextData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${nextData.bonusSatisfaction}`;
+                // 次のステップが存在すれば、次で得られる効果を表示する
+                if (nextStepData && currentStepData) {
+                    if (nextStepData.capacity !== undefined) {
+                        effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
+                    } else if (nextStepData.speedMultiplier !== undefined) {
+                        const curSpd = Math.round((currentStepData.speedMultiplier - 1) * 100);
+                        const nxtSpd = Math.round((nextStepData.speedMultiplier - 1) * 100);
+                        effectText = `フライト時間短縮 ${curSpd}% ➔ ${nxtSpd}%`;
+                    } else if (nextStepData.bonusIncomeRate !== undefined) {
+                        const curInc = Math.round(currentStepData.bonusIncomeRate * 100);
+                        const nxtInc = Math.round(nextStepData.bonusIncomeRate * 100);
+                        effectText = `収益ボーナス +${curInc}% ➔ +${nxtInc}%`;
+                    } else if (nextStepData.bonusSatisfaction !== undefined) {
+                        effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
+                    }
                     
                     if (key === 'fleet_capacity') effectColor = 'text-amber-400';
                     else if (cat.id === 'staff') effectColor = 'text-blue-400';
                     else effectColor = 'text-emerald-400';
+                } else if (isMax && currentStepData) {
+                    // MAXの場合の最終ステータス表示
+                    if (currentStepData.capacity !== undefined) effectText = `機体上限 ${currentStepData.capacity} 機 (MAX)`;
+                    else if (currentStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% (MAX)`;
+                    else if (currentStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% (MAX)`;
+                    else if (currentStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} (MAX)`;
                 }
 
+                // ボタンの状態とテキスト
                 let btnHtml = '';
-                if (currentLevel >= maxLevel) {
+                if (isMax) {
                     btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none" disabled>MAX</button>`;
                 } else {
                     const canAfford = currentFunds >= nextCost;
@@ -677,11 +708,14 @@ export class UIManager {
                     btnHtml = `<button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center" data-id="${key}" ${canAfford ? '' : 'disabled'}>${costStr}</button>`;
                 }
 
+                // 表示用のLvは1からスタートする (内部データは0始まり)
+                const displayLevel = isMax ? 'MAX' : `Lv ${currentLevel + 1}`;
+
                 html += `
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner mb-2">
                     <div class="flex-1 pr-3">
                         <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                            ${data.name} <span class="text-slate-400 text-[10px] ml-1.5 font-mono">Lv ${currentLevel}</span>
+                            ${data.name} <span class="text-slate-400 text-[10px] ml-1.5 font-mono">${displayLevel}</span>
                         </div>
                         <div class="text-[11px] font-bold ${effectColor} mt-0.5">${effectText}</div>
                         <div class="flex gap-1 mt-1.5">${dotsHtml}</div>
