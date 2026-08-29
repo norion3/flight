@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.1: CompetitionManagerの統合とUIバグ修正】
- * 1. CompetitionManager をインポートし、ループ内で全空港のシェアを裏側で計算。
- * 2. 履歴300付近で先祖返り消失していた「投資パネルを開いた時の初期描画(updateUpgradePanel)の呼び出し」を完全に復旧。
+ * 【フェーズ3.1: CompetitionManagerの統合】
+ * 1. ユーザー提供の完全なベースコードを維持し、タイポや先祖返りを完全に排除。
+ * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを裏側で計算。
  */
 
 import { CONFIG } from './Config.js';
@@ -155,13 +155,6 @@ export class GameManager {
             }
         };
 
-        // ★消失していたUIの描画トリガーを復元
-        document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
-            });
-        });
-
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
         this.selectedHitMesh = null;
@@ -207,7 +200,7 @@ export class GameManager {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.container.appendChild(this.renderer.domElement);
 
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enablePan = false;
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.04;
