@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 3: HUD 3段独立構造へのUIマネージャー対応】
- * 1. `updateTopHUD` の引数構成を 3段構造（カレンダー、資金、収益、機体、シェア、客数）に刷新しました。
- * 2. トーストの表示位置を `top-36` に微調整し、スリム化したHUDの下部に美しくフィットさせました。
+ * 【撤退専用トースト処理の実装】
+ * 1. ライバルが撤退した際に、汎用トーストではなく専用の `showWithdrawToast(rivalName, rivalId)` を呼び出すようにしました。
+ * 2. 引数で受け取った `rivalId` に応じて `CONFIG.COMPANIES` からブランドカラー（`routeColor`）を動的に取得し、
+ * トーストのボーダーやアクセントカラーとして適用することで、どのライバルが撤退したかが一目で分かるようにしています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -374,7 +375,6 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★Phase 3: 3段独立構造HUDの更新メソッド
     updateTopHUD(calendarStr, fundsStr, planesStr, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -442,6 +442,32 @@ export class UIManager {
         this.toastTimeout = setTimeout(() => {
             this.toast.classList.remove('toast-show');
         }, 3000); 
+    }
+
+    /**
+     * 🌐 撤退専用トースト通知（ライバルのブランドカラーを動的適用）
+     */
+    showWithdrawToast(message, rivalId) {
+        this.soundManager.playEventSound();
+        const baseClasses = "fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        
+        // ライバルのブランドカラーを CONFIG から取得（デフォルトはブルー系）
+        const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
+        const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
+
+        this.toast.className = `${baseClasses} bg-slate-900/95 text-white border-2 shadow-xl`;
+        this.toast.style.borderColor = hexColor;
+        this.toast.style.boxShadow = `0 10px 25px -5px ${hexColor}40`;
+        
+        this.toast.innerText = message;
+        void this.toast.offsetWidth;
+        this.toast.classList.add('toast-show');
+        
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        
+        this.toastTimeout = setTimeout(() => {
+            this.toast.classList.remove('toast-show');
+        }, 3500); 
     }
 
     showAirportInfo(data, currentConnections, maxConnections) {
