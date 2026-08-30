@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 1: AI撤退ロジックの統合】
- * 1. update と performAction の引数に competitionManager を追加。
- * 2. 行動時、自身のシェアが 10%未満 (0.1) の路線があれば、新規開拓せずに「撤退（路線削除）」を行います。
- * 3. 撤退に伴う機体のフリーズを防ぐため `planeManager.checkAndReassignPlanes` をフックさせています。
+ * 【Phase 2.11: ライバルのしぶとい逃亡・1路線死守ロジック】
+ * 1. `performAction` にて路線数が1以下の場合は撤退をキャンセル（break）する「死守ロジック」を追加。
+ * 2. 撤退した直後、プレイヤーのシェアが0%（または最も低い）で、かつ孤島ではない空港を探し出し、
+ * そこにワープして再起を図る `_escapeToNewAirport` メソッドを追加しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -78,6 +78,7 @@ export class RivalManager {
 
     performAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
+        const currentRouteCount = this._getRivalRouteCount(companyId);
         
         if (competitionManager) {
             let didWithdraw = false;
@@ -86,7 +87,14 @@ export class RivalManager {
                 
                 const myShare = competitionManager.getShare(originId, companyId);
                 
+                // シェア10%未満で撤退の危機
                 if (myShare < 0.1) {
+                    
+                    // ★追加(Phase 2.11): 最後の1路線なら絶対に撤退しない（死守）
+                    if (currentRouteCount <= 1) {
+                        break; 
+                    }
+
                     const routeToRemove = net[originId][0]; 
                     const originNode = this.airportManager.getAirportById(originId);
                     const destNode = routeToRemove.data; 
@@ -95,7 +103,9 @@ export class RivalManager {
                         this.networkManager.removeRoute(originNode, destNode, companyId);
                         this.planeManager.checkAndReassignPlanes(companyId);
                         didWithdraw = true;
-                        console.log(`[Rival Withdrawal] ${companyId} withdrew from ${originId} to ${destNode.id}`);
+                        
+                        // ★追加(Phase 2.11): 新天地へワープ（逃亡）
+                        this._escapeToNewAirport(companyId, competitionManager);
                         break; 
                     }
                 }
@@ -120,7 +130,6 @@ export class RivalManager {
             this.expandNetwork(companyId, originNode);
         } else {
             const currentPlaneCounts = Object.values(this.planeManager.getPlaneCounts(companyId)).reduce((a, b) => a + b, 0);
-            const currentRouteCount = this._getRivalRouteCount(companyId);
             const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
             
             if (currentPlaneCounts < aiMaxPlanes) {
@@ -133,6 +142,51 @@ export class RivalManager {
                 this.expandNetwork(companyId, originNode);
             }
         }
+    }
+
+    // ★追加(Phase 2.11): プレイヤーのシェアが低い安全な空港（かつ孤島ではない）を探してワープする
+    _escapeToNewAirport(companyId, competitionManager) {
+        const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
+        
+        const validEscapes = allCandidates.filter(candidate => {
+            // 既に路線を持っていたらダメ
+            const net = this.networkManager.network[companyId];
+            if (net && net[candidate.id] && net[candidate.id].length > 0) return false;
+            
+            // 孤島チェック（接続可能な空港が1つでもあるか）
+            let hasConnection = false;
+            const posCandidate = Utils.latLonToVector3(candidate.lat, candidate.lon, CONFIG.GLOBE_RADIUS);
+            for (const other of allCandidates) {
+                if (other.id === candidate.id) continue;
+                const posOther = Utils.latLonToVector3(other.lat, other.lon, CONFIG.GLOBE_RADIUS);
+                if (posCandidate.distanceTo(posOther) <= CONFIG.GLOBE_RADIUS * 1.25) {
+                    if (this.networkManager.canConnect(candidate, other, companyId)) {
+                        hasConnection = true;
+                        break;
+                    }
+                }
+            }
+            return hasConnection;
+        });
+
+        if (validEscapes.length === 0) return; // 逃げ場なし
+
+        // プレイヤーのシェアが低い順にソート（シェア0が最優先）
+        validEscapes.sort((a, b) => {
+            const shareA = competitionManager.getShare(a.id, 'player');
+            const shareB = competitionManager.getShare(b.id, 'player');
+            return shareA - shareB;
+        });
+
+        // プレイヤーのシェアが最小の空港群をピックアップ（シェア0%の空港が複数あればその中から）
+        const minShare = competitionManager.getShare(validEscapes[0].id, 'player');
+        const bestEscapes = validEscapes.filter(e => competitionManager.getShare(e.id, 'player') === minShare);
+
+        // その中からランダムに1つ選んでワープ
+        const escapeDest = bestEscapes[Math.floor(Math.random() * bestEscapes.length)];
+        
+        // 逃亡先から1本開拓する
+        this.expandNetwork(companyId, escapeDest);
     }
 
     expandNetwork(companyId, originNode) {
