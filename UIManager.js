@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【メニュー潰れバグの完全解決】
- * ライバル状況パネルを開いた際、高さが 'auto' だと absolute 要素が認識されずに
- * 潰れてしまう問題を解決するため、具体的な数値 ('560px') と '80vh' を指定しました。
+ * 【Phase 2.13: 自社比較バグの修正】
+ * 1. 自社のタブを開いた際、「自社 vs 自社」になってしまうバグを修正しました。
+ * 2. 自分が対象の時は、ランキング内の「一番強いトップライバル」を自動的に比較対象(compareStat)
+ * として選び出し、白熱する「自社 vs 1位」のグラフを描画するようにしました。
+ * 3. グラフ上の表記を「対象」から「ライバル名(Euro Wings等)」に動的変更しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -261,7 +263,6 @@ export class UIManager {
                     this._isUpgradesOpen = (targetId === 'panel-upgrades');
                     this._isRivalsOpen = (targetId === 'panel-rivals');
 
-                    // ★修正: 潰れバグ解決のため、autoを廃止し固定値 560px を設定
                     if (this._isRivalsOpen) {
                         this.controlCenter.classList.remove('h-[400px]');
                         this.controlCenter.style.height = '560px';
@@ -648,6 +649,9 @@ export class UIManager {
         let html = ``; 
         
         const playerStat = stats.find(s => s.isPlayer) || stats[0];
+        
+        // ★追加: 自分以外の企業の中で一番シェアが高い「トップライバル」を探し出す
+        const topRivalStat = stats.find(s => !s.isPlayer) || stats[0];
 
         stats.forEach((stat, index) => {
             const rank = index + 1;
@@ -672,6 +676,11 @@ export class UIManager {
             const contentClass = isOpen ? '' : 'hidden';
             const iconClass = isOpen ? 'rotate-180' : '';
 
+            // ★追加: もし開いているタブが「自分自身」なら、比較対象を「トップライバル」に差し替える
+            const compareStat = isPlayer ? topRivalStat : stat;
+            const compareShareStr = (compareStat.globalShare * 100).toFixed(1) + '%';
+            const compareAssetStr = this._formatMoneyShort(compareStat.assetValue);
+
             html += `
             <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
@@ -690,11 +699,11 @@ export class UIManager {
                 
                 <div class="${contentClass} p-3 pt-0 border-t border-slate-700/50 mt-1 rival-accordion-content">
                     <div class="mt-3 flex flex-col gap-3">
-                        ${this._createCompareBarHtml('👑 世界シェア率', playerStat.globalShare, stat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', shareStr, isPlayer)}
-                        ${this._createCompareBarHtml('💰 推定企業総資産', playerStat.assetValue, stat.assetValue, this._formatMoneyShort(playerStat.assetValue), assetStr, isPlayer)}
-                        ${this._createCompareBarHtml('⭐ 顧客満足度', playerStat.satisfaction, stat.satisfaction, playerStat.satisfaction, stat.satisfaction, isPlayer)}
-                        ${this._createCompareBarHtml('🌐 総路線数', playerStat.routeCount, stat.routeCount, playerStat.routeCount, stat.routeCount, isPlayer)}
-                        ${this._createCompareBarHtml('✈️ 稼働機体数', playerStat.planeCount, stat.planeCount, playerStat.planeCount, stat.planeCount, isPlayer)}
+                        ${this._createCompareBarHtml('👑 世界シェア率', playerStat.globalShare, compareStat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', compareShareStr, compareStat.name)}
+                        ${this._createCompareBarHtml('💰 推定企業総資産', playerStat.assetValue, compareStat.assetValue, this._formatMoneyShort(playerStat.assetValue), compareAssetStr, compareStat.name)}
+                        ${this._createCompareBarHtml('⭐ 顧客満足度', playerStat.satisfaction, compareStat.satisfaction, playerStat.satisfaction, compareStat.satisfaction, compareStat.name)}
+                        ${this._createCompareBarHtml('🌐 総路線数', playerStat.routeCount, compareStat.routeCount, playerStat.routeCount, compareStat.routeCount, compareStat.name)}
+                        ${this._createCompareBarHtml('✈️ 稼働機体数', playerStat.planeCount, compareStat.planeCount, playerStat.planeCount, compareStat.planeCount, compareStat.name)}
                     </div>
                 </div>
             </div>`;
@@ -725,7 +734,8 @@ export class UIManager {
         });
     }
 
-    _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay, isSelfCompare) {
+    // ★修正: 誰と比較しているのかが明確にわかるように rivalName(ライバル名) を引数に追加
+    _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay, rivalName) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;
         const rPct = (rivalVal / total) * 100;
@@ -733,10 +743,7 @@ export class UIManager {
         let resultText = '';
         let resultColor = '';
         
-        if (isSelfCompare) {
-            resultText = '(自社)';
-            resultColor = 'text-emerald-400';
-        } else if (playerVal > rivalVal) {
+        if (playerVal > rivalVal) {
             resultText = '(勝ち!)';
             resultColor = 'text-emerald-400';
         } else if (playerVal < rivalVal) {
@@ -747,11 +754,14 @@ export class UIManager {
             resultColor = 'text-slate-400';
         }
 
+        // スマホ画面で文字が溢れないように、長い名前は自動でカットする
+        const shortRivalName = rivalName.length > 8 ? rivalName.substring(0, 8) + '.' : rivalName;
+
         return `
         <div>
             <div class="flex justify-between text-[10px] font-bold mb-1.5">
                 <span class="text-slate-300">${title}</span>
-                <span>自社 ${playerDisplay} <span class="text-slate-600 font-normal mx-0.5">vs</span> 対象 ${rivalDisplay} <span class="${resultColor} ml-0.5">${resultText}</span></span>
+                <span>自社 ${playerDisplay} <span class="text-slate-600 font-normal mx-0.5">vs</span> ${shortRivalName} ${rivalDisplay} <span class="${resultColor} ml-0.5">${resultText}</span></span>
             </div>
             <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
@@ -761,7 +771,7 @@ export class UIManager {
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <span class="text-[9px] text-slate-500 w-6">対象</span>
+                    <span class="text-[9px] text-slate-500 w-6">敵</span>
                     <div class="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden flex shadow-inner">
                         <div class="h-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.3)] transition-all duration-500" style="width: ${rPct}%"></div>
                     </div>
