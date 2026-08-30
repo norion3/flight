@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 3: 時間概念の導入と統計データの蓄積】
- * - `updateTopHUD` メソッドの引数とDOM更新ロジックを、新しい3段レイアウト
- * （カレンダー、資金、機体、収益、客数、シェア）に合わせて改修しました。
- * - `showToast` の配置位置を `top-24` から `top-40` へ変更し、
- * 拡張されたHUDの下部に美しく表示されるよう干渉を回避しました。
+ * 【Phase 3: HUDのダッシュボード化対応】
+ * `updateTopHUD` にて、1段目（カレンダーと資金）は `innerText` で安全に代入し、
+ * 2段目（機体、収益、客数、シェア）は小さくした「単位のHTMLタグ」を描画するため、
+ * `innerHTML` を用いてDOMに注入するよう改修しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -376,7 +375,7 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★Phase 3: 3段構成のHUDレイアウトに合わせて引数を追加・変更
+    // ★Phase 3: HUDのダッシュボード化対応（innerHTML化）
     updateTopHUD(calendarStr, fundsStr, planesStr, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -385,12 +384,14 @@ export class UIManager {
         const elPassengers = document.getElementById('hud-passengers');
         const elShare = document.getElementById('hud-share');
 
-        if (elCalendar) elCalendar.innerText = calendarStr;
+        if (elCalendar) elCalendar.innerText = calendarStr; 
         if (elFunds) elFunds.innerText = fundsStr;
+        
+        // 単位などの装飾タグを含めるため innerHTML を使用
         if (elPlanes) elPlanes.innerHTML = planesStr;
-        if (elIncome) elIncome.innerText = incomeStr;
-        if (elPassengers) elPassengers.innerText = passengersStr;
-        if (elShare) elShare.innerText = shareStr;
+        if (elIncome) elIncome.innerHTML = incomeStr;
+        if (elPassengers) elPassengers.innerHTML = passengersStr;
+        if (elShare) elShare.innerHTML = shareStr;
     }
 
     updateFleetPanel(counts) {
@@ -422,7 +423,6 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
-        // ★Phase 3: top-24 から top-40 に下げ、拡張されたHUDの下部に表示させる
         const baseClasses = "fixed top-40 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
         if (type === 'error') {

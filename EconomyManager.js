@@ -5,7 +5,7 @@
  * 2. 月が切り替わるタイミングで、プレイヤーとAI全社の主要指標（資金、収益、客数、機体数、シェア）の
  * スナップショットを `historyData` に保存します。
  * 3. 過去24ヶ月分のリングバッファ構造を採用し、メモリ圧迫を完全に防ぎつつグラフ化に必要な情報を確保します。
- * 4. 新しい3段構成のHUDレイアウトに合わせて、`updateTopHUD` に渡す引数を更新しました。
+ * 4. 新しいダッシュボード型HUDレイアウトに合わせて、HTMLタグを含んだ見やすい文字列（単位の縮小など）を生成します。
  */
 
 import { CONFIG } from './Config.js';
@@ -215,19 +215,19 @@ export class EconomyManager {
             this.displayIncome = this.lastSecondIncome;
         }
 
-        // HUD用データの生成
+        // ★Phase 3: ダッシュボード型レイアウト用のHTML成形
         const displayVal = Math.round(this.displayIncome);
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
-        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}/s`;
+        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}<span class="text-[10px] font-sans font-normal text-emerald-400/70 ml-0.5">/s</span>`;
         
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const calendarStr = `Year ${this.currentYear} - ${monthNames[this.currentMonth - 1]}`;
         
-        const planesStr = `${totalPlanesCount} <span class="text-slate-500 text-[10px]">/ ${this.maxPlanes}</span> 機`;
-        const passStr = this._formatNumber(Math.floor(this.totalPassengers)) + ' 人';
+        const planesStr = `${totalPlanesCount} <span class="text-slate-500">/ ${this.maxPlanes}</span> <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">機</span>`;
+        const passStr = this._formatNumber(Math.floor(this.totalPassengers)) + ' <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">人</span>';
         
         const playerShare = competitionManager ? (competitionManager.globalShares['player'] || 0) : 0;
-        const shareStr = (playerShare * 100).toFixed(1) + ' %';
+        const shareStr = (playerShare * 100).toFixed(1) + ' <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">%</span>';
 
         this.uiManager.updateTopHUD(
             calendarStr,

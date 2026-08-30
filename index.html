@@ -159,53 +159,69 @@
         Message
     </div>
 
-    <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-12 pb-2">
-        <div class="flex flex-col w-full max-w-md px-4 gap-2">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-1.5">
+    <!-- ★Phase 3: HUDのダッシュボード型レイアウト改善 -->
+    <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-12 pb-3 shadow-lg shadow-slate-950/50">
+        <div class="flex flex-col w-full max-w-md px-5 gap-3">
+            
+            <!-- 1段目: カレンダー & 資金 -->
+            <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                <div class="flex items-center gap-2">
                     <span class="text-sm">🗓️</span>
-                    <span id="hud-calendar" class="text-xs font-bold text-slate-200 tracking-wider">Year 1 - Jan</span>
+                    <span id="hud-calendar" class="text-sm font-bold text-white tracking-wider">Year 1 - Jan</span>
                 </div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-2">
                     <span class="text-sm">💰</span>
-                    <span id="hud-funds" class="text-sm font-bold text-emerald-400 font-mono tracking-wider">$ 50.0M</span>
+                    <span id="hud-funds" class="text-base font-bold text-emerald-400 font-mono tracking-wider">$ 50.0M</span>
                 </div>
             </div>
             
-            <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
-                <div class="flex items-center gap-1.5 w-1/2">
-                    <span class="text-xs">✈️</span>
-                    <div class="flex flex-col">
-                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">稼働機体</span>
-                        <span id="hud-planes" class="text-xs font-bold text-white font-mono leading-none">0 <span class="text-slate-500 text-[10px]">/ 10</span> 機</span>
+            <!-- 2段目: 情報を左右のブロックに分け、数値を大きく表示 -->
+            <div class="flex justify-between">
+                
+                <!-- 左列: 機体 と 客数 -->
+                <div class="flex flex-col gap-3 w-1/2">
+                    <div>
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span class="text-xs">✈️</span>
+                            <span class="text-[10px] text-slate-400 font-bold tracking-wider">稼働機体</span>
+                        </div>
+                        <div class="pl-5">
+                            <span id="hud-planes" class="text-sm font-bold text-white font-mono tracking-wide">0 <span class="text-slate-500">/ 10</span> <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">機</span></span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span class="text-xs">👥</span>
+                            <span class="text-[10px] text-slate-400 font-bold tracking-wider">累計客数</span>
+                        </div>
+                        <div class="pl-5">
+                            <span id="hud-passengers" class="text-sm font-bold text-white font-mono tracking-wide">0 <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">人</span></span>
+                        </div>
                     </div>
                 </div>
-                <!-- ★修正: アイコンを左側に配置し、文字を右揃えに統一 -->
-                <div class="flex items-center gap-1.5 w-1/2 justify-end">
-                    <span class="text-xs">📈</span>
-                    <div class="flex flex-col text-right">
-                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">収益</span>
-                        <span id="hud-income" class="text-xs font-bold text-yellow-400 font-mono leading-none">+$ 0/s</span>
-                    </div>
-                </div>
-            </div>
 
-            <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
-                <div class="flex items-center gap-1.5 w-1/2">
-                    <span class="text-xs">👥</span>
-                    <div class="flex flex-col">
-                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">累計客数</span>
-                        <span id="hud-passengers" class="text-xs font-bold text-cyan-400 font-mono leading-none">0 人</span>
+                <!-- 右列: 収益 と シェア -->
+                <div class="flex flex-col gap-3 w-1/2">
+                    <div>
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span class="text-xs">📈</span>
+                            <span class="text-[10px] text-slate-400 font-bold tracking-wider">収益</span>
+                        </div>
+                        <div class="pl-5">
+                            <span id="hud-income" class="text-sm font-bold text-emerald-400 font-mono tracking-wide">+$ 0<span class="text-[10px] font-sans font-normal text-emerald-400/70 ml-0.5">/s</span></span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span class="text-xs">👑</span>
+                            <span class="text-[10px] text-slate-400 font-bold tracking-wider">世界シェア</span>
+                        </div>
+                        <div class="pl-5">
+                            <span id="hud-share" class="text-sm font-bold text-white font-mono tracking-wide">0.0 <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">%</span></span>
+                        </div>
                     </div>
                 </div>
-                <!-- ★修正: アイコンを左側に配置し、文字を右揃えに統一 -->
-                <div class="flex items-center gap-1.5 w-1/2 justify-end">
-                    <span class="text-xs">👑</span>
-                    <div class="flex flex-col text-right">
-                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">世界シェア</span>
-                        <span id="hud-share" class="text-xs font-bold text-fuchsia-400 font-mono leading-none">0.0 %</span>
-                    </div>
-                </div>
+
             </div>
         </div>
     </div>
