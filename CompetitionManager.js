@@ -1,10 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 1: 競争とシェア計算ロジックの完成 (バグ修正版)】
- * 1. 路線数スパムが強すぎる問題を解決するため、路線数の影響を `Math.sqrt` で減衰させ、
- * 顧客満足度の影響を `Math.pow(..., 2.0)` で指数関数的に強化しました。
- * 2. プレイヤー単独路線の際にシェアが0になる致命的バグを修正。データ未定義時は
- * 「対象の会社が路線を持っていればシェア1.0(独占)、なければ0」を返すよう安全装置を組み込みました。
+ * 【Phase 2: ライバル状況UIの実データ化】
+ * 各空港のシェア計算のついでに、全世界の総パワーと各社の累計パワーを算出し、
+ * 誰が世界シェア1位なのか（globalShares）を正確に計算・提供できるようにしました。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,6 +14,7 @@ export class CompetitionManager {
         this.rivalManager = rivalManager;
 
         this.shares = {};
+        this.globalShares = {}; // ★追加: 全世界シェアランキング用データ
         this.baseAiSatisfaction = 150; 
     }
 
@@ -25,11 +24,18 @@ export class CompetitionManager {
 
     _calculateShares() {
         this.shares = {};
+        this.globalShares = {};
         const companies = CONFIG.COMPANIES;
         const airportPowers = {}; 
+        
+        // ★全世界シェア計算用変数
+        let worldTotalPower = 0;
+        const companyTotalPower = {};
 
         companies.forEach(comp => {
             const companyId = comp.id;
+            companyTotalPower[companyId] = 0; // 初期化
+
             const compNetwork = this.networkManager.network[companyId];
             if (!compNetwork) return;
 
@@ -41,7 +47,6 @@ export class CompetitionManager {
                 satisfaction = this.baseAiSatisfaction;
             }
 
-            // 満足度（ブランド力）の影響を二次関数的に強める
             const satisfactionFactor = Math.pow(1.0 + (satisfaction / 100), 2.0);
 
             for (const originId in compNetwork) {
@@ -49,15 +54,22 @@ export class CompetitionManager {
                 if (routesCount > 0) {
                     if (!airportPowers[originId]) airportPowers[originId] = {};
                     
-                    // 路線数の影響は平方根で減衰（量より質）
                     const routeFactor = Math.sqrt(routesCount);
+                    const power = routeFactor * satisfactionFactor;
                     
-                    // パワー = 路線数ファクター × 顧客満足度ファクター
-                    airportPowers[originId][companyId] = routeFactor * satisfactionFactor;
+                    airportPowers[originId][companyId] = power;
+                    companyTotalPower[companyId] += power; // ★自社の総パワー加算
+                    worldTotalPower += power; // ★世界の総パワー加算
                 }
             }
         });
 
+        // ★各社の全世界シェア率を計算
+        companies.forEach(comp => {
+            this.globalShares[comp.id] = worldTotalPower > 0 ? (companyTotalPower[comp.id] / worldTotalPower) : 0;
+        });
+
+        // 既存の空港単位のシェア計算
         for (const airportId in airportPowers) {
             const powers = airportPowers[airportId];
             
@@ -66,7 +78,6 @@ export class CompetitionManager {
                 totalPower += (powers[cId] || 0);
             }
 
-            // 合計パワーが0以下の場合はスキップ
             if (totalPower <= 0) continue;
 
             this.shares[airportId] = {};
@@ -76,17 +87,20 @@ export class CompetitionManager {
         }
     }
 
+    // 特定の空港におけるシェア取得
     getShare(airportId, companyId = 'player') {
-        // 対象の空港にシェアデータがまだ存在しない場合
         if (!this.shares[airportId] || this.shares[airportId][companyId] === undefined) {
-            // その会社が該当空港に路線を引いているか確認
             const net = this.networkManager.network[companyId];
             if (net && net[airportId] && net[airportId].length > 0) {
-                // 路線があるのにシェア未定義＝ライバル不在の単独乗り入れ（独占状態）
                 return 1.0; 
             }
-            return 0; // 路線なし
+            return 0;
         }
         return this.shares[airportId][companyId];
+    }
+    
+    // ★追加: 全世界シェア率の取得（UIランキング用）
+    getGlobalShare(companyId) {
+        return this.globalShares[companyId] || 0;
     }
 }

@@ -44,29 +44,21 @@
         window.addEventListener('resize', updateUIBottomMargin);
         window.addEventListener('DOMContentLoaded', updateUIBottomMargin);
 
-        // ★第2防壁: スワイプによる戻る・進むなどの標準ジェスチャーを防止
         document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
         document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
         document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
 
-        // ★第2防壁: マルチタッチ（2本指での拡大）によるズーム防止
         document.addEventListener('touchstart', function(e) {
             if (e.touches.length > 1) {
                 e.preventDefault();
             }
         }, { passive: false });
 
-        // ★第3防壁: ダブルタップズームの完全遮断 ＆ クリック救済ロジック
         let lastTouchEnd = 0;
         document.addEventListener('touchend', function(event) {
             const now = (new Date()).getTime();
             if (now - lastTouchEnd <= 300) {
-                // 300ms以内の連打はデフォルトのブラウザ挙動（ズーム等）を強制キャンセル
                 event.preventDefault();
-                
-                // 【空振り救済措置】
-                // preventDefaultの代償として消滅したクリック判定を、対象を探し出して強制発火させる
-                // .closest() で触れた場所の親要素であるボタンを自動探索する
                 const targetBtn = event.target.closest('button, .cc-link-btn, .buy-plane-btn, .sell-plane-btn, .upgrade-action-btn, .rival-accordion-btn, .graph-tab-btn');
                 
                 if (targetBtn && !targetBtn.disabled) {
@@ -107,15 +99,13 @@
             --ui-bottom: 30px;
         }
         
-        /* ★第1防壁: スマホ特有のブラウザ制御を全要素に対して徹底的にマスク */
         * {
-            -webkit-user-select: none; /* iOSテキスト選択の青いハイライトを無効化 */
+            -webkit-user-select: none;
             user-select: none;
-            -webkit-touch-callout: none; /* 長押し時の「コピー/保存」メニューを無効化 */
-            -webkit-tap-highlight-color: transparent; /* タップ時のグレー枠を無効化 */
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
         }
         
-        /* ボタンやUIに対するダブルタップズームをCSSレベルで封印 */
         button, a, input, select, textarea, .interactive-ui {
             touch-action: manipulation !important;
         }
@@ -123,7 +113,7 @@
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
             background-color: #020617; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            overscroll-behavior: none; /* 画面端のスワイプでゴムのように引っ張られる現象を無効化 */
+            overscroll-behavior: none;
         }
         
         #webgl-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; touch-action: none; }
@@ -181,7 +171,7 @@
             </div>
             <div class="flex flex-col text-center flex-1">
                 <span class="text-[10px] text-slate-400 font-bold mb-0.5">機体数</span>
-                <span id="hud-planes" class="text-[13px] font-bold text-white font-mono leading-tight">2 <span class="text-slate-500 text-[10px]">/ 5</span></span>
+                <span id="hud-planes" class="text-[13px] font-bold text-white font-mono leading-tight">2 <span class="text-slate-500 text-[10px]">/ 10</span></span>
             </div>
             <div class="flex flex-col text-center flex-1">
                 <span class="text-[10px] text-slate-400 font-bold mb-0.5">搭乗客数</span>
@@ -350,10 +340,10 @@
                     </div>
                     <div class="w-[100px] flex flex-col gap-1.5">
                         <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="small">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$ 10M</span>
+                            <span>購入</span> <span class="font-mono text-emerald-200">$ 5.0M</span>
                         </button>
                         <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="small" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 5M</span>
+                            <span>売却</span> <span class="font-mono text-rose-300">$ 2.5M</span>
                         </button>
                     </div>
                 </div>
@@ -430,7 +420,8 @@
             </div>
         </div>
 
-        <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[400px]">
+        <!-- ★Phase 2: パネルの高さを h-[400px] から画面に合わせて広がるように修正 -->
+        <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col" style="height: 75vh; max-height: 600px;">
             
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
                 <h2 id="cc-title" class="text-base font-bold text-white tracking-wider">メニュー</h2>
@@ -553,57 +544,9 @@
                             </div>
                         </div>
 
-                        <div id="panel-rivals" class="hidden py-4 flex flex-col gap-3">
-                            <div class="bg-slate-800 rounded-xl border border-transparent shadow-inner overflow-hidden transition-all">
-                                <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">EU</div>
-                                        <div class="text-left">
-                                            <div class="text-sm font-bold text-slate-200">Euro Wings</div>
-                                            <div class="text-[10px] text-slate-400">シェア1位</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="text-lg font-bold text-blue-400 font-mono">45%</div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </button>
-                                
-                                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
-                                    <div class="mt-3 flex flex-col gap-4">
-                                        <div>
-                                            <div class="flex justify-between text-[10px] font-bold mb-1.5">
-                                                <span class="text-slate-300">⭐ 顧客満足度</span>
-                                                <span class="text-rose-400">自社 80 <span class="text-slate-500 font-normal">vs</span> 敵 95</span>
-                                            </div>
-                                            <div class="flex flex-col gap-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">自社</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-slate-700 rounded-full"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-[9px] text-slate-500 w-6">敵</span>
-                                                    <div class="flex-1 flex gap-0.5">
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                        <div class="h-1.5 w-full bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.3)]"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <!-- ★Phase 2: 中身を UIManager.js から動的生成させるために空にしておく -->
+                        <div id="panel-rivals" class="hidden py-4 flex flex-col gap-2">
+                            <!-- UIManager.js がランキングデータを注入します -->
                         </div>
 
                     </div>
