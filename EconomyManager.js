@@ -5,6 +5,9 @@
  * 2. 毎秒の基本客数の間引きを `baseDemand / 10` から `baseDemand / 4` へ緩和し、ベースの乗客数を増やしました。
  * 3. 客数計算に新たに `satisfactionBonus` (顧客満足度による需要ブースト) を追加。
  * サービスを向上させるほど、シェア争いだけでなく純粋な利用者数も乗算で増加するようになりました。
+ * 【修正: 二重減衰バグの解消】
+ * `currentFramePassengers` の算出時にすでに `delta` が掛けられていたため、
+ * `totalPassengers` への加算時に再度 `delta` を乗算していた不具合を修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -68,7 +71,6 @@ export class EconomyManager {
         const netLen = networkManager.playerTotalNetworkLength || 0;
         
         const networkBonus = 1.0 + (Math.sqrt(netLen) * 0.1); 
-        // ★修正: 客数のネットワークボーナスを上方修正 (0.01 -> 0.05)
         const passNetworkBonus = 1.0 + (Math.sqrt(netLen) * 0.05); 
 
         planes.forEach(plane => {
@@ -84,7 +86,6 @@ export class EconomyManager {
                 const bonuses = upgradeManager.getBonuses();
                 const upgradeIncomeRate = bonuses.incomeRate || 1.0;
                 
-                // ★追加: 顧客満足度による需要ブースト (満足度100につき客数増加ペースが+100%)
                 const satisfaction = bonuses.satisfaction || 0;
                 const satisfactionBonus = 1.0 + (satisfaction / 100.0);
                 
@@ -99,11 +100,9 @@ export class EconomyManager {
                     }
                 }
 
-                // 収益の計算
                 const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare * networkBonus;
                 grossIncomeThisFrame += incomePerSec * delta;
 
-                // ★修正: ベース客数の間引き緩和(/10 -> /4) と、満足度ブーストの掛け合わせ
                 const passPerSec = (planeConf.baseDemand / 4) * effectiveShare * passNetworkBonus * satisfactionBonus;
                 currentFramePassengers += passPerSec * delta;
             }
@@ -130,7 +129,8 @@ export class EconomyManager {
 
         this.addFunds(currentNetIncome * delta);
         if (!isNaN(currentFramePassengers)) {
-            this.totalPassengers += currentFramePassengers * delta;
+            // 修正: 既に currentFramePassengers は delta が掛けられているため、二重の delta 乗算を除外
+            this.totalPassengers += currentFramePassengers;
         }
 
         const lerpFactor = 1.0 - Math.pow(0.05, delta);
