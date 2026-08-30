@@ -1,8 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルAIの無限増殖防止】
- * 履歴199の有機的なネットワーク発展アルゴリズムを維持した上で、AIに「機体数の上限」を導入しました。
- * * ★【Phase 1: AI撤退ロジックの統合 (ロードマップ対応)】
+ * 【Phase 1: AI撤退ロジックの統合】
  * 1. update と performAction の引数に competitionManager を追加。
  * 2. 行動時、自身のシェアが 10%未満 (0.1) の路線があれば、新規開拓せずに「撤退（路線削除）」を行います。
  * 3. 撤退に伴う機体のフリーズを防ぐため `planeManager.checkAndReassignPlanes` をフックさせています。
@@ -19,7 +17,6 @@ export class RivalManager {
         
         this.rivals = CONFIG.COMPANIES.filter(c => c.id !== 'player');
         
-        // 全社一斉に動かないよう、最初のタイミングだけ0〜60秒の間でランダムにばらす
         this.timers = {};
         this.rivals.forEach(rival => {
             this.timers[rival.id] = Math.random() * 60;
@@ -41,7 +38,6 @@ export class RivalManager {
             const startId = startAirports[rival.id];
             let startNode = this.airportManager.getAirportById(startId);
             
-            // 安全弁: 指定拠点がデータに無い場合は適当な Major からスタート
             if (!startNode) {
                 const majors = this.airportManager.markers.map(m => m.userData.airportData).filter(d => d.type === 'major');
                 if (majors.length > 0) {
@@ -57,13 +53,11 @@ export class RivalManager {
         this.isInitialized = true;
     }
 
-    // ★修正: 引数に competitionManager を追加
     update(delta, competitionManager) {
         if (!this.isInitialized) return;
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            // 正確に1分(60秒)間隔で行動
             if (this.timers[rival.id] >= 60) {
                 this.timers[rival.id] = 0; 
                 this.performAction(rival.id, competitionManager);
@@ -82,45 +76,33 @@ export class RivalManager {
         return Math.floor(routeCount / 2);
     }
 
-    // ★修正: 引数に competitionManager を追加
     performAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
         
-        // ★Phase 1追加: ライバルの撤退（リストラ）ロジック
         if (competitionManager) {
             let didWithdraw = false;
             for (const originId of Object.keys(net)) {
                 if (net[originId].length === 0) continue;
                 
-                // その空港での自社シェアを取得
                 const myShare = competitionManager.getShare(originId, companyId);
                 
-                // プレイヤーの投資によりシェアが10%未満に追い込まれた場合、撤退する
                 if (myShare < 0.1) {
-                    const routeToRemove = net[originId][0]; // 最初の路線をリストラ対象とする
+                    const routeToRemove = net[originId][0]; 
                     const originNode = this.airportManager.getAirportById(originId);
                     const destNode = routeToRemove.data; 
 
                     if (originNode && destNode) {
                         this.networkManager.removeRoute(originNode, destNode, companyId);
-                        // 撤退時、対象路線を飛んでいた機体がバグらないように強制再配置
                         this.planeManager.checkAndReassignPlanes(companyId);
                         didWithdraw = true;
-                        
-                        // ※Phase 2のUI通知用にコンソール出力を残しておく
                         console.log(`[Rival Withdrawal] ${companyId} withdrew from ${originId} to ${destNode.id}`);
-                        break; // 1ターンの行動につき1路線のみ撤退（一気に消えないようにする）
+                        break; 
                     }
                 }
             }
-            // 撤退行動を行った場合は、新規開拓や機体購入は行わずにターンを終える
             if (didWithdraw) return;
         }
 
-
-        // --- 以下、既存の開拓・購入ロジック ---
-        
-        // 繋がっている空港のうち、「まだ接続上限(MAX)に達していない空港」だけをリストアップする
         const connectedIds = Object.keys(net).filter(id => {
             if (net[id].length === 0) return false;
             const airportNode = this.airportManager.getAirportById(id);
@@ -132,7 +114,6 @@ export class RivalManager {
 
         if (connectedIds.length === 0) return;
 
-        // 70%の確率で空路開拓、30%の確率で飛行機購入
         if (Math.random() < 0.7) {
             const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
             const originNode = this.airportManager.getAirportById(originId);
@@ -140,7 +121,6 @@ export class RivalManager {
         } else {
             const currentPlaneCounts = Object.values(this.planeManager.getPlaneCounts(companyId)).reduce((a, b) => a + b, 0);
             const currentRouteCount = this._getRivalRouteCount(companyId);
-            
             const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
             
             if (currentPlaneCounts < aiMaxPlanes) {

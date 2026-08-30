@@ -1,12 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ3.1: CompetitionManagerの統合とUI描画トリガーの修正】
- * 1. ユーザー提供の完全なベースコードを維持し、タイポを完全に排除（THREE.OrbitControlsを維持）。
- * 2. CompetitionManager をインポートし、ループ内で全空港のシェアを計算。
- * 3. 投資パネル（cc-link-btn）を開いた際に `updateUpgradePanel` を呼び出してUIを初期描画する処理を確実に追加。
- * * ★【Phase 1: 競争システムの統合 (バグ修正版)】
- * 見えない制御文字(ゼロ幅スペース)を完全に排除し、クリーンな状態で各Managerのupdateへ
- * competitionManagerを渡すように修正しました。
+ * 【Phase 1: 競争システムの統合 (クリーン版)】
+ * 見えない制御文字(ゼロ幅スペース)を完全に排除し、純粋なASCII文字のみで
+ * economyManagerとrivalManagerのupdateへcompetitionManagerを渡すように修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,7 +28,6 @@ export class GameManager {
         
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
-
         this.targetDistance = null; 
 
         this.initThree();
@@ -188,7 +183,6 @@ export class GameManager {
 
     initThree() {
         this.scene = new THREE.Scene();
-
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         
         const jpLat = 35.6; 
@@ -215,7 +209,6 @@ export class GameManager {
         this.controls.dampingFactor = 0.04;
         this.controls.rotateSpeed = 0.5;
         this.controls.zoomSpeed = 0.8;
-        
         this.controls.minDistance = 7.5; 
         this.controls.maxDistance = 25.0;
         this.controls.minPolarAngle = 0.1;
@@ -244,10 +237,8 @@ export class GameManager {
     checkZoomLimit() {
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         const target = this.targetDistance !== null ? this.targetDistance : currentDist;
-        
         const canZoomIn = target > this.controls.minDistance + 0.01;
         const canZoomOut = target < this.controls.maxDistance - 0.01;
-        
         this.uiManager.updateZoomButtonsState(canZoomIn, canZoomOut);
     }
 
@@ -303,7 +294,6 @@ export class GameManager {
         const tapY = event.clientY;
         const widthHalf = window.innerWidth / 2;
         const heightHalf = window.innerHeight / 2;
-
         const maxDist = 45; 
         
         let bestHit = null;
@@ -318,7 +308,6 @@ export class GameManager {
             if (cameraToMarker.dot(normal) < 0) return; 
 
             const proj = pos.clone().project(this.camera);
-
             const screenX = (proj.x * widthHalf) + widthHalf;
             const screenY = -(proj.y * heightHalf) + heightHalf;
 
@@ -401,7 +390,6 @@ export class GameManager {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        
         const delta = this.clock.getDelta();
 
         if (this.targetDistance !== null) {
@@ -422,13 +410,12 @@ export class GameManager {
         this.economyManager.maxPlanes = currentBonuses.maxPlanes;
 
         this.airportManager.updateMarkerScale(this.camera);
-        
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
         this.competitionManager.update(delta);
         
-        // ★修正済: 見えない制御文字(ゼロ幅スペース)を排除し、正しくcompetitionManagerを渡す
+        // 制御文字を完全に排除したクリーンな呼び出し
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
         this.rivalManager.update(delta, this.competitionManager);
         
@@ -442,7 +429,9 @@ export class GameManager {
     }
 
     showError(title, msg) {
-        this.loaderUI.querySelector('h2').innerText = title;
-        this.loaderUI.querySelector('p').innerText = msg;
+        const h2 = this.loaderUI.querySelector('h2');
+        const p = this.loaderUI.querySelector('p');
+        if (h2) h2.innerText = title;
+        if (p) p.innerText = msg;
     }
 }

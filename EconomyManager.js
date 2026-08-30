@@ -1,11 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ2.5: 投資効果の確実な反映とUIリアルタイム更新】
- * 顧客満足度の反映、各種UIのリアルタイム更新などを実装済み。
- * * ★【Phase 1: 競争システムの統合 (バグ修正版)】
+ * 【Phase 1: 競争システムの統合 (バグ修正・完全版)】
  * 1. updateメソッドの引数に competitionManager を追加。
- * 2. 収益・客数の計算時に「平均シェア率」を掛け合わせるように修正。
- * 3. 誤って消去してしまった必須メソッド(canAfford, deductFunds, calculateRouteCost)を完全に復元しました。
+ * 2. `delta` が極端に小さい場合 (0 等) のゼロ除算 NaN クラッシュを完全に防御しました。
+ * 3. 欠落していた必須メソッド(canAfford, deductFunds, calculateRouteCost)を復元。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,10 +30,10 @@ export class EconomyManager {
     }
 
     addFunds(amount) {
+        if (isNaN(amount)) return; // 最終防衛
         this.funds += amount;
     }
 
-    // ★復元: 足りないメソッドを完全に復旧
     canAfford(amount) {
         return this.funds >= amount;
     }
@@ -56,6 +54,9 @@ export class EconomyManager {
     }
 
     update(delta, planes, networkManager, upgradeManager, competitionManager) {
+        // ★致命的バグ修正: deltaが0または極小値の場合、ゼロ除算が起きるためスキップ
+        if (delta <= 0.0001) return;
+
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
 
@@ -82,8 +83,11 @@ export class EconomyManager {
                     const fromShare = competitionManager.getShare(plane.currentAirportId, 'player');
                     const toShare = competitionManager.getShare(plane.currentRoute.id, 'player');
                     const avgShare = (fromShare + toShare) / 2.0;
-                    // シェアが低くても最低5%の収益は保証する
-                    effectiveShare = Math.max(0.05, avgShare);
+                    
+                    // NaN汚染を確実に防ぎつつ最低5%の収益は保証する
+                    if (!isNaN(avgShare)) {
+                        effectiveShare = Math.max(0.05, avgShare);
+                    }
                 }
 
                 const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare;
@@ -97,7 +101,7 @@ export class EconomyManager {
         const currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
 
         if (this.incomeTimer >= 1.0) {
-            this.lastSecondIncome = currentNetIncome;
+            this.lastSecondIncome = isNaN(currentNetIncome) ? 0 : currentNetIncome;
             this.incomeTimer = 0;
             this.grossIncomeBuffer = 0;
             this.upkeepBuffer = 0;
@@ -114,7 +118,9 @@ export class EconomyManager {
         }
 
         this.addFunds(currentNetIncome * delta);
-        this.totalPassengers += currentFramePassengers * delta;
+        if (!isNaN(currentFramePassengers)) {
+            this.totalPassengers += currentFramePassengers * delta;
+        }
 
         const lerpFactor = 1.0 - Math.pow(0.05, delta);
         this.displayIncome += (this.lastSecondIncome - this.displayIncome) * lerpFactor;
@@ -149,6 +155,6 @@ export class EconomyManager {
     }
     
     _formatNumber(value) {
-        return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return Math.floor(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 }
