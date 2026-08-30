@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.8: MAX判定バグの修正と B/T 単位対応】
- * 1. 資金表示やアップグレード費用に「B (Billion: 10億)」「T (Trillion: 1兆)」の単位を導入しました。
- * 2. リーチ判定を `currentStep === 4` に修正し、UpgradeManager の修正と同期させることで
- * 確実にMAX表示へ切り替わるようにバグを修正しました。
- * 3. 昇格ボタンを「ゴールド」に変更し、視覚的な達成感を強化しました。
+ * 【Phase 2.9: ゲージ点灯ロジックの直感化】
+ * 1. アップグレードのゲージ生成ルールを `i <= currentStep` に修正しました。
+ * 2. これにより、未投資(step 0)でもベースレベルとして1つ点灯し、step 4 の時点で
+ * 5つ全てのゲージが点灯するようになり、「ゲージがMAXになってから昇格ボタンが出る」という
+ * プレイヤーの直感に完全に合致する自然なUIを実現しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -58,7 +58,6 @@ export class UIManager {
         this._bindEvents();
     }
 
-    // ★追加: UI全体で統一して使用する B/T 対応の軽量フォーマット関数
     _formatMoneyShort(value) {
         if (value >= 1000000000000) return `$${(value / 1000000000000).toFixed(1)}T`;
         if (value >= 1000000000) return `$${(value / 1000000000).toFixed(1)}B`;
@@ -596,7 +595,6 @@ export class UIManager {
             if (canAfford !== !btn.disabled) {
                 if (canAfford) {
                     btn.disabled = false;
-                    // 昇格ボタンのゴールド色を維持するための判定
                     if (btn.classList.contains('bg-slate-700') && btn.innerHTML.includes('昇格')) {
                         btn.className = `upgrade-action-btn bg-yellow-500 active:bg-yellow-400 text-slate-900 shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center flex flex-col items-center justify-center leading-none`;
                         const span = btn.querySelector('span');
@@ -639,7 +637,7 @@ export class UIManager {
                 if (!data) return;
 
                 const currentLevel = upgradeManager.getCurrentLevel(key);
-                const currentStep = upgradeManager.getCurrentStep(key); // 0〜4
+                const currentStep = upgradeManager.getCurrentStep(key); 
                 const maxLevel = upgradeManager.getMaxLevel(key);
                 const nextCost = upgradeManager.getNextCost(key);
                 
@@ -649,7 +647,6 @@ export class UIManager {
                     currentStepData = currentLevelData.steps.find(s => s.step === currentStep);
                 }
 
-                // ★MAX判定バグの修正: maxLevel に達していれば正しく true となる
                 const isMax = currentLevel >= maxLevel;
 
                 let nextStepData = null;
@@ -660,10 +657,11 @@ export class UIManager {
                     }
                 }
 
-                // ゲージの作成 (5つ目のゲージは昇格投資が完了するまで点灯しない)
+                // ★Phase 2.9修正: ベースレベルとして常に1つ点灯させ、step 4で5つ全て点灯するようにする
                 let dotsHtml = '';
                 for (let i = 0; i < 5; i++) {
-                    if (isMax || i < currentStep) {
+                    // `i <= currentStep` に変更
+                    if (isMax || i <= currentStep) {
                         const dotColor = key === 'fleet_capacity' ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.3)]' : 
                                          (cat.id === 'staff' ? 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.3)]' : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)]');
                         dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full transition-all duration-300"></div>`;
@@ -693,13 +691,11 @@ export class UIManager {
 
                 let btnHtml = '';
                 if (isMax) {
-                    // ★バグ修正: レベル10(MAX)に達した際に正しくグレーアウト表示となる
                     btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none" disabled>MAX</button>`;
                 } else {
                     const canAfford = currentFunds >= nextCost;
                     const costStr = this._formatMoneyShort(nextCost);
                     
-                    // ★修正: step: 4（次が昇格コスト）の時に「昇格」ボタンを表示し、特別感のあるゴールド色にする
                     if (currentStep === 4) {
                         const btnClass = canAfford ? 
                             `bg-yellow-500 active:bg-yellow-400 text-slate-900 shadow-md active:scale-95` : 
