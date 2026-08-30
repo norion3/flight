@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 3: HUDのダッシュボード化対応】
- * `updateTopHUD` にて、1段目（カレンダーと資金）は `innerText` で安全に代入し、
- * 2段目（機体、収益、客数、シェア）は小さくした「単位のHTMLタグ」を描画するため、
- * `innerHTML` を用いてDOMに注入するよう改修しました。
+ * 【Phase 3: HUD 3段独立構造へのUIマネージャー対応】
+ * 1. `updateTopHUD` の引数構成を 3段構造（カレンダー、資金、収益、機体、シェア、客数）に刷新しました。
+ * 2. トーストの表示位置を `top-36` に微調整し、スリム化したHUDの下部に美しくフィットさせました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -375,7 +374,7 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★Phase 3: HUDのダッシュボード化対応（innerHTML化）
+    // ★Phase 3: 3段独立構造HUDの更新メソッド
     updateTopHUD(calendarStr, fundsStr, planesStr, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -386,8 +385,6 @@ export class UIManager {
 
         if (elCalendar) elCalendar.innerText = calendarStr; 
         if (elFunds) elFunds.innerText = fundsStr;
-        
-        // 単位などの装飾タグを含めるため innerHTML を使用
         if (elPlanes) elPlanes.innerHTML = planesStr;
         if (elIncome) elIncome.innerHTML = incomeStr;
         if (elPassengers) elPassengers.innerHTML = passengersStr;
@@ -423,7 +420,7 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
-        const baseClasses = "fixed top-40 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        const baseClasses = "fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -841,8 +838,8 @@ export class UIManager {
                 if (nextStepData && currentStepData) {
                     if (nextStepData.capacity !== undefined) effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
                     else if (nextStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% ➔ ${Math.round((nextStepData.speedMultiplier - 1) * 100)}%`;
-                    else if (nextStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% ➔ +${Math.round(nextStepData.bonusIncomeRate * 100)}%`;
-                    else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
+                    else if (nextStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% ➔ +${Math.round(currentStepData.bonusIncomeRate * 100)}%`;
+                    else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${currentStepData.bonusSatisfaction}`;
                     
                     if (key === 'fleet_capacity') effectColor = 'text-amber-400';
                     else if (cat.id === 'staff') effectColor = 'text-blue-400';
