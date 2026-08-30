@@ -44,18 +44,34 @@
         window.addEventListener('resize', updateUIBottomMargin);
         window.addEventListener('DOMContentLoaded', updateUIBottomMargin);
 
-        // スワイプによる戻る・進むなどの標準ジェスチャーを防止
+        // ★第2防壁: スワイプによる戻る・進むなどの標準ジェスチャーを防止
         document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
         document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
         document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
 
-        // JS側でのダブルタップズーム防止（安全装置）
+        // ★第2防壁: マルチタッチ（2本指での拡大）によるズーム防止
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // ★第3防壁: ダブルタップズームの完全遮断 ＆ クリック救済ロジック
         let lastTouchEnd = 0;
         document.addEventListener('touchend', function(event) {
             const now = (new Date()).getTime();
             if (now - lastTouchEnd <= 300) {
-                // 300ms以内の連打はデフォルトのブラウザ挙動（ズーム等）をキャンセル
+                // 300ms以内の連打はデフォルトのブラウザ挙動（ズーム等）を強制キャンセル
                 event.preventDefault();
+                
+                // 【空振り救済措置】
+                // preventDefaultの代償として消滅したクリック判定を、対象を探し出して強制発火させる
+                // .closest() で触れた場所の親要素であるボタンを自動探索する
+                const targetBtn = event.target.closest('button, .cc-link-btn, .buy-plane-btn, .sell-plane-btn, .upgrade-action-btn, .rival-accordion-btn, .graph-tab-btn');
+                
+                if (targetBtn && !targetBtn.disabled) {
+                    targetBtn.click();
+                }
             }
             lastTouchEnd = now;
         }, { passive: false });
@@ -91,7 +107,7 @@
             --ui-bottom: 30px;
         }
         
-        /* ★Phase 2.9 スマホ特有のブラウザ制御を全要素に対して徹底的にマスク */
+        /* ★第1防壁: スマホ特有のブラウザ制御を全要素に対して徹底的にマスク */
         * {
             -webkit-user-select: none; /* iOSテキスト選択の青いハイライトを無効化 */
             user-select: none;
@@ -99,7 +115,7 @@
             -webkit-tap-highlight-color: transparent; /* タップ時のグレー枠を無効化 */
         }
         
-        /* ボタンやUIに対するダブルタップズームをCSSレベルで完全に封印 */
+        /* ボタンやUIに対するダブルタップズームをCSSレベルで封印 */
         button, a, input, select, textarea, .interactive-ui {
             touch-action: manipulation !important;
         }
@@ -157,7 +173,6 @@
         <div class="flex items-center justify-between w-full max-w-md px-4 gap-1">
             <div class="flex flex-col text-center flex-1">
                 <span class="text-[10px] text-slate-400 font-bold mb-0.5">資金</span>
-                <!-- 初期資金の表示を50Mに増額 -->
                 <span id="hud-funds" class="text-[13px] font-bold text-emerald-400 font-mono leading-tight">$ 50.0M</span>
             </div>
             <div class="flex flex-col text-center flex-1">
