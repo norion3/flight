@@ -1,9 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1.5: 経済バランスの最適化 (Proposal 022)】
- * 序盤のストレスを無くし、世界を繋ぐにつれて巨大なインフレとロマンを味わえる
- * 「マイルドかつ圧倒的なインフレカーブ」を実現するため、
- * NETWORK_BONUS_MULTIPLIER を 2.5 から 1.2 へと調整しました。
+ * 【序盤テンポ最適化】
+ * 小型機のコストを 5M に変更し、初期機体保有枠を 10機 に変更しました。
  */
 
 export const CONFIG = {
@@ -25,30 +23,25 @@ export const CONFIG = {
     ],
 
     ECONOMY: {
-        INITIAL_FUNDS: 50000000, // $ 50.0M (立ち上がりストレスフリー化)
-        MAX_PLANES_INITIAL: 5,
+        INITIAL_FUNDS: 50000000,
+        MAX_PLANES_INITIAL: 10,
         
-        // 機体購入費、売却率(リセールバリュー)、維持費(毎秒)、基本需要キャップ
         PLANES: {
-            small:  { cost: 10000000, sellRate: 0.70, upkeep: 200,   baseDemand: 30,  incomeBase: 1500 },
+            small:  { cost: 5000000,  sellRate: 0.70, upkeep: 200,   baseDemand: 30,  incomeBase: 1500 },
             medium: { cost: 25000000, sellRate: 0.60, upkeep: 600,   baseDemand: 70,  incomeBase: 4000 },
             large:  { cost: 50000000, sellRate: 0.45, upkeep: 1500,  baseDemand: 150, incomeBase: 10000 },
             super:  { cost: 100000000,sellRate: 0.30, upkeep: 3500,  baseDemand: 300, incomeBase: 25000 }
         },
 
-        // 空港ランクに応じた需要・係数 (ルート開拓コスト等でのみ使用)
         AIRPORT_RANKS: {
             'major':     { multiplier: 3.0, demandCap: 500 },
             'local':     { multiplier: 1.5, demandCap: 120 },
             'fictional': { multiplier: 1.0, demandCap: 50  }
         },
 
-        // 空路開拓の距離係数
         ROUTE_BASE_COST: 20000,
         ROUTE_DISTANCE_COST_RATE: 150000,
         
-        // ★修正 (Proposal 022): マイルドかつ圧倒的なインフレカーブのための係数調整
-        // ネットワーク総延長距離の平方根(Math.sqrt)に対して掛ける係数。
         NETWORK_BONUS_MULTIPLIER: 1.2
     }
 };

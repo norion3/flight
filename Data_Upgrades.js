@@ -1,9 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.8: 後半コストの超増額（B/T単位）】
- * 凄まじいインフレに対応し、長く放置して遊べるやりごたえを提供するため、
- * 全てのアップグレードの Level 6 以降のコストを大幅に（指数関数的に）引き上げました。
- * 最終段階の投資額は B(Billion: 10億) や T(Trillion: 1兆) 単位に達します。
+ * 【初期機体枠10へのスライド調整】
+ * fleet_capacity の初期値を 10 機に合わせるため、Lv 0〜2 の容量を自然なカーブに調整しました。
  */
 
 export const UPGRADE_DATA = {
@@ -12,17 +10,15 @@ export const UPGRADE_DATA = {
         name: '駐機場・機体保有枠の拡張',
         maxLevel: 10,
         levels: [
-            { level: 0, steps: [{ step: 0, cost: 0, capacity: 5 }, { step: 1, cost: 5000000, capacity: 6 }, { step: 2, cost: 8000000, capacity: 8 }, { step: 3, cost: 12000000, capacity: 10 }, { step: 4, cost: 18000000, capacity: 15 }, { step: 5, cost: 25000000, capacity: 25 }] },
-            { level: 1, steps: [{ step: 0, cost: 0, capacity: 25 }, { step: 1, cost: 28000000, capacity: 28 }, { step: 2, cost: 32000000, capacity: 32 }, { step: 3, cost: 38000000, capacity: 37 }, { step: 4, cost: 45000000, capacity: 43 }, { step: 5, cost: 60000000, capacity: 55 }] },
-            { level: 2, steps: [{ step: 0, cost: 0, capacity: 55 }, { step: 1, cost: 65000000, capacity: 60 }, { step: 2, cost: 72000000, capacity: 65 }, { step: 3, cost: 80000000, capacity: 72 }, { step: 4, cost: 90000000, capacity: 80 }, { step: 5, cost: 120000000, capacity: 100 }] },
+            { level: 0, steps: [{ step: 0, cost: 0, capacity: 10 }, { step: 1, cost: 5000000, capacity: 12 }, { step: 2, cost: 8000000, capacity: 15 }, { step: 3, cost: 12000000, capacity: 18 }, { step: 4, cost: 18000000, capacity: 22 }, { step: 5, cost: 25000000, capacity: 30 }] },
+            { level: 1, steps: [{ step: 0, cost: 0, capacity: 30 }, { step: 1, cost: 28000000, capacity: 35 }, { step: 2, cost: 32000000, capacity: 40 }, { step: 3, cost: 38000000, capacity: 45 }, { step: 4, cost: 45000000, capacity: 50 }, { step: 5, cost: 60000000, capacity: 60 }] },
+            { level: 2, steps: [{ step: 0, cost: 0, capacity: 60 }, { step: 1, cost: 65000000, capacity: 65 }, { step: 2, cost: 72000000, capacity: 72 }, { step: 3, cost: 80000000, capacity: 80 }, { step: 4, cost: 90000000, capacity: 90 }, { step: 5, cost: 120000000, capacity: 100 }] },
             { level: 3, steps: [{ step: 0, cost: 0, capacity: 100 }, { step: 1, cost: 130000000, capacity: 105 }, { step: 2, cost: 145000000, capacity: 110 }, { step: 3, cost: 160000000, capacity: 115 }, { step: 4, cost: 180000000, capacity: 125 }, { step: 5, cost: 250000000, capacity: 150 }] },
             { level: 4, steps: [{ step: 0, cost: 0, capacity: 150 }, { step: 1, cost: 265000000, capacity: 160 }, { step: 2, cost: 280000000, capacity: 170 }, { step: 3, cost: 300000000, capacity: 180 }, { step: 4, cost: 325000000, capacity: 195 }, { step: 5, cost: 450000000, capacity: 250 }] },
             { level: 5, steps: [{ step: 0, cost: 0, capacity: 250 }, { step: 1, cost: 480000000, capacity: 265 }, { step: 2, cost: 520000000, capacity: 280 }, { step: 3, cost: 570000000, capacity: 295 }, { step: 4, cost: 630000000, capacity: 315 }, { step: 5, cost: 800000000, capacity: 380 }] },
-            // ★ Lv6以降のコストを Billion(10億) 単位へ大幅増額
             { level: 6, steps: [{ step: 0, cost: 0, capacity: 380 }, { step: 1, cost: 2000000000, capacity: 400 }, { step: 2, cost: 2500000000, capacity: 420 }, { step: 3, cost: 3500000000, capacity: 440 }, { step: 4, cost: 5000000000, capacity: 460 }, { step: 5, cost: 10000000000, capacity: 550 }] },
             { level: 7, steps: [{ step: 0, cost: 0, capacity: 550 }, { step: 1, cost: 15000000000, capacity: 575 }, { step: 2, cost: 20000000000, capacity: 600 }, { step: 3, cost: 30000000000, capacity: 630 }, { step: 4, cost: 45000000000, capacity: 660 }, { step: 5, cost: 80000000000, capacity: 750 }] },
             { level: 8, steps: [{ step: 0, cost: 0, capacity: 750 }, { step: 1, cost: 120000000000, capacity: 780 }, { step: 2, cost: 160000000000, capacity: 810 }, { step: 3, cost: 220000000000, capacity: 840 }, { step: 4, cost: 300000000000, capacity: 880 }, { step: 5, cost: 500000000000, capacity: 950 }] },
-            // ★ Lv9は Trillion(1兆) 単位へ到達
             { level: 9, steps: [{ step: 0, cost: 0, capacity: 950 }, { step: 1, cost: 800000000000, capacity: 960 }, { step: 2, cost: 1200000000000, capacity: 970 }, { step: 3, cost: 2000000000000, capacity: 980 }, { step: 4, cost: 3500000000000, capacity: 990 }, { step: 5, cost: 6000000000000, capacity: 1000 }] },
             { level: 10, steps: [{ step: 0, cost: 0, capacity: 1000 }] }
         ]
