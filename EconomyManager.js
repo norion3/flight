@@ -1,11 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 3: 時間概念の導入と統計データの蓄積】
- * 1. `monthTimer` を導入し、現実の20秒をゲーム内の1ヶ月とするカレンダー進行ロジックを追加しました。
- * 2. 月が切り替わるタイミングで、プレイヤーとAI全社の主要指標（資金、収益、客数、機体数、シェア）の
- * スナップショットを `historyData` に保存します。
- * 3. 過去24ヶ月分のリングバッファ構造を採用し、メモリ圧迫を完全に防ぎつつグラフ化に必要な情報を確保します。
- * 4. 新しいダッシュボード型HUDレイアウトに合わせて、HTMLタグを含んだ見やすい文字列（単位の縮小など）を生成します。
+ * 【カレンダー表示形式の日本語化対応】
+ * `EconomyManager` 内で生成するカレンダーの表示文字列を `Year 1 - Jan` から
+ * ご指定の `1年目-1月` 形式（`1年目-1月`）に変更しました。
+ * これにより上部ステータスHUDのカレンダー表記が直感的な日本語表示になります。
  */
 
 import { CONFIG } from './Config.js';
@@ -30,7 +28,7 @@ export class EconomyManager {
         
         this.uiUpdateTimer = 0;
 
-        // ★Phase 3: カレンダーと履歴データ用プロパティ
+        // カレンダーと履歴データ用プロパティ
         this.currentYear = 1;
         this.currentMonth = 1;
         this.monthTimer = 0; // 20秒で1ヶ月
@@ -71,7 +69,7 @@ export class EconomyManager {
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
         
-        // ★Phase 3: カレンダーの進行と月次データの記録（20秒ごとに実行）
+        // カレンダーの進行と月次データの記録（20秒ごとに実行）
         this.monthTimer += delta;
         if (this.monthTimer >= 20.0) {
             this.monthTimer -= 20.0;
@@ -81,8 +79,7 @@ export class EconomyManager {
                 this.currentYear++;
             }
 
-            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const monthLabel = `Y${this.currentYear} - ${monthNames[this.currentMonth - 1]}`;
+            const monthLabel = `${this.currentYear}年目-${this.currentMonth}月`;
 
             // 全社のスナップショットを記録
             CONFIG.COMPANIES.forEach(comp => {
@@ -112,7 +109,6 @@ export class EconomyManager {
                     currentIncome = this.lastSecondIncome; 
                     currentPass = this.totalPassengers;
                 } else {
-                    // AIの場合は「推定資産価値」と「ダミー収益/客数」を記録（グラフ比較用）
                     const baseAiSat = competitionManager ? competitionManager.baseAiSatisfaction : 150;
                     currentFunds = (planeCount * 20000000) + (routeCount * 5000000) + (baseAiSat * 100000);
                     currentIncome = (planeCount * 5000) + (routeCount * 2000);
@@ -132,7 +128,6 @@ export class EconomyManager {
 
                 this.historyData[companyId].push(snapshot);
                 
-                // 24ヶ月分のリングバッファ（メモリ圧迫防止）
                 if (this.historyData[companyId].length > 24) {
                     this.historyData[companyId].shift();
                 }
@@ -215,13 +210,12 @@ export class EconomyManager {
             this.displayIncome = this.lastSecondIncome;
         }
 
-        // ★Phase 3: ダッシュボード型レイアウト用のHTML成形
         const displayVal = Math.round(this.displayIncome);
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
         const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}<span class="text-[10px] font-sans font-normal text-emerald-400/70 ml-0.5">/s</span>`;
         
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        const calendarStr = `Year ${this.currentYear} - ${monthNames[this.currentMonth - 1]}`;
+        // ★ カレンダー表記を「1年目-1月」形式に変更
+        const calendarStr = `${this.currentYear}年目-${this.currentMonth}月`;
         
         const planesStr = `${totalPlanesCount} <span class="text-slate-500">/ ${this.maxPlanes}</span> <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">機</span>`;
         const passStr = this._formatNumber(Math.floor(this.totalPassengers)) + ' <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">人</span>';
