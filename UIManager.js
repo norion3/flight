@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2 UIの修正と最適化】
- * 1. hideAll() 時にコントロールセンターが開いていた場合、アニメーション終了後に初期画面へリセットする処理を追加しました。
- * 2. ライバル状況のパネルを開いた時だけ、パネルの高さを `auto` (最大75vh) に広げ、閉じた時には元の `400px` に戻す動的制御を追加しました。
- * 3. アコーディオンの開閉状態を `_openedRivalId` に記憶し、1秒ごとの再描画時にも開閉状態が維持されるように修正しました。不要なタイトルテキストも削除しました。
+ * 【メニュー潰れバグの完全解決】
+ * ライバル状況パネルを開いた際、高さが 'auto' だと absolute 要素が認識されずに
+ * 潰れてしまう問題を解決するため、具体的な数値 ('560px') と '80vh' を指定しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -54,8 +53,7 @@ export class UIManager {
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
         
-        // ★追加: アコーディオンの開閉状態を記憶する変数
-        this._openedRivalId = null;
+        this._openedRivalId = null; 
 
         this._initFleetPrices(); 
         this._bindEvents();
@@ -236,7 +234,6 @@ export class UIManager {
             this._toggleMainButtons(true);
             setTimeout(() => {
                 this._resetControlCenterView();
-                // ★追加: 高さを元に戻す
                 this.controlCenter.classList.add('h-[400px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
@@ -264,11 +261,11 @@ export class UIManager {
                     this._isUpgradesOpen = (targetId === 'panel-upgrades');
                     this._isRivalsOpen = (targetId === 'panel-rivals');
 
-                    // ★追加: ライバル状況の時だけ高さを広げる
+                    // ★修正: 潰れバグ解決のため、autoを廃止し固定値 560px を設定
                     if (this._isRivalsOpen) {
                         this.controlCenter.classList.remove('h-[400px]');
-                        this.controlCenter.style.height = 'auto';
-                        this.controlCenter.style.maxHeight = '75vh';
+                        this.controlCenter.style.height = '560px';
+                        this.controlCenter.style.maxHeight = '80vh';
                     } else {
                         this.controlCenter.classList.add('h-[400px]');
                         this.controlCenter.style.height = '';
@@ -286,7 +283,6 @@ export class UIManager {
                 this._isUpgradesOpen = false; 
                 this._isRivalsOpen = false;
                 
-                // ★追加: 高さを元に戻す
                 this.controlCenter.classList.add('h-[400px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
@@ -311,7 +307,6 @@ export class UIManager {
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
-                    // 高さを元に戻す
                     this.controlCenter.classList.add('h-[400px]');
                     this.controlCenter.style.height = '';
                     this.controlCenter.style.maxHeight = '';
@@ -537,7 +532,6 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         
-        // ★追加: メニュー外タップ等で閉じた際も、初期画面に戻し高さをリセットする
         if (this.controlCenter && this.controlCenter.classList.contains('show')) {
             this.controlCenter.classList.remove('show');
             setTimeout(() => {
@@ -554,7 +548,7 @@ export class UIManager {
         this._isUpgradesOpen = false;
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
-        this._openedRivalId = null; // 記憶もリセット
+        this._openedRivalId = null; 
         
         this._toggleMainButtons(true);
     }
@@ -647,12 +641,11 @@ export class UIManager {
         });
     }
 
-    // ★修正(Phase 2): 不要なテキストを削除し、アコーディオンの記憶状態を反映
     updateRivalsPanel(stats) {
         const panel = document.getElementById('panel-rivals');
         if (!panel) return;
 
-        let html = ``; // タイトルテキストを削除
+        let html = ``; 
         
         const playerStat = stats.find(s => s.isPlayer) || stats[0];
 
@@ -675,7 +668,6 @@ export class UIManager {
             if (stat.id === 'rival_oc') rivalColorClass = 'bg-purple-500';
             const iconBg = isPlayer ? 'bg-emerald-600' : rivalColorClass;
 
-            // ★追加: 記憶されているIDと一致すれば開いた状態で描画する
             const isOpen = (this._openedRivalId === stat.id);
             const contentClass = isOpen ? '' : 'hidden';
             const iconClass = isOpen ? 'rotate-180' : '';
@@ -710,7 +702,6 @@ export class UIManager {
 
         panel.innerHTML = html;
 
-        // ★修正: アコーディオン開閉時にIDを記憶・解除する処理
         panel.querySelectorAll('.rival-accordion-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -720,16 +711,14 @@ export class UIManager {
                 const icon = e.currentTarget.querySelector('.accordion-icon');
                 
                 if (content.classList.contains('hidden')) {
-                    // 開く
                     content.classList.remove('hidden');
                     icon.classList.add('rotate-180');
-                    this._openedRivalId = rivalId; // 記憶する
+                    this._openedRivalId = rivalId; 
                 } else {
-                    // 閉じる
                     content.classList.add('hidden');
                     icon.classList.remove('rotate-180');
                     if (this._openedRivalId === rivalId) {
-                        this._openedRivalId = null; // 記憶を消す
+                        this._openedRivalId = null; 
                     }
                 }
             });
