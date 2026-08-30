@@ -5,6 +5,9 @@
  * 2. 自分が対象の時は、ランキング内の「一番強いトップライバル」を自動的に比較対象(compareStat)
  * として選び出し、白熱する「自社 vs 1位」のグラフを描画するようにしました。
  * 3. グラフ上の表記を「対象」から「ライバル名(Euro Wings等)」に動的変更しました。
+ * 【修正: トーストUIの改善】
+ * - 撤退通知などのトースト表示において、文字が折り返さないよう `whitespace-nowrap` と `w-max` を追加しました。
+ * - トーストの表示時間を 2秒 から 3秒 に延長しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -417,7 +420,8 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
-        const baseClasses = "fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50";
+        // ★修正: whitespace-nowrap と w-max を追加して1行ジャストフィットに
+        const baseClasses = "fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -435,9 +439,11 @@ export class UIManager {
         this.toast.classList.add('toast-show');
         
         if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        
+        // ★修正: 表示時間を2000msから3000msへ延長
         this.toastTimeout = setTimeout(() => {
             this.toast.classList.remove('toast-show');
-        }, 2000); 
+        }, 3000); 
     }
 
     showAirportInfo(data, currentConnections, maxConnections) {
@@ -650,7 +656,6 @@ export class UIManager {
         
         const playerStat = stats.find(s => s.isPlayer) || stats[0];
         
-        // ★追加: 自分以外の企業の中で一番シェアが高い「トップライバル」を探し出す
         const topRivalStat = stats.find(s => !s.isPlayer) || stats[0];
 
         stats.forEach((stat, index) => {
@@ -676,7 +681,6 @@ export class UIManager {
             const contentClass = isOpen ? '' : 'hidden';
             const iconClass = isOpen ? 'rotate-180' : '';
 
-            // ★追加: もし開いているタブが「自分自身」なら、比較対象を「トップライバル」に差し替える
             const compareStat = isPlayer ? topRivalStat : stat;
             const compareShareStr = (compareStat.globalShare * 100).toFixed(1) + '%';
             const compareAssetStr = this._formatMoneyShort(compareStat.assetValue);
@@ -734,7 +738,6 @@ export class UIManager {
         });
     }
 
-    // ★修正: 誰と比較しているのかが明確にわかるように rivalName(ライバル名) を引数に追加
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay, rivalName) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;
@@ -754,7 +757,6 @@ export class UIManager {
             resultColor = 'text-slate-400';
         }
 
-        // スマホ画面で文字が溢れないように、長い名前は自動でカットする
         const shortRivalName = rivalName.length > 8 ? rivalName.substring(0, 8) + '.' : rivalName;
 
         return `
