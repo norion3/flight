@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.7: 投資プログレスシステムの達成感最大化 (Step 3)】
- * 1. 6段階のデータ構造（step: 0〜5）にUIを完全対応させました。
- * 2. step: 5（5回投資後）のリーチ状態の時は、プログレスバーを5つ全て点灯させます。
- * 3. リーチ状態の時は、ボタンのテキストに「昇格」という文字を加え、6回目の投資を促します。
- * 4. 派手な装飾は避け、既存のカラースキーム（エメラルド/スレート）を維持しています。
+ * 【Phase 2.8: MAX判定バグの修正と B/T 単位対応】
+ * 1. 資金表示やアップグレード費用に「B (Billion: 10億)」「T (Trillion: 1兆)」の単位を導入しました。
+ * 2. リーチ判定を `currentStep === 4` に修正し、UpgradeManager の修正と同期させることで
+ * 確実にMAX表示へ切り替わるようにバグを修正しました。
+ * 3. 昇格ボタンを「ゴールド」に変更し、視覚的な達成感を強化しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -48,9 +48,7 @@ export class UIManager {
         this.onSellPlane = null;     
         this.onZoomIn = null;
         this.onZoomOut = null;
-        
         this.onUpgradeRequested = null;
-        
         this.currentRouteAction = null; 
         
         this._isUpgradesOpen = false;
@@ -60,14 +58,22 @@ export class UIManager {
         this._bindEvents();
     }
 
+    // ★追加: UI全体で統一して使用する B/T 対応の軽量フォーマット関数
+    _formatMoneyShort(value) {
+        if (value >= 1000000000000) return `$${(value / 1000000000000).toFixed(1)}T`;
+        if (value >= 1000000000) return `$${(value / 1000000000).toFixed(1)}B`;
+        if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+        if (value >= 1000) return `$${Math.floor(value / 1000)}K`;
+        return `$${Math.floor(value)}`;
+    }
+
     _initFleetPrices() {
         ['small', 'medium', 'large', 'super'].forEach(type => {
             const planeConf = CONFIG.ECONOMY.PLANES[type];
             if (!planeConf) return;
 
-            const buyCostStr = planeConf.cost >= 1000000 ? `$${(planeConf.cost / 1000000).toFixed(0)}M` : `$${Math.floor(planeConf.cost / 1000)}K`;
-            const sellCostValue = planeConf.cost * planeConf.sellRate;
-            const sellCostStr = sellCostValue >= 1000000 ? `$${(sellCostValue / 1000000).toFixed(0)}M` : `$${Math.floor(sellCostValue / 1000)}K`;
+            const buyCostStr = this._formatMoneyShort(planeConf.cost);
+            const sellCostStr = this._formatMoneyShort(planeConf.cost * planeConf.sellRate);
 
             const buyBtn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
             if (buyBtn) {
@@ -470,7 +476,7 @@ export class UIManager {
 
         this.currentRouteAction = isConnected ? 'remove' : 'add';
 
-        const formattedCost = routeCost >= 1000000 ? `$ ${(routeCost / 1000000).toFixed(1)}M` : `$ ${Math.floor(routeCost / 1000)}K`;
+        const formattedCost = this._formatMoneyShort(routeCost);
 
         if (isConnected) {
             titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
@@ -480,7 +486,7 @@ export class UIManager {
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnRemoveRoute || "廃止する"}</span>
-                    <span class="text-[11px] text-emerald-300 font-mono tracking-wider">+$ 25K</span>
+                    <span class="text-[11px] text-emerald-300 font-mono tracking-wider">+$25K</span>
                 </div>
             `;
             btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50 transition-colors";
@@ -574,7 +580,6 @@ export class UIManager {
         });
     }
 
-    // 投資ボタンのリアルタイム更新（※昇格時もデザインは通常ボタンのまま）
     checkUpgradeButtons(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -591,18 +596,28 @@ export class UIManager {
             if (canAfford !== !btn.disabled) {
                 if (canAfford) {
                     btn.disabled = false;
-                    btn.className = `upgrade-action-btn bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
+                    // 昇格ボタンのゴールド色を維持するための判定
+                    if (btn.classList.contains('bg-slate-700') && btn.innerHTML.includes('昇格')) {
+                        btn.className = `upgrade-action-btn bg-yellow-500 active:bg-yellow-400 text-slate-900 shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center flex flex-col items-center justify-center leading-none`;
+                        const span = btn.querySelector('span');
+                        if(span) span.className = 'text-[9px] mb-1 font-sans font-black tracking-widest text-slate-900';
+                    } else if (btn.classList.contains('bg-slate-700')) {
+                        btn.className = `upgrade-action-btn bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center`;
+                    }
                 } else {
                     btn.disabled = true;
-                    btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none`;
+                    if (btn.innerHTML.includes('昇格')) {
+                        btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center flex flex-col items-center justify-center leading-none disabled:pointer-events-none`;
+                        const span = btn.querySelector('span');
+                        if(span) span.className = 'text-[9px] mb-1 font-sans font-black tracking-widest text-slate-500';
+                    } else {
+                        btn.className = `upgrade-action-btn bg-slate-700 text-slate-400 opacity-70 text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none`;
+                    }
                 }
             }
         });
     }
 
-    // ============================================================================
-    // ★Phase 2.7: 「昇格（6段階）」に対応したUIパネル生成
-    // ============================================================================
     updateUpgradePanel(upgradeManager, currentFunds) {
         const panel = document.getElementById('panel-upgrades');
         if (!panel) return;
@@ -624,7 +639,7 @@ export class UIManager {
                 if (!data) return;
 
                 const currentLevel = upgradeManager.getCurrentLevel(key);
-                const currentStep = upgradeManager.getCurrentStep(key);
+                const currentStep = upgradeManager.getCurrentStep(key); // 0〜4
                 const maxLevel = upgradeManager.getMaxLevel(key);
                 const nextCost = upgradeManager.getNextCost(key);
                 
@@ -634,27 +649,21 @@ export class UIManager {
                     currentStepData = currentLevelData.steps.find(s => s.step === currentStep);
                 }
 
+                // ★MAX判定バグの修正: maxLevel に達していれば正しく true となる
+                const isMax = currentLevel >= maxLevel;
+
                 let nextStepData = null;
-                if (currentLevel < maxLevel) {
-                    let searchLevel = currentLevel;
-                    let searchStep = currentStep + 1;
-                    if (searchStep >= 6) { // ★修正: 6で次レベルへ
-                        searchLevel++;
-                        searchStep = 0;
-                    }
-                    const nLvlData = data.levels.find(l => l.level === searchLevel);
+                if (!isMax) {
+                    const nLvlData = data.levels.find(l => l.level === currentLevel);
                     if (nLvlData && nLvlData.steps) {
-                        nextStepData = nLvlData.steps.find(s => s.step === searchStep);
+                        nextStepData = nLvlData.steps.find(s => s.step === (currentStep + 1));
                     }
                 }
 
-                const isMax = currentLevel >= maxLevel;
-
-                // ゲージの作成
+                // ゲージの作成 (5つ目のゲージは昇格投資が完了するまで点灯しない)
                 let dotsHtml = '';
                 for (let i = 0; i < 5; i++) {
-                    // ★修正: step:5（リーチ）の時は5つ全て光らせる
-                    if (isMax || currentStep === 5 || i < currentStep) {
+                    if (isMax || i < currentStep) {
                         const dotColor = key === 'fleet_capacity' ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.3)]' : 
                                          (cat.id === 'staff' ? 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.3)]' : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)]');
                         dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full transition-all duration-300"></div>`;
@@ -682,23 +691,23 @@ export class UIManager {
                     else if (currentStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} (MAX)`;
                 }
 
-                // ボタンの生成
                 let btnHtml = '';
                 if (isMax) {
+                    // ★バグ修正: レベル10(MAX)に達した際に正しくグレーアウト表示となる
                     btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none" disabled>MAX</button>`;
                 } else {
                     const canAfford = currentFunds >= nextCost;
-                    const costStr = nextCost >= 1000000 ? `$${(nextCost/1000000).toFixed(1)}M` : `$${Math.floor(nextCost/1000)}K`;
+                    const costStr = this._formatMoneyShort(nextCost);
                     
-                    // ★修正: リーチ状態(step===5)の時は「昇格」という文字をボタン内に入れる（デザイン・色はそのまま）
-                    if (currentStep === 5) {
+                    // ★修正: step: 4（次が昇格コスト）の時に「昇格」ボタンを表示し、特別感のあるゴールド色にする
+                    if (currentStep === 4) {
                         const btnClass = canAfford ? 
-                            `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
+                            `bg-yellow-500 active:bg-yellow-400 text-slate-900 shadow-md active:scale-95` : 
                             `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
                             
                         btnHtml = `
                             <button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center flex flex-col items-center justify-center leading-none" data-id="${key}" ${canAfford ? '' : 'disabled'}>
-                                <span class="text-[9px] mb-1 font-sans font-black tracking-widest text-emerald-100">昇格</span>
+                                <span class="text-[9px] mb-1 font-sans font-black tracking-widest ${canAfford ? 'text-slate-900' : 'text-slate-500'}">昇格</span>
                                 <span>${costStr}</span>
                             </button>
                         `;

@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.7: 投資プログレスシステムの達成感最大化 (Step 2)】
- * Data_Upgrades.js の新しい6段階構造（0〜5）に対応しました。
- * 1. `getNextCost` にて、ステップ5完了後（step >= 6）に次のレベルへ移行するよう判定を変更。
- * 2. `upgrade` メソッドでも、step が 6 になった瞬間にレベルアップするよう修正。
+ * 【Phase 2.8: MAX判定バグの修正】
+ * 1. `upgrade` メソッドにて、5回目の投資（step: 4の次の昇格コスト支払い）が
+ * 完了した瞬間に即座にレベルアップする（p.step >= 5）ように判定を修正しました。
+ * 2. これにより、存在しない「6回目の投資」を探して $0K になるバグを完全に排除し、
+ * UIManager の MAX 判定と完全に同期するようになりました。
  */
 
 import { UPGRADE_DATA } from './Data_Upgrades.js';
@@ -36,19 +37,12 @@ export class UpgradeManager {
         const data = UPGRADE_DATA[upgradeId];
         if (!data) return null;
 
+        // すでに最大レベルに達している場合はコスト無し
         if (p.level >= data.maxLevel) return null;
 
-        let nextLevel = p.level;
-        let nextStep = p.step + 1;
+        const nextStep = p.step + 1;
 
-        // ★修正: 6段階目（step: 5）の投資が終わってから（nextStep >= 6 の時）レベルアップする
-        if (nextStep >= 6) {
-            nextLevel = p.level + 1;
-            nextStep = 0;
-            if (nextLevel >= data.maxLevel) return null;
-        }
-
-        const levelData = data.levels.find(l => l.level === nextLevel);
+        const levelData = data.levels.find(l => l.level === p.level);
         if (!levelData || !levelData.steps) return null;
 
         const stepData = levelData.steps.find(s => s.step === nextStep);
@@ -65,8 +59,8 @@ export class UpgradeManager {
             const p = this.progress[upgradeId];
             p.step++;
             
-            // ★修正: 6段階目（step: 5）が終わったらレベルアップ（p.step >= 6）
-            if (p.step >= 6) {
+            // ★バグ修正: 5回目の投資（昇格コストの支払い）が完了した瞬間にレベルアップする
+            if (p.step >= 5) {
                 p.step = 0;
                 p.level++;
             }
