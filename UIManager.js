@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2: ライバル状況UIの実データ化】
- * 1. 新しい `updateRivalsPanel` メソッドを追加し、GameManagerから渡されたランキング情報
- * を元にダイナミックなアコーディオンHTMLを構築して描画する機能を追加しました。
- * 2. 撤退通知などが青色で目立つように、showToast に `info` タイプを追加しました。
+ * 【Phase 2 UIの修正と最適化】
+ * 1. hideAll() 時にコントロールセンターが開いていた場合、アニメーション終了後に初期画面へリセットする処理を追加しました。
+ * 2. ライバル状況のパネルを開いた時だけ、パネルの高さを `auto` (最大75vh) に広げ、閉じた時には元の `400px` に戻す動的制御を追加しました。
+ * 3. アコーディオンの開閉状態を `_openedRivalId` に記憶し、1秒ごとの再描画時にも開閉状態が維持されるように修正しました。不要なタイトルテキストも削除しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -52,7 +52,10 @@ export class UIManager {
         
         this._isUpgradesOpen = false;
         this._isBuyMenuOpen = false;
-        this._isRivalsOpen = false; // ★追加: パネル開閉の追跡
+        this._isRivalsOpen = false; 
+        
+        // ★追加: アコーディオンの開閉状態を記憶する変数
+        this._openedRivalId = null;
 
         this._initFleetPrices(); 
         this._bindEvents();
@@ -229,9 +232,15 @@ export class UIManager {
             this.soundManager.playTapSound();
             this.controlCenter.classList.remove('show');
             this._isUpgradesOpen = false; 
-            this._isRivalsOpen = false; // ★追加
+            this._isRivalsOpen = false; 
             this._toggleMainButtons(true);
-            setTimeout(() => this._resetControlCenterView(), 300);
+            setTimeout(() => {
+                this._resetControlCenterView();
+                // ★追加: 高さを元に戻す
+                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.style.height = '';
+                this.controlCenter.style.maxHeight = '';
+            }, 300);
         });
 
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
@@ -253,7 +262,18 @@ export class UIManager {
                     this.ccLayerDetail.style.transform = 'translateX(0)';
                     
                     this._isUpgradesOpen = (targetId === 'panel-upgrades');
-                    this._isRivalsOpen = (targetId === 'panel-rivals'); // ★追加
+                    this._isRivalsOpen = (targetId === 'panel-rivals');
+
+                    // ★追加: ライバル状況の時だけ高さを広げる
+                    if (this._isRivalsOpen) {
+                        this.controlCenter.classList.remove('h-[400px]');
+                        this.controlCenter.style.height = 'auto';
+                        this.controlCenter.style.maxHeight = '75vh';
+                    } else {
+                        this.controlCenter.classList.add('h-[400px]');
+                        this.controlCenter.style.height = '';
+                        this.controlCenter.style.maxHeight = '';
+                    }
                 }
             });
         });
@@ -264,7 +284,12 @@ export class UIManager {
                 this.soundManager.playTapSound();
                 this._resetControlCenterView();
                 this._isUpgradesOpen = false; 
-                this._isRivalsOpen = false; // ★追加
+                this._isRivalsOpen = false;
+                
+                // ★追加: 高さを元に戻す
+                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.style.height = '';
+                this.controlCenter.style.maxHeight = '';
             });
         }
 
@@ -286,6 +311,11 @@ export class UIManager {
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
+                    // 高さを元に戻す
+                    this.controlCenter.classList.add('h-[400px]');
+                    this.controlCenter.style.height = '';
+                    this.controlCenter.style.maxHeight = '';
+                    
                     this.exitCard.classList.add('show');
                     this._toggleMainButtons(false);
                 }, 300);
@@ -397,7 +427,6 @@ export class UIManager {
             this.soundManager.playWarningSound();
             this.toast.className = `${baseClasses} bg-rose-600/90 text-white shadow-rose-900/50`;
         } else if (type === 'info') {
-            // ★追加(Phase 2): 撤退通知などを青色で表示する
             this.soundManager.playEventSound();
             this.toast.className = `${baseClasses} bg-blue-600/90 text-white shadow-blue-900/50`;
         } else {
@@ -507,19 +536,32 @@ export class UIManager {
         this.routeCard.classList.remove('show');
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
-        if (this.controlCenter) this.controlCenter.classList.remove('show');
+        
+        // ★追加: メニュー外タップ等で閉じた際も、初期画面に戻し高さをリセットする
+        if (this.controlCenter && this.controlCenter.classList.contains('show')) {
+            this.controlCenter.classList.remove('show');
+            setTimeout(() => {
+                this._resetControlCenterView();
+                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.style.height = '';
+                this.controlCenter.style.maxHeight = '';
+            }, 300);
+        }
+        
         if (this.exitCard) this.exitCard.classList.remove('show');
         if (this.helpMenu) this.helpMenu.classList.remove('show'); 
         
         this._isUpgradesOpen = false;
         this._isBuyMenuOpen = false;
-        this._isRivalsOpen = false; // ★追加
+        this._isRivalsOpen = false; 
+        this._openedRivalId = null; // 記憶もリセット
+        
         this._toggleMainButtons(true);
     }
 
     isUpgradePanelOpen() { return this._isUpgradesOpen; }
     isBuyMenuOpen() { return this._isBuyMenuOpen; }
-    isRivalsPanelOpen() { return this._isRivalsOpen; } // ★追加
+    isRivalsPanelOpen() { return this._isRivalsOpen; } 
 
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
         if (!this._isBuyMenuOpen) return;
@@ -605,14 +647,13 @@ export class UIManager {
         });
     }
 
-    // ★追加(Phase 2): ライバル状況パネルの動的生成
+    // ★修正(Phase 2): 不要なテキストを削除し、アコーディオンの記憶状態を反映
     updateRivalsPanel(stats) {
         const panel = document.getElementById('panel-rivals');
         if (!panel) return;
 
-        let html = `<div class="text-[11px] font-bold text-center text-slate-400 mb-2 tracking-widest">世界の航空会社 シェアランキング</div>`;
+        let html = ``; // タイトルテキストを削除
         
-        // 比較のためにプレイヤーのステータスを取り出しておく
         const playerStat = stats.find(s => s.isPlayer) || stats[0];
 
         stats.forEach((stat, index) => {
@@ -623,12 +664,10 @@ export class UIManager {
             const shareStr = (stat.globalShare * 100).toFixed(1) + '%';
             const assetStr = this._formatMoneyShort(stat.assetValue);
             
-            // 自社と他社で見た目を変える
             const bgColor = isPlayer ? 'bg-slate-700/80 border-emerald-500/50' : 'bg-slate-800 border-transparent';
             const titleColor = isPlayer ? 'text-emerald-400' : 'text-slate-200';
             const shortName = isPlayer ? '自' : stat.id.replace('rival_', '').toUpperCase();
             
-            // ライバルの色分け
             let rivalColorClass = 'bg-blue-500';
             if (stat.id === 'rival_as') rivalColorClass = 'bg-yellow-500';
             if (stat.id === 'rival_af') rivalColorClass = 'bg-pink-500';
@@ -636,8 +675,13 @@ export class UIManager {
             if (stat.id === 'rival_oc') rivalColorClass = 'bg-purple-500';
             const iconBg = isPlayer ? 'bg-emerald-600' : rivalColorClass;
 
+            // ★追加: 記憶されているIDと一致すれば開いた状態で描画する
+            const isOpen = (this._openedRivalId === stat.id);
+            const contentClass = isOpen ? '' : 'hidden';
+            const iconClass = isOpen ? 'rotate-180' : '';
+
             html += `
-            <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5">
+            <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
                     <div class="flex items-center gap-2">
                         <div class="w-6 text-center text-sm">${rankIcon}</div>
@@ -648,11 +692,11 @@ export class UIManager {
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="accordion-icon text-slate-500 transition-transform duration-300 ${iconClass}"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
                 </button>
                 
-                <div class="hidden p-3 pt-0 border-t border-slate-700/50 mt-1">
+                <div class="${contentClass} p-3 pt-0 border-t border-slate-700/50 mt-1 rival-accordion-content">
                     <div class="mt-3 flex flex-col gap-3">
                         ${this._createCompareBarHtml('👑 世界シェア率', playerStat.globalShare, stat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', shareStr, isPlayer)}
                         ${this._createCompareBarHtml('💰 推定企業総資産', playerStat.assetValue, stat.assetValue, this._formatMoneyShort(playerStat.assetValue), assetStr, isPlayer)}
@@ -666,24 +710,32 @@ export class UIManager {
 
         panel.innerHTML = html;
 
-        // 生成したアコーディオンボタンに開閉イベントと効果音をバインド
+        // ★修正: アコーディオン開閉時にIDを記憶・解除する処理
         panel.querySelectorAll('.rival-accordion-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
+                const parentDiv = e.currentTarget.closest('[data-rival-id]');
+                const rivalId = parentDiv.getAttribute('data-rival-id');
                 const content = e.currentTarget.nextElementSibling;
                 const icon = e.currentTarget.querySelector('.accordion-icon');
+                
                 if (content.classList.contains('hidden')) {
+                    // 開く
                     content.classList.remove('hidden');
                     icon.classList.add('rotate-180');
+                    this._openedRivalId = rivalId; // 記憶する
                 } else {
+                    // 閉じる
                     content.classList.add('hidden');
                     icon.classList.remove('rotate-180');
+                    if (this._openedRivalId === rivalId) {
+                        this._openedRivalId = null; // 記憶を消す
+                    }
                 }
             });
         });
     }
 
-    // ★追加(Phase 2): 対決用プログレスバーHTMLの生成ヘルパー
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay, isSelfCompare) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;
