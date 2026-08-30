@@ -155,27 +155,59 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <div id="toast-notification" class="fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50">
+    <!-- ★トーストの表示位置を top-24 から top-40 に下げ、拡張されたHUDと被らないよう調整 -->
+    <div id="toast-notification" class="fixed top-40 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
         Message
     </div>
 
     <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-12 pb-2">
-        <div class="flex items-center justify-between w-full max-w-md px-4 gap-1">
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">資金</span>
-                <span id="hud-funds" class="text-[13px] font-bold text-emerald-400 font-mono leading-tight">$ 50.0M</span>
+        <div class="flex flex-col w-full max-w-md px-4 gap-2">
+            <!-- ★Phase 3: 1段目: カレンダーと資金（視線を左右に誘導） -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-sm">🗓️</span>
+                    <span id="hud-calendar" class="text-xs font-bold text-slate-200 tracking-wider">Year 1 - Jan</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-sm">💰</span>
+                    <span id="hud-funds" class="text-sm font-bold text-emerald-400 font-mono tracking-wider">$ 50.0M</span>
+                </div>
             </div>
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">収益</span>
-                <span id="hud-income" class="text-[13px] font-bold text-yellow-400 font-mono leading-tight">+$ 0/s</span>
+            
+            <!-- ★Phase 3: 2段目: 稼働機体と収益（関連情報のグルーピング） -->
+            <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
+                <div class="flex items-center gap-1.5 w-1/2">
+                    <span class="text-xs">✈️</span>
+                    <div class="flex flex-col">
+                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">稼働機体</span>
+                        <span id="hud-planes" class="text-xs font-bold text-white font-mono leading-none">0 <span class="text-slate-500 text-[10px]">/ 10</span> 機</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5 w-1/2 justify-end text-right">
+                    <div class="flex flex-col">
+                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">収益</span>
+                        <span id="hud-income" class="text-xs font-bold text-yellow-400 font-mono leading-none">+$ 0/s</span>
+                    </div>
+                    <span class="text-xs">📈</span>
+                </div>
             </div>
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">機体数</span>
-                <span id="hud-planes" class="text-[13px] font-bold text-white font-mono leading-tight">2 <span class="text-slate-500 text-[10px]">/ 10</span></span>
-            </div>
-            <div class="flex flex-col text-center flex-1">
-                <span class="text-[10px] text-slate-400 font-bold mb-0.5">搭乗客数</span>
-                <span id="hud-passengers" class="text-[13px] font-bold text-cyan-400 font-mono leading-tight">0</span>
+
+            <!-- ★Phase 3: 3段目: 累計客数とシェア（結果指標のグルーピング） -->
+            <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
+                <div class="flex items-center gap-1.5 w-1/2">
+                    <span class="text-xs">👥</span>
+                    <div class="flex flex-col">
+                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">累計客数</span>
+                        <span id="hud-passengers" class="text-xs font-bold text-cyan-400 font-mono leading-none">0 人</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5 w-1/2 justify-end text-right">
+                    <div class="flex flex-col">
+                        <span class="text-[9px] text-slate-400 font-bold leading-none mb-0.5">世界シェア</span>
+                        <span id="hud-share" class="text-xs font-bold text-fuchsia-400 font-mono leading-none">0.0 %</span>
+                    </div>
+                    <span class="text-xs">👑</span>
+                </div>
             </div>
         </div>
     </div>
@@ -420,7 +452,6 @@
             </div>
         </div>
 
-        <!-- ★Phase 2: クラスの h-[400px] を基本サイズとして設定し、transition-all を追加 -->
         <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[400px] transition-all duration-300">
             
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">

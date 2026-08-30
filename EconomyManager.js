@@ -1,13 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.10: 搭乗客数のインフレバランス調整】
- * 1. `passNetworkBonus` の係数を 0.01 から 0.05 へ引き上げ、路線拡大による客数増を体感しやすくしました。
- * 2. 毎秒の基本客数の間引きを `baseDemand / 10` から `baseDemand / 4` へ緩和し、ベースの乗客数を増やしました。
- * 3. 客数計算に新たに `satisfactionBonus` (顧客満足度による需要ブースト) を追加。
- * サービスを向上させるほど、シェア争いだけでなく純粋な利用者数も乗算で増加するようになりました。
- * 【修正: 二重減衰バグの解消】
- * `currentFramePassengers` の算出時にすでに `delta` が掛けられていたため、
- * `totalPassengers` への加算時に再度 `delta` を乗算していた不具合を修正しました。
+ * 【Phase 3: 時間概念の導入と統計データの蓄積】
+ * 1. `monthTimer` を導入し、現実の20秒をゲーム内の1ヶ月とするカレンダー進行ロジックを追加しました。
+ * 2. 月が切り替わるタイミングで、プレイヤーとAI全社の主要指標（資金、収益、客数、機体数、シェア）の
+ * スナップショットを `historyData` に保存します。
+ * 3. 過去24ヶ月分のリングバッファ構造を採用し、メモリ圧迫を完全に防ぎつつグラフ化に必要な情報を確保します。
+ * 4. 新しい3段構成のHUDレイアウトに合わせて、`updateTopHUD` に渡す引数を更新しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -31,6 +29,16 @@ export class EconomyManager {
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
         
         this.uiUpdateTimer = 0;
+
+        // ★Phase 3: カレンダーと履歴データ用プロパティ
+        this.currentYear = 1;
+        this.currentMonth = 1;
+        this.monthTimer = 0; // 20秒で1ヶ月
+        this.historyData = {}; // 全社の24ヶ月分の履歴
+        
+        CONFIG.COMPANIES.forEach(comp => {
+            this.historyData[comp.id] = [];
+        });
     }
 
     addFunds(amount) {
@@ -62,6 +70,74 @@ export class EconomyManager {
 
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
+        
+        // ★Phase 3: カレンダーの進行と月次データの記録（20秒ごとに実行）
+        this.monthTimer += delta;
+        if (this.monthTimer >= 20.0) {
+            this.monthTimer -= 20.0;
+            this.currentMonth++;
+            if (this.currentMonth > 12) {
+                this.currentMonth = 1;
+                this.currentYear++;
+            }
+
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const monthLabel = `Y${this.currentYear} - ${monthNames[this.currentMonth - 1]}`;
+
+            // 全社のスナップショットを記録
+            CONFIG.COMPANIES.forEach(comp => {
+                const companyId = comp.id;
+                let currentFunds = 0;
+                let currentIncome = 0;
+                let currentPass = 0;
+                const currentShare = competitionManager ? (competitionManager.globalShares[companyId] || 0) : 0;
+                
+                // 機体数と路線数の集計
+                let planeCount = 0;
+                planes.forEach(p => {
+                    if (p.companyId === companyId) planeCount++;
+                });
+                
+                let routeCount = 0;
+                if (networkManager && networkManager.network[companyId]) {
+                    const net = networkManager.network[companyId];
+                    for (const originId in net) {
+                        routeCount += net[originId].length;
+                    }
+                    routeCount = Math.floor(routeCount / 2);
+                }
+
+                if (companyId === 'player') {
+                    currentFunds = this.funds;
+                    currentIncome = this.lastSecondIncome; 
+                    currentPass = this.totalPassengers;
+                } else {
+                    // AIの場合は「推定資産価値」と「ダミー収益/客数」を記録（グラフ比較用）
+                    const baseAiSat = competitionManager ? competitionManager.baseAiSatisfaction : 150;
+                    currentFunds = (planeCount * 20000000) + (routeCount * 5000000) + (baseAiSat * 100000);
+                    currentIncome = (planeCount * 5000) + (routeCount * 2000);
+                    
+                    const playerShare = competitionManager ? Math.max(competitionManager.globalShares['player'] || 0.0001, 0.0001) : 0.0001;
+                    currentPass = this.totalPassengers * (currentShare / playerShare);
+                }
+
+                const snapshot = {
+                    monthLabel: monthLabel,
+                    funds: currentFunds,
+                    income: currentIncome,
+                    passengers: currentPass,
+                    planes: planeCount,
+                    share: currentShare
+                };
+
+                this.historyData[companyId].push(snapshot);
+                
+                // 24ヶ月分のリングバッファ（メモリ圧迫防止）
+                if (this.historyData[companyId].length > 24) {
+                    this.historyData[companyId].shift();
+                }
+            });
+        }
 
         let currentFramePassengers = 0;
         let grossIncomeThisFrame = 0;
@@ -129,7 +205,6 @@ export class EconomyManager {
 
         this.addFunds(currentNetIncome * delta);
         if (!isNaN(currentFramePassengers)) {
-            // 修正: 既に currentFramePassengers は delta が掛けられているため、二重の delta 乗算を除外
             this.totalPassengers += currentFramePassengers;
         }
 
@@ -140,16 +215,27 @@ export class EconomyManager {
             this.displayIncome = this.lastSecondIncome;
         }
 
+        // HUD用データの生成
         const displayVal = Math.round(this.displayIncome);
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
         const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}/s`;
+        
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const calendarStr = `Year ${this.currentYear} - ${monthNames[this.currentMonth - 1]}`;
+        
+        const planesStr = `${totalPlanesCount} <span class="text-slate-500 text-[10px]">/ ${this.maxPlanes}</span> 機`;
+        const passStr = this._formatNumber(Math.floor(this.totalPassengers)) + ' 人';
+        
+        const playerShare = competitionManager ? (competitionManager.globalShares['player'] || 0) : 0;
+        const shareStr = (playerShare * 100).toFixed(1) + ' %';
 
         this.uiManager.updateTopHUD(
+            calendarStr,
             this._formatMoney(this.funds),
+            planesStr,
             formattedIncome,
-            totalPlanesCount,
-            this.maxPlanes,
-            this._formatNumber(Math.floor(this.totalPassengers))
+            passStr,
+            shareStr
         );
     }
 

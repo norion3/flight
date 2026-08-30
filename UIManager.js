@@ -1,13 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.13: 自社比較バグの修正】
- * 1. 自社のタブを開いた際、「自社 vs 自社」になってしまうバグを修正しました。
- * 2. 自分が対象の時は、ランキング内の「一番強いトップライバル」を自動的に比較対象(compareStat)
- * として選び出し、白熱する「自社 vs 1位」のグラフを描画するようにしました。
- * 3. グラフ上の表記を「対象」から「ライバル名(Euro Wings等)」に動的変更しました。
- * 【修正: トーストUIの改善】
- * - 撤退通知などのトースト表示において、文字が折り返さないよう `whitespace-nowrap` と `w-max` を追加しました。
- * - トーストの表示時間を 2秒 から 3秒 に延長しました。
+ * 【Phase 3: 時間概念の導入と統計データの蓄積】
+ * - `updateTopHUD` メソッドの引数とDOM更新ロジックを、新しい3段レイアウト
+ * （カレンダー、資金、機体、収益、客数、シェア）に合わせて改修しました。
+ * - `showToast` の配置位置を `top-24` から `top-40` へ変更し、
+ * 拡張されたHUDの下部に美しく表示されるよう干渉を回避しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -379,16 +376,21 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    updateTopHUD(fundsStr, incomeStr, planeCount, maxPlanes, passengersStr) {
+    // ★Phase 3: 3段構成のHUDレイアウトに合わせて引数を追加・変更
+    updateTopHUD(calendarStr, fundsStr, planesStr, incomeStr, passengersStr, shareStr) {
+        const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
-        const elIncome = document.getElementById('hud-income');
         const elPlanes = document.getElementById('hud-planes');
+        const elIncome = document.getElementById('hud-income');
         const elPassengers = document.getElementById('hud-passengers');
+        const elShare = document.getElementById('hud-share');
 
+        if (elCalendar) elCalendar.innerText = calendarStr;
         if (elFunds) elFunds.innerText = fundsStr;
+        if (elPlanes) elPlanes.innerHTML = planesStr;
         if (elIncome) elIncome.innerText = incomeStr;
-        if (elPlanes) elPlanes.innerHTML = `${planeCount} <span class="text-slate-500 text-[10px]">/ ${maxPlanes}</span>`;
         if (elPassengers) elPassengers.innerText = passengersStr;
+        if (elShare) elShare.innerText = shareStr;
     }
 
     updateFleetPanel(counts) {
@@ -420,8 +422,8 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
-        // ★修正: whitespace-nowrap と w-max を追加して1行ジャストフィットに
-        const baseClasses = "fixed top-24 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        // ★Phase 3: top-24 から top-40 に下げ、拡張されたHUDの下部に表示させる
+        const baseClasses = "fixed top-40 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -440,7 +442,6 @@ export class UIManager {
         
         if (this.toastTimeout) clearTimeout(this.toastTimeout);
         
-        // ★修正: 表示時間を2000msから3000msへ延長
         this.toastTimeout = setTimeout(() => {
             this.toast.classList.remove('toast-show');
         }, 3000); 
