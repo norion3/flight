@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 4: グラフデータの定期更新適用】
- * 1. グラフタブ（panel-overview）が開かれている際にも、ライバルパネル同様に1秒に1回
- * `updateOverviewPanelData` を呼び出して動的SVGグラフを描画・更新するようにフックを追加しました。
+ * 【パネル描画の不発バグ修正】
+ * スマホ環境等で投資パネルが空になる現象を防ぐため、ボタンごとの個別クリックリスナーを廃止し、
+ * UIManager からの統合コールバック `onPanelOpened` を受け取って確実に描画を実行するよう修正しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -162,28 +162,21 @@ export class GameManager {
             }
         };
 
-        document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
-            btn.addEventListener('click', () => {
+        // ★修正: パネルが開かれたときの統合コールバックで各描画メソッドを呼ぶ
+        this.uiManager.onPanelOpened = (panelId) => {
+            if (panelId === 'panel-upgrades') {
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
-            });
-        });
-        
-        document.querySelectorAll('.cc-link-btn[data-target="panel-rivals"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.updateRivalsPanelData(); 
-            });
-        });
+            } else if (panelId === 'panel-rivals') {
+                this.updateRivalsPanelData();
+            } else if (panelId === 'panel-overview') {
+                this.updateOverviewPanelData();
+            }
+        };
 
-        // ★追加: グラフタブの切り替えやパネルを開いた時にグラフを描画
+        // グラフタブの切り替えイベント
         this.uiManager.onGraphTabChanged = () => {
             this.updateOverviewPanelData();
         };
-
-        document.querySelectorAll('.cc-link-btn[data-target="panel-overview"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.updateOverviewPanelData(); 
-            });
-        });
 
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
@@ -199,7 +192,6 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    // ★追加: グラフパネルの更新をUIManagerへ依頼
     updateOverviewPanelData() {
         this.uiManager.updateOverviewPanel(this.economyManager.historyData, CONFIG.COMPANIES);
     }
@@ -501,7 +493,6 @@ export class GameManager {
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
         this.rivalManager.update(delta, this.competitionManager);
         
-        // ★修正: ライバルパネル・グラフパネルが開いている時は、1秒に1回データを自動更新する
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
             this.rivalUiTimer = 0;
