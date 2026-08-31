@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.4: 投資効果（速度アップ）の適用】
- * GameManager から update() の第2引数として `speedMultiplier` (速度倍率) を受け取るように修正。
- * アップグレード（フライト速度強化）によるボーナスが、実際の機体の移動速度に反映されるようになりました。
- * メモリリーク防止や売却処理などの既存機能はすべて保持しています。
+ * 【AI遊休機体の売却処理の追加】
+ * 1. 会社IDを指定して、航路を持たずに待機中（遊休状態）の機体を優先して売却・削除し、
+ * その機体タイプを返す `sellIdlePlane(companyId)` メソッドを追加しました。
+ * 2. 既存の `sellPlane` も遊休機体を優先して売却するように最適化し、完全な互換性を維持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -127,13 +127,14 @@ export class PlaneManager {
         return counts;
     }
 
-    sellPlane(sizeType, companyId = 'player') {
+    // ★追加: 航路を持たない「遊休状態」の機体を特定して売却・削除するメソッド
+    sellIdlePlane(companyId) {
         for (let i = this.planes.length - 1; i >= 0; i--) {
             const plane = this.planes[i];
-            if (plane.companyId === companyId && plane.sizeType === sizeType) {
+            if (plane.companyId === companyId && !plane.currentRoute) {
+                const sizeType = plane.sizeType;
                 
                 this.planeGroup.remove(plane.mesh);
-                
                 if (plane.mesh.geometry) plane.mesh.geometry.dispose();
                 if (plane.mesh.material) {
                     if (Array.isArray(plane.mesh.material)) {
@@ -144,9 +145,49 @@ export class PlaneManager {
                 }
                 
                 this.planes.splice(i, 1);
-                
-                return true; 
+                return sizeType; // 売却した機体のサイズタイプを返す
             }
+        }
+        return null;
+    }
+
+    sellPlane(sizeType, companyId = 'player') {
+        // 遊休機体を優先して検索
+        let targetIndex = -1;
+        for (let i = this.planes.length - 1; i >= 0; i--) {
+            const plane = this.planes[i];
+            if (plane.companyId === companyId && plane.sizeType === sizeType && !plane.currentRoute) {
+                targetIndex = i;
+                break;
+            }
+        }
+
+        // 遊休機体がなければ稼働中の機体を検索
+        if (targetIndex === -1) {
+            for (let i = this.planes.length - 1; i >= 0; i--) {
+                const plane = this.planes[i];
+                if (plane.companyId === companyId && plane.sizeType === sizeType) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (targetIndex !== -1) {
+            const plane = this.planes[targetIndex];
+            this.planeGroup.remove(plane.mesh);
+            
+            if (plane.mesh.geometry) plane.mesh.geometry.dispose();
+            if (plane.mesh.material) {
+                if (Array.isArray(plane.mesh.material)) {
+                    plane.mesh.material.forEach(m => m.dispose());
+                } else {
+                    plane.mesh.material.dispose();
+                }
+            }
+            
+            this.planes.splice(targetIndex, 1);
+            return true;
         }
         return false; 
     }
@@ -302,7 +343,6 @@ export class PlaneManager {
         });
     }
 
-    // ★修正: 引数に speedMultiplier (初期値1.0) を追加
     update(delta, speedMultiplier = 1.0) {
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
@@ -312,8 +352,6 @@ export class PlaneManager {
             const curve = plane.currentRoute.curve;
             const length = plane.currentRoute.length;
             
-            // ★修正: 基本速度に GameManager から渡された speedMultiplier を掛ける
-            // (プレイヤー以外のAIライバルには引数が渡されないため 1.0 のままとなる)
             const currentSpeed = plane.companyId === 'player' ? plane.baseSpeed * speedMultiplier : plane.baseSpeed;
             
             const speedFactor = currentSpeed / length;

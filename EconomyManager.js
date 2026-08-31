@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【航路開拓コストの5段階距離別計算の実装】
- * `calculateRouteCost` を改修し、空港間の距離に応じて
- * 国内線（$200K）から海洋横断（$25M）までの5段階テーブルを参照する設計に変更しました。
- * 既存のAIリアル経済計算やセーフティネット処理には一切変更を加えていません。
+ * 【AIへの売却代金還元メソッドの追加】
+ * AIが余剰機体を売却した際に売却益を手持ち資金（aiFunds）に戻す `addAiFunds` を追加しました。
+ * 5段階開拓コスト計算やセーフティネット等の既存ロジックは一切変更していません。
  */
 
 import { CONFIG } from './Config.js';
@@ -77,13 +76,19 @@ export class EconomyManager {
         }
     }
 
-    // ★修正: 5段階の距離別コスト計算
+    // ★追加: AIへの売却益還元メソッド
+    addAiFunds(companyId, amount) {
+        if (isNaN(amount)) return;
+        if (this.aiFunds[companyId] !== undefined) {
+            this.aiFunds[companyId] += amount;
+        }
+    }
+
     calculateRouteCost(originData, destData) {
         const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
         const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
         const dist = posA.distanceTo(posB);
 
-        // 距離に応じたベースコストの判定 (5段階)
         let baseCost = 25000000; 
         if (CONFIG.ECONOMY.ROUTE_TIERS) {
             const matchedTier = CONFIG.ECONOMY.ROUTE_TIERS.find(tier => dist <= tier.maxDist);

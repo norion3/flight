@@ -1,16 +1,14 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AIのアクション判断への資金チェック導入】
- * GameManagerからEconomyManagerを受け取り、AIが新しい路線を引いたり
- * 機体を購入する際に「手持ちの資金（aiFunds）が足りるか」をチェックし、
- * 購入時に実際に資金を消費（引き算）するリアルな経済活動モデルへと移行しました。
+ * 【AIの余剰・遊休機体売却（ダウンサイジング）ロジックの実装】
+ * 1. 路線から撤退した際、余った遊休機体を自動売却して資金回収・維持費削減を行う処理を追加。
+ * 2. 資金難時や機体が過剰になった際にも遊休機体を売却するセーフティ思考を追加しました。
  */
 
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
 
 export class RivalManager {
-    // ★追加: economyManager を引数で受け取る
     constructor(networkManager, planeManager, airportManager, economyManager) {
         this.networkManager = networkManager;
         this.planeManager = planeManager;
@@ -49,7 +47,6 @@ export class RivalManager {
             }
 
             if (startNode) {
-                // ★追加: 初期の展開費用（路線＋機体）を差し引く
                 if (this.economyManager) this.economyManager.deductAiFunds(rival.id, 15000000);
                 this.expandNetwork(rival.id, startNode, true);
                 this.planeManager.addPlane('small', rival.id);
@@ -81,6 +78,18 @@ export class RivalManager {
         return Math.floor(routeCount / 2);
     }
 
+    // ★追加: 余剰・遊休機体を売却して資金回収する内部メソッド
+    _sellSurplusIdlePlanes(companyId) {
+        if (!this.planeManager || !this.economyManager) return;
+        
+        const soldType = this.planeManager.sellIdlePlane(companyId);
+        if (soldType) {
+            const planeConf = CONFIG.ECONOMY.PLANES[soldType];
+            const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 3500000;
+            this.economyManager.addAiFunds(companyId, refund);
+        }
+    }
+
     performAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
         if (!net) return;
@@ -107,6 +116,9 @@ export class RivalManager {
                         this.planeManager.checkAndReassignPlanes(companyId);
                         didWithdraw = true;
                         
+                        // ★追加: 路線撤退に伴い余った遊休機体を売却して資金を回収
+                        this._sellSurplusIdlePlanes(companyId);
+                        
                         if (this.onWithdraw) this.onWithdraw(companyId, originId);
                         
                         this._escapeToNewAirport(companyId, competitionManager);
@@ -115,6 +127,18 @@ export class RivalManager {
                 }
             }
             if (didWithdraw) return;
+        }
+
+        const counts = this.planeManager.getPlaneCounts(companyId);
+        const currentPlaneCounts = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
+        const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
+
+        // ★追加: 資金難時または機体過剰時に遊休機体を売却して維持費を削減
+        if (this.economyManager) {
+            const aiFunds = this.economyManager.getAiFunds(companyId);
+            if (currentPlaneCounts > aiMaxPlanes || aiFunds < 3000000) {
+                this._sellSurplusIdlePlanes(companyId);
+            }
         }
 
         const connectedIds = Object.keys(net).filter(id => {
@@ -133,15 +157,10 @@ export class RivalManager {
             const originNode = this.airportManager.getAirportById(originId);
             this.expandNetwork(companyId, originNode);
         } else {
-            const counts = this.planeManager.getPlaneCounts(companyId);
-            const currentPlaneCounts = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
-            const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
-            
             if (currentPlaneCounts < aiMaxPlanes) {
                 const types = ['small', 'medium', 'large', 'super'];
                 const randomType = types[Math.floor(Math.random() * types.length)];
                 
-                // ★追加: AIの機体購入時の資金チェックと支払い処理
                 const planeConf = CONFIG.ECONOMY.PLANES[randomType];
                 if (this.economyManager && planeConf) {
                     if (this.economyManager.canAiAfford(companyId, planeConf.cost)) {
@@ -191,10 +210,9 @@ export class RivalManager {
         const bestEscapes = validEscapes.filter(e => competitionManager.getShare(e.id, 'player') === minShare);
 
         const escapeDest = bestEscapes[Math.floor(Math.random() * bestEscapes.length)];
-        this.expandNetwork(companyId, escapeDest, true); // 逃亡時は無料
+        this.expandNetwork(companyId, escapeDest, true); 
     }
 
-    // ★追加: isFree フラグを用いて、拡張時の資金チェックと支払い処理を追加
     expandNetwork(companyId, originNode, isFree = false) {
         const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
@@ -222,7 +240,6 @@ export class RivalManager {
         const poolSize = Math.min(validCandidates.length, 4);
         const selectedDest = validCandidates[Math.floor(Math.random() * poolSize)];
 
-        // ★追加: 資金チェックと消費
         if (!isFree && this.economyManager) {
             const cost = this.economyManager.calculateRouteCost(originNode, selectedDest);
             if (!this.economyManager.canAiAfford(companyId, cost)) {
