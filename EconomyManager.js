@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【カレンダー表示形式の日本語化対応】
- * `EconomyManager` 内で生成するカレンダーの表示文字列を `Year 1 - Jan` から
- * ご指定の `1年目-1月` 形式（`1年目-1月`）に変更しました。
- * これにより上部ステータスHUDのカレンダー表記が直感的な日本語表示になります。
+ * 【超軽量設計へのリファクタリング】
+ * UIManagerの `innerHTML` 毎フレーム更新による高負荷（DOM再構築）を防ぐため、
+ * 文字列にHTMLタグ（`<span class="...">`）を含めるのをやめ、
+ * 純粋な数値やプレーンテキストのみを `UIManager` に渡す設計に変更しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -210,23 +210,22 @@ export class EconomyManager {
             this.displayIncome = this.lastSecondIncome;
         }
 
+        // HTMLタグを含まず、純粋な値のみを抽出して UIManager へ渡す（超軽量化対応）
         const displayVal = Math.round(this.displayIncome);
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
-        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}<span class="text-[10px] font-sans font-normal text-emerald-400/70 ml-0.5">/s</span>`;
+        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}`;
         
-        // ★ カレンダー表記を「1年目-1月」形式に変更
         const calendarStr = `${this.currentYear}年目-${this.currentMonth}月`;
-        
-        const planesStr = `${totalPlanesCount} <span class="text-slate-500">/ ${this.maxPlanes}</span> <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">機</span>`;
-        const passStr = this._formatNumber(Math.floor(this.totalPassengers)) + ' <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">人</span>';
+        const passStr = this._formatNumber(Math.floor(this.totalPassengers));
         
         const playerShare = competitionManager ? (competitionManager.globalShares['player'] || 0) : 0;
-        const shareStr = (playerShare * 100).toFixed(1) + ' <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">%</span>';
+        const shareStr = (playerShare * 100).toFixed(1);
 
         this.uiManager.updateTopHUD(
             calendarStr,
             this._formatMoney(this.funds),
-            planesStr,
+            totalPlanesCount,
+            this.maxPlanes,
             formattedIncome,
             passStr,
             shareStr

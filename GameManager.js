@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2: ライバル状況UIの実データ化】
- * 1. RivalManager の撤退イベント (onWithdraw) をフックして青色のトースト通知を表示。
- * 2. コントロールセンターの「ライバル会社状況」が開かれている間、各社の総路線数や資産価値を
- * リアルタイムで集計し、UIManager にランキングデータとして渡すロジックを追加しました。
+ * 【ライバル撤退専用トーストの呼び出し適用】
+ * RivalManager の撤退イベント (onWithdraw) にて、旧来の `showToast` ではなく、
+ * 新設された `showWithdrawToast` を呼び出すように修正し、撤退した会社のブランドカラーが
+ * トースト通知に動的に適用されるようにしました。
  */
 
 import { CONFIG } from './Config.js';
@@ -44,12 +44,12 @@ export class GameManager {
         
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
         
-        // ★追加(Phase 2): ライバルが撤退（逃亡）した際にトースト通知でプレイヤーに知らせる
+        // ★修正: ライバル撤退時に専用の showWithdrawToast を呼び出しブランドカラーを適用
         this.rivalManager.onWithdraw = (companyId, airportId) => {
             const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
             if (comp) {
-                // UIマネージャーに青色(info)のトーストを出させる
-                this.uiManager.showToast(`${comp.name} が撤退・逃亡しました！`, 'info');
+                // UIマネージャーにブランドカラー付きの専用トーストを出させる
+                this.uiManager.showWithdrawToast(`${comp.name} が撤退・逃亡しました！`, companyId);
             }
         };
 
@@ -172,7 +172,7 @@ export class GameManager {
             });
         });
         
-        // ★追加(Phase 2): ライバルパネルを開いた瞬間にデータを最新化
+        // ライバルパネルを開いた瞬間にデータを最新化
         document.querySelectorAll('.cc-link-btn[data-target="panel-rivals"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.updateRivalsPanelData(); 
@@ -193,7 +193,6 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    // ★追加(Phase 2): ライバルの実データを集計し、UIに流し込む処理
     updateRivalsPanelData() {
         const stats = CONFIG.COMPANIES.map(comp => {
             // 1. 総路線数の計算
@@ -500,7 +499,7 @@ export class GameManager {
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
         this.rivalManager.update(delta, this.competitionManager);
         
-        // ★追加(Phase 2): ライバルパネルが開いている時は、1秒に1回データを自動更新する
+        // ライバルパネルが開いている時は、1秒に1回データを自動更新する
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
             this.rivalUiTimer = 0;

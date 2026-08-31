@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【撤退専用トースト処理の実装】
- * 1. ライバルが撤退した際に、汎用トーストではなく専用の `showWithdrawToast(rivalName, rivalId)` を呼び出すようにしました。
- * 2. 引数で受け取った `rivalId` に応じて `CONFIG.COMPANIES` からブランドカラー（`routeColor`）を動的に取得し、
- * トーストのボーダーやアクセントカラーとして適用することで、どのライバルが撤退したかが一目で分かるようにしています。
+ * 【超軽量設計へのリファクタリング】
+ * `updateTopHUD` にて、`innerHTML` によるDOMの再構築処理を完全に廃止しました。
+ * 単位となる「機」「%」「人」などのタグは `index.html` 側に静的に配置し、
+ * JS側は IDを指定して純粋な数値だけを `innerText` で書き換える最高速の設計になっています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -375,20 +375,23 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    updateTopHUD(calendarStr, fundsStr, planesStr, incomeStr, passengersStr, shareStr) {
+    // ★ innerHTML を廃止し、innerText による超軽量更新に対応
+    updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
-        const elPlanes = document.getElementById('hud-planes');
+        const elPlanesCount = document.getElementById('hud-planes-count');
+        const elPlanesMax = document.getElementById('hud-planes-max');
         const elIncome = document.getElementById('hud-income');
         const elPassengers = document.getElementById('hud-passengers');
         const elShare = document.getElementById('hud-share');
 
         if (elCalendar) elCalendar.innerText = calendarStr; 
         if (elFunds) elFunds.innerText = fundsStr;
-        if (elPlanes) elPlanes.innerHTML = planesStr;
-        if (elIncome) elIncome.innerHTML = incomeStr;
-        if (elPassengers) elPassengers.innerHTML = passengersStr;
-        if (elShare) elShare.innerHTML = shareStr;
+        if (elPlanesCount) elPlanesCount.innerText = planesCount;
+        if (elPlanesMax) elPlanesMax.innerText = planesMax;
+        if (elIncome) elIncome.innerText = incomeStr;
+        if (elPassengers) elPassengers.innerText = passengersStr;
+        if (elShare) elShare.innerText = shareStr;
     }
 
     updateFleetPanel(counts) {
@@ -444,14 +447,10 @@ export class UIManager {
         }, 3000); 
     }
 
-    /**
-     * 🌐 撤退専用トースト通知（ライバルのブランドカラーを動的適用）
-     */
     showWithdrawToast(message, rivalId) {
         this.soundManager.playEventSound();
         const baseClasses = "fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
-        // ライバルのブランドカラーを CONFIG から取得（デフォルトはブルー系）
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
 
@@ -865,7 +864,7 @@ export class UIManager {
                     if (nextStepData.capacity !== undefined) effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
                     else if (nextStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% ➔ ${Math.round((nextStepData.speedMultiplier - 1) * 100)}%`;
                     else if (nextStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% ➔ +${Math.round(currentStepData.bonusIncomeRate * 100)}%`;
-                    else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${currentStepData.bonusSatisfaction}`;
+                    else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
                     
                     if (key === 'fleet_capacity') effectColor = 'text-amber-400';
                     else if (cat.id === 'staff') effectColor = 'text-blue-400';
