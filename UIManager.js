@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルパネルのUI表示最適化】
- * 1. 顧客満足度の長い小数を `Math.round()` で整数表示に修正。
- * 2. 比較ヘッダー表記を「自社 XX / 他社 YY」にスリム化し、スマホ画面幅での折り返し・体裁崩れを解消。
- * 3. 比較バーのラベルを「敵」から「他社」に統一。
+ * 【Phase 5: ランダムイベントモーダルUIの実装】
+ * 1. `event-modal-card` の表示・選択肢バインドおよびコールバック処理を実装。
+ * 2. 既存のライバルパネル「他社」表記、満足度整数化、全社グラフ描画等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -23,6 +22,7 @@ export class UIManager {
         
         this.exitCard = document.getElementById('exit-confirm-card');
         this.helpMenu = document.getElementById('help-menu');
+        this.eventCard = document.getElementById('event-modal-card'); // ★追加: イベントモーダル
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -58,6 +58,7 @@ export class UIManager {
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
         this._isOverviewOpen = false;
+        this._isEventModalOpen = false;
         
         this.currentGraphTab = 'funds';
         this._openedRivalId = null; 
@@ -403,6 +404,59 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
+    // ★追加: イベントモーダルの表示・選択処理
+    showEventModal(eventData, context, callback) {
+        this.soundManager.playWarningSound();
+        this.hideAll();
+
+        const titleEl = document.getElementById('event-modal-title');
+        const descEl = document.getElementById('event-modal-desc');
+        const optionsEl = document.getElementById('event-modal-options');
+
+        if (titleEl) titleEl.innerText = eventData.title;
+        if (descEl) descEl.innerText = eventData.description;
+
+        if (optionsEl) {
+            let optionsHtml = '';
+            eventData.options.forEach((opt, idx) => {
+                const cost = opt.getCost(context);
+                const costStr = cost > 0 ? `-${this._formatMoneyShort(cost)}` : '出費なし';
+                const costClass = cost > 0 ? 'text-amber-300 font-mono' : 'text-emerald-300 font-bold';
+
+                optionsHtml += `
+                <button class="event-option-btn w-full p-3 bg-slate-800 active:bg-slate-700 border border-slate-700 rounded-xl flex items-center justify-between text-left transition-all" data-idx="${idx}">
+                    <span class="text-xs font-bold text-slate-100 flex-1 pr-2">${opt.text}</span>
+                    <span class="text-[11px] ${costClass} shrink-0">${costStr}</span>
+                </button>`;
+            });
+
+            optionsEl.innerHTML = optionsHtml;
+
+            optionsEl.querySelectorAll('.event-option-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    this.soundManager.playSuccessSound();
+                    const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+                    this.hideEventModal();
+                    if (callback) callback(idx);
+                });
+            });
+        }
+
+        if (this.eventCard) {
+            this.eventCard.classList.add('show');
+            this._isEventModalOpen = true;
+            this._toggleMainButtons(false);
+        }
+    }
+
+    hideEventModal() {
+        if (this.eventCard) {
+            this.eventCard.classList.remove('show');
+            this._isEventModalOpen = false;
+            this._toggleMainButtons(true);
+        }
+    }
+
     updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -588,6 +642,7 @@ export class UIManager {
         this.routeCard.classList.remove('show');
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
+        if (this.eventCard) this.eventCard.classList.remove('show'); // ★追加
         
         if (this.controlCenter && this.controlCenter.classList.contains('show')) {
             this.controlCenter.classList.remove('show');
@@ -606,6 +661,7 @@ export class UIManager {
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
         this._isOverviewOpen = false;
+        this._isEventModalOpen = false;
         this._openedRivalId = null; 
         
         this._toggleMainButtons(true);
@@ -615,6 +671,7 @@ export class UIManager {
     isBuyMenuOpen() { return this._isBuyMenuOpen; }
     isRivalsPanelOpen() { return this._isRivalsOpen; } 
     isOverviewPanelOpen() { return this._isOverviewOpen; } 
+    isEventModalOpen() { return this._isEventModalOpen; }
 
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
         if (!this._isBuyMenuOpen) return;
@@ -1063,7 +1120,6 @@ export class UIManager {
             const compareShareStr = (compareStat.globalShare * 100).toFixed(1) + '%';
             const compareAssetStr = this._formatMoneyShort(compareStat.assetValue);
 
-            // ★修正: 満足度を整数化し、スリムな「他社」表記の比較バーを呼び出す
             html += `
             <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
@@ -1117,7 +1173,6 @@ export class UIManager {
         });
     }
 
-    // ★修正: 相手の名前を「他社」に固定短縮し、バーのラベルも「他社」に統一
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;

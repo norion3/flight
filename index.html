@@ -209,6 +209,18 @@
 
     <div id="ui-layer" class="pb-4 px-4 relative overflow-hidden flex flex-col items-center">
         
+        <!-- ★追加: Phase 5 ランダムイベントモーダルダイアログ -->
+        <div id="event-modal-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-amber-500/50 rounded-2xl p-4 backdrop-blur-md shadow-2xl shadow-amber-900/30 absolute z-40">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">📢</span>
+                <h3 id="event-modal-title" class="text-sm font-bold text-amber-300 tracking-wider">イベントタイトル</h3>
+            </div>
+            <p id="event-modal-desc" class="text-xs text-slate-200 leading-relaxed mb-4">イベントの状況説明文がここに入ります。</p>
+            <div class="flex flex-col gap-2" id="event-modal-options">
+                <!-- 動的に選択ボタンを注入 -->
+            </div>
+        </div>
+
         <div id="connecting-mode-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-full py-2 px-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 absolute flex items-center justify-between space-x-4">
             <p class="text-xs text-yellow-400 font-bold animate-pulse whitespace-nowrap">行先の空港をタップ...</p>
             <button id="btn-cancel-connect" class="px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold active:bg-slate-700 whitespace-nowrap">キャンセル</button>
@@ -352,7 +364,6 @@
             </div>
             
             <div class="flex flex-col gap-2">
-                <!-- 小型機 -->
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
                     <div class="flex-1 flex items-center gap-2">
                         <div class="text-emerald-400 w-8 flex justify-center">
@@ -375,7 +386,6 @@
                     </div>
                 </div>
 
-                <!-- 中型機 -->
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
                     <div class="flex-1 flex items-center gap-2">
                         <div class="text-emerald-400 w-8 flex justify-center">
@@ -398,7 +408,6 @@
                     </div>
                 </div>
 
-                <!-- 大型機 -->
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
                     <div class="flex-1 flex items-center gap-2">
                         <div class="text-emerald-400 w-8 flex justify-center">
@@ -421,7 +430,6 @@
                     </div>
                 </div>
 
-                <!-- 超大型機 -->
                 <div class="flex items-center justify-between bg-slate-800 rounded-xl p-2.5 border border-slate-700/50 shadow-inner">
                     <div class="flex-1 flex items-center gap-2">
                         <div class="text-emerald-400 w-8 flex justify-center">
@@ -515,10 +523,8 @@
                     <div class="flex-1 overflow-y-auto h-full pb-4 pr-4 pl-0">
                         
                         <div id="panel-upgrades" class="hidden py-4 flex flex-col gap-3">
-                            <!-- UIManager.js が動的に項目を注入します -->
                         </div>
 
-                        <!-- ★全社激闘グラフ対応 -->
                         <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
                             <div class="flex bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
                                 <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors" data-tab="funds">資金</button>
@@ -548,18 +554,13 @@
                                         <div class="w-full h-px bg-slate-700/50"></div>
                                     </div>
                                     <svg viewBox="0 0 240 100" class="w-full h-full absolute inset-0 overflow-visible" preserveAspectRatio="none">
-                                        <!-- ★Zオーダー(重なり順)に基づく全社分の静的要素 -->
-                                        <!-- 一番奥: その他のライバルたち -->
                                         <polyline id="graph-line-other-0" points="" fill="none" />
                                         <polyline id="graph-line-other-1" points="" fill="none" />
                                         <polyline id="graph-line-other-2" points="" fill="none" />
                                         <polyline id="graph-line-other-3" points="" fill="none" />
-                                        <!-- 真ん中: 現在のトップのライバル -->
                                         <polyline id="graph-line-1st" points="" fill="none" />
-                                        <!-- 最前面: 自社 -->
                                         <polyline id="graph-line-player" points="" fill="none" />
                                         
-                                        <!-- 最新点のマーカー -->
                                         <circle id="graph-point-other-0" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
                                         <circle id="graph-point-other-1" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
                                         <circle id="graph-point-other-2" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
@@ -568,11 +569,9 @@
                                         <circle id="graph-point-player" cx="0" cy="0" r="3" fill="#34d399" class="animate-pulse transition-opacity duration-300 opacity-0" />
                                     </svg>
                                     
-                                    <!-- ★動的ティックマーク（縦線）の領域 -->
                                     <div id="graph-x-ticks" class="absolute inset-0 w-full h-full pointer-events-none overflow-visible"></div>
                                 </div>
                                 
-                                <!-- ★X軸の数字ラベルと単位 -->
                                 <div class="relative w-full h-4 mt-1">
                                     <div id="graph-x-labels" class="absolute inset-0 w-full h-full pointer-events-none"></div>
                                     <div class="absolute right-0 top-3 text-[8px] text-slate-500 font-bold">(月)</div>
@@ -580,7 +579,6 @@
                             </div>
                         </div>
 
-                        <!-- UIManager.js がランキングデータを注入します -->
                         <div id="panel-rivals" class="hidden py-4 flex flex-col gap-2">
                         </div>
 
@@ -590,7 +588,6 @@
         </div>
     </div>
 
-    <!-- キャッシュバスターは動的に付与 -->
     <script type="module">
         var ts = new Date().getTime();
         import('./main.js?t=' + ts)

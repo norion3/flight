@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルパネルデータ集計時の満足度整数化】
- * `updateRivalsPanelData` で集計する際にも `satisfaction: Math.round(...)` を施し、
- * データ層・UI層の双方で小数の混入を二重に防ぐ安全策を施しました。
+ * 【Phase 5: EventManagerの統合と一時停止/再開制御】
+ * 1. EventManager インスタンスを生成し、アニメーションループ内で更新。
+ * 2. イベント発生時（isPaused = true）は、3Dアニメーションや経済シミュレーション時間を
+ * 一時停止し、モーダルでの選択完了後にスムーズに再開します。
+ * 3. 既存のライバル情報集計、満足度整数化、5段階開拓コスト等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,6 +18,7 @@ import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
 import { CompetitionManager } from './CompetitionManager.js';
+import { EventManager } from './EventManager.js'; // ★追加
 import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
@@ -29,6 +32,7 @@ export class GameManager {
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
         this.targetDistance = null; 
+        this.isPaused = false; // ★追加: イベント時の一時停止フラグ
 
         this.initThree();
         this.globe = new Globe(this.scene);
@@ -51,6 +55,17 @@ export class GameManager {
         };
 
         this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
+
+        // ★追加: EventManager の初期化
+        this.eventManager = new EventManager(
+            this,
+            this.uiManager,
+            this.economyManager,
+            this.upgradeManager,
+            this.competitionManager,
+            this.planeManager,
+            this.rivalManager
+        );
 
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
@@ -222,10 +237,11 @@ export class GameManager {
                 assetValue += this.economyManager.getAiFunds(comp.id);
             }
 
-            // ★修正: 満足度を整数（Math.round）に変換してUIに渡す
             let satisfaction = 0;
             if (comp.id === 'player') {
-                satisfaction = Math.round(this.upgradeManager.getBonuses().satisfaction || 0);
+                const baseSat = this.upgradeManager.getBonuses().satisfaction || 0;
+                const eventSat = this.upgradeManager.eventSatisfactionBonus || 0;
+                satisfaction = Math.round(baseSat + eventSat);
             } else {
                 satisfaction = Math.round(this.competitionManager.getAiSatisfaction ? this.competitionManager.getAiSatisfaction(comp.id) : 150);
             }
@@ -466,7 +482,9 @@ export class GameManager {
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        const delta = this.clock.getDelta();
+        const rawDelta = this.clock.getDelta();
+        // ★イベントモーダル表示時はシミュレーション時間を一時停止（delta = 0）
+        const delta = this.isPaused ? 0 : rawDelta;
 
         if (this.targetDistance !== null) {
             const currentDist = this.camera.position.distanceTo(this.controls.target);
@@ -475,7 +493,7 @@ export class GameManager {
             if (Math.abs(diff) < 0.01) {
                 this.targetDistance = null;
             } else {
-                const step = diff * 10.0 * delta; 
+                const step = diff * 10.0 * rawDelta; 
                 const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
                 this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
                 this.controls.update(); 
@@ -494,6 +512,11 @@ export class GameManager {
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
         this.rivalManager.update(delta, this.competitionManager);
         
+        // ★追加: EventManager の更新
+        if (this.eventManager) {
+            this.eventManager.update(delta);
+        }
+
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
             this.rivalUiTimer = 0;
