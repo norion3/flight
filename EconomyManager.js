@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【経営再起システム（セーフティネット）の実装】
- * 1. 資金がマイナスに沈んで破産状態になるのを防ぐため、計算後の資金に下限 0 を強制適用。
- * 2. 資金が 0 でかつ純損失（赤字）が続いている場合、強制的に最低保証のプラス収益を発生させ、
- * プレイヤーが必ず再起（巻き返し）できるように保護するセーフティネットを追加しました。
+ * 【AI経済の完全リアル化 ＆ 青天井の解消】
+ * AIの資金を「固定の資産積算」から「手持ち現金（aiFunds）」による完全なキャッシュフロー方式へ移行。
+ * 機体や路線に応じたリアルな収支計算を行い、お金がないと買えなくすることで、
+ * 異常な資金の急上昇（青天井）を完全に解決しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -34,11 +34,15 @@ export class EconomyManager {
         this.historyData = {}; 
         
         this.aiPassengers = {}; 
+        this.aiFunds = {};       // ★追加: AIのリアル現金残高
+        this.aiLastIncome = {};  // ★追加: AIのリアル月間収益
         
         CONFIG.COMPANIES.forEach(comp => {
             this.historyData[comp.id] = [];
             if (comp.id !== 'player') {
                 this.aiPassengers[comp.id] = 0;
+                this.aiFunds[comp.id] = CONFIG.ECONOMY.AI_INITIAL_FUNDS || 30000000;
+                this.aiLastIncome[comp.id] = 0;
             }
         });
     }
@@ -46,7 +50,6 @@ export class EconomyManager {
     addFunds(amount) {
         if (isNaN(amount)) return; 
         this.funds += amount;
-        // ★追加: 資金が絶対にマイナスにならない下限ガード
         if (this.funds < 0) this.funds = 0;
     }
 
@@ -57,6 +60,22 @@ export class EconomyManager {
     deductFunds(amount) {
         this.funds -= amount;
         if (this.funds < 0) this.funds = 0;
+    }
+
+    // ★追加: AIの資金操作メソッド群
+    getAiFunds(companyId) {
+        return this.aiFunds[companyId] || 0;
+    }
+
+    canAiAfford(companyId, amount) {
+        return (this.aiFunds[companyId] || 0) >= amount;
+    }
+
+    deductAiFunds(companyId, amount) {
+        if (this.aiFunds[companyId] !== undefined) {
+            this.aiFunds[companyId] -= amount;
+            if (this.aiFunds[companyId] < 0) this.aiFunds[companyId] = 0;
+        }
     }
 
     calculateRouteCost(originData, destData) {
@@ -99,22 +118,14 @@ export class EconomyManager {
                     if (p.companyId === companyId) planeCount++;
                 });
                 
-                let routeCount = 0;
-                if (networkManager && networkManager.network[companyId]) {
-                    const net = networkManager.network[companyId];
-                    for (const originId in net) {
-                        routeCount += net[originId].length;
-                    }
-                    routeCount = Math.floor(routeCount / 2);
-                }
-
                 if (companyId === 'player') {
                     currentFunds = this.funds;
                     currentIncome = this.lastSecondIncome; 
                     currentPass = this.totalPassengers;
                 } else {
-                    currentFunds = (planeCount * 25000000) + (routeCount * 50000000); 
-                    currentIncome = (planeCount * 180000) + (routeCount * 120000); 
+                    // ★変更: 固定資産の積算（青天井の原因）を廃止し、リアルな現金の動きを記録
+                    currentFunds = this.aiFunds[companyId] || 0; 
+                    currentIncome = this.aiLastIncome[companyId] || 0; 
                     currentPass = this.aiPassengers[companyId] || 0; 
                 }
 
@@ -141,7 +152,6 @@ export class EconomyManager {
         let totalPlanesCount = 0;
 
         const netLen = networkManager.playerTotalNetworkLength || 0;
-        
         const networkBonus = 1.0 + (Math.sqrt(netLen) * 0.1); 
         const passNetworkBonus = 1.0 + (Math.sqrt(netLen) * 0.05); 
 
@@ -182,9 +192,9 @@ export class EconomyManager {
 
         let currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
 
-        // ★追加: セーフティネット（資金が0かつ赤字の場合、強制的に最低保証のプラス収益を与える）
+        // プレイヤー用セーフティネット
         if (this.funds <= 1000 && currentNetIncome < 0) {
-            currentNetIncome = Math.max(currentNetIncome, 5000); // 毎秒 +$5K の政府補助金・最低保証
+            currentNetIncome = Math.max(currentNetIncome, 5000); 
         }
 
         if (this.incomeTimer >= 1.0) {
@@ -194,7 +204,8 @@ export class EconomyManager {
             this.upkeepBuffer = 0;
         }
 
-        this._updateAiPassengers(delta, planes, networkManager, competitionManager);
+        // ★メソッド名を変更し、客数だけでなく資金も更新する
+        this._updateAiEconomy(delta, planes, networkManager, competitionManager);
 
         if (this.uiUpdateTimer >= 0.2) {
             if (this.uiManager.isUpgradePanelOpen()) {
@@ -239,7 +250,8 @@ export class EconomyManager {
         );
     }
 
-    _updateAiPassengers(delta, planes, networkManager, competitionManager) {
+    // ★追加: AIのリアルな客数・資金（収益計算）の統合メソッド
+    _updateAiEconomy(delta, planes, networkManager, competitionManager) {
         const aiPlaneCounts = {};
         if (planes) {
             planes.forEach(p => {
@@ -256,7 +268,7 @@ export class EconomyManager {
             if (networkManager && networkManager.network[comp.id]) {
                 const net = networkManager.network[comp.id];
                 for (const originId in net) {
-                    routeCount += net[originId].length;
+                    if (net[originId]) routeCount += net[originId].length;
                 }
                 routeCount = Math.floor(routeCount / 2);
             }
@@ -265,14 +277,36 @@ export class EconomyManager {
             const netLength = (networkManager && networkManager.getAiTotalNetworkLength) ? networkManager.getAiTotalNetworkLength(comp.id) : 0;
             const satisfaction = (competitionManager && competitionManager.getAiSatisfaction) ? competitionManager.getAiSatisfaction(comp.id) : 150;
             
+            // ① 客数（スコア）計算
             const baseAiRate = (routeCount * 2.2) + (planeCount * 3.5);
             const satBonus = Math.pow(1.0 + (Math.max(0, satisfaction) / 100), 2.0);
             const distBonus = Math.sqrt(Math.max(0, netLength)) * 0.05;
             
             const currentAiRate = baseAiRate * satBonus * (1.0 + distBonus);
-            
             if (!isNaN(currentAiRate)) {
                 this.aiPassengers[comp.id] += (currentAiRate * delta);
+            }
+
+            // ② 資金（リアル現金収支）計算
+            const globalShare = competitionManager ? (competitionManager.globalShares[comp.id] || 0) : 0;
+            const shareMult = 0.5 + (globalShare * 3.0); 
+
+            // AIの基本収益力（機体と路線の規模に応じる）
+            const baseIncome = (routeCount * 2500) + (planeCount * 3500); 
+            let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
+            let upkeep = planeCount * 1200; 
+            
+            let netIncome = grossIncome - upkeep;
+
+            // AI用セーフティネット（下限0からの再起用・月間+$500K相当）
+            if (this.aiFunds[comp.id] <= 5000000 && netIncome < 0) {
+                netIncome = Math.max(netIncome, 25000); 
+            }
+
+            if (!isNaN(netIncome)) {
+                this.aiFunds[comp.id] += netIncome * delta;
+                if (this.aiFunds[comp.id] < 0) this.aiFunds[comp.id] = 0; 
+                this.aiLastIncome[comp.id] = netIncome;
             }
         });
     }

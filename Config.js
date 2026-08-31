@@ -1,7 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【序盤テンポ最適化】
- * 小型機のコストを 5M に変更し、初期機体保有枠を 10機 に変更しました。
+ * 【AIへの初期資金導入】
+ * AI各社がゲーム開始時に保有するリアルな現金（初期資金）として、
+ * AI_INITIAL_FUNDS を $30,000,000（$30M）に設定しました。
  */
 
 export const CONFIG = {
@@ -24,24 +25,23 @@ export const CONFIG = {
 
     ECONOMY: {
         INITIAL_FUNDS: 50000000,
+        AI_INITIAL_FUNDS: 30000000, // ★追加: AIの初期資金(30M)
         MAX_PLANES_INITIAL: 10,
         
         PLANES: {
             small:  { cost: 5000000,  sellRate: 0.70, upkeep: 200,   baseDemand: 30,  incomeBase: 1500 },
-            medium: { cost: 25000000, sellRate: 0.60, upkeep: 600,   baseDemand: 70,  incomeBase: 4000 },
-            large:  { cost: 50000000, sellRate: 0.45, upkeep: 1500,  baseDemand: 150, incomeBase: 10000 },
-            super:  { cost: 100000000,sellRate: 0.30, upkeep: 3500,  baseDemand: 300, incomeBase: 25000 }
+            medium: { cost: 25000000, sellRate: 0.60, upkeep: 600,   baseDemand: 90,  incomeBase: 5000 },
+            large:  { cost: 60000000, sellRate: 0.50, upkeep: 1800,  baseDemand: 220, incomeBase: 14000 },
+            super:  { cost: 150000000,sellRate: 0.40, upkeep: 5000,  baseDemand: 500, incomeBase: 35000 }
         },
 
-        AIRPORT_RANKS: {
-            'major':     { multiplier: 3.0, demandCap: 500 },
-            'local':     { multiplier: 1.5, demandCap: 120 },
-            'fictional': { multiplier: 1.0, demandCap: 50  }
-        },
-
-        ROUTE_BASE_COST: 20000,
-        ROUTE_DISTANCE_COST_RATE: 150000,
+        ROUTE_BASE_COST: 5000000,       
+        ROUTE_DISTANCE_COST_RATE: 2000000, 
         
-        NETWORK_BONUS_MULTIPLIER: 1.2
+        AIRPORT_RANKS: {
+            major:    { multiplier: 1.5, baseTraffic: 500 },
+            local:    { multiplier: 1.0, baseTraffic: 150 },
+            fictional:{ multiplier: 0.8, baseTraffic: 50  }
+        }
     }
 };

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルパネルでのAI動的満足度表示の正常化】
- * ライバル状況パネル（`updateRivalsPanelData`）にて、AIの満足度を固定値(150)ではなく
- * `competitionManager.getAiSatisfaction(comp.id)` から取得するよう修正しました。
- * これにより、AIのサービス品質の成長がUI上でも正しく反映されるようになります。
+ * 【ライバルパネルの総資産表示の正常化】
+ * RivalManagerの初期化時に economyManager を渡すよう連携を修正し、
+ * ライバル情報パネルの資産(assetValue)計算に、AIのリアルな手持ち現金(`getAiFunds`)を
+ * 加算することで、路線数・機体数に見合った正確な資産額が表示されるようになりました。
  */
 
 import { CONFIG } from './Config.js';
@@ -42,7 +42,8 @@ export class GameManager {
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
         
-        this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
+        // ★修正: RivalManager が資金チェックできるよう、第4引数に economyManager を渡す
+        this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager, this.economyManager);
         
         this.rivalManager.onWithdraw = (companyId, airportId) => {
             const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
@@ -217,13 +218,13 @@ export class GameManager {
             });
             assetValue += routeCount * CONFIG.ECONOMY.ROUTE_BASE_COST * 2; 
             
+            // ★変更: プレイヤーと同じく、AIの資産計算にも「手持ちのリアルな現金」を足す
             if (comp.id === 'player') {
                 assetValue += this.economyManager.funds;
             } else {
-                assetValue += routeCount * 1000000;
+                assetValue += this.economyManager.getAiFunds(comp.id);
             }
 
-            // ★修正: AIの満足度は固定値ではなく dynamic な `getAiSatisfaction` から取得してUIに反映
             let satisfaction = 0;
             if (comp.id === 'player') {
                 satisfaction = this.upgradeManager.getBonuses().satisfaction || 0;

@@ -1,24 +1,26 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.11: ライバルのしぶとい逃亡・1路線死守ロジック ＆ 頻度最適化】
- * 撤退・逃亡などの既存機能は一切触れず、AIの行動タイマーのみを
- * 「60秒」から「30秒（1ヶ月半相当）」へと最適化しました。
+ * 【AIのアクション判断への資金チェック導入】
+ * GameManagerからEconomyManagerを受け取り、AIが新しい路線を引いたり
+ * 機体を購入する際に「手持ちの資金（aiFunds）が足りるか」をチェックし、
+ * 購入時に実際に資金を消費（引き算）するリアルな経済活動モデルへと移行しました。
  */
 
 import { CONFIG } from './Config.js';
 import { Utils } from './Utils.js';
 
 export class RivalManager {
-    constructor(networkManager, planeManager, airportManager) {
+    // ★追加: economyManager を引数で受け取る
+    constructor(networkManager, planeManager, airportManager, economyManager) {
         this.networkManager = networkManager;
         this.planeManager = planeManager;
         this.airportManager = airportManager;
+        this.economyManager = economyManager; 
         
         this.rivals = CONFIG.COMPANIES.filter(c => c.id !== 'player');
         
         this.timers = {};
         this.rivals.forEach(rival => {
-            // ★変更: 30秒スタートに短縮
             this.timers[rival.id] = Math.random() * 30;
         });
 
@@ -47,7 +49,9 @@ export class RivalManager {
             }
 
             if (startNode) {
-                this.expandNetwork(rival.id, startNode);
+                // ★追加: 初期の展開費用（路線＋機体）を差し引く
+                if (this.economyManager) this.economyManager.deductAiFunds(rival.id, 15000000);
+                this.expandNetwork(rival.id, startNode, true);
                 this.planeManager.addPlane('small', rival.id);
             }
         });
@@ -59,7 +63,6 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            // ★変更: 判定を30秒へ短縮
             if (this.timers[rival.id] >= 30) {
                 this.timers[rival.id] = 0; 
                 this.performAction(rival.id, competitionManager);
@@ -73,19 +76,20 @@ export class RivalManager {
         if (!net) return 0;
         
         for (const originId in net) {
-            routeCount += net[originId].length;
+            if (net[originId]) routeCount += net[originId].length;
         }
         return Math.floor(routeCount / 2);
     }
 
     performAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
+        if (!net) return;
         const currentRouteCount = this._getRivalRouteCount(companyId);
         
         if (competitionManager) {
             let didWithdraw = false;
             for (const originId of Object.keys(net)) {
-                if (net[originId].length === 0) continue;
+                if (!net[originId] || net[originId].length === 0) continue;
                 
                 const myShare = competitionManager.getShare(originId, companyId);
                 
@@ -114,7 +118,7 @@ export class RivalManager {
         }
 
         const connectedIds = Object.keys(net).filter(id => {
-            if (net[id].length === 0) return false;
+            if (!net[id] || net[id].length === 0) return false;
             const airportNode = this.airportManager.getAirportById(id);
             if (!airportNode) return false;
             
@@ -129,13 +133,22 @@ export class RivalManager {
             const originNode = this.airportManager.getAirportById(originId);
             this.expandNetwork(companyId, originNode);
         } else {
-            const currentPlaneCounts = Object.values(this.planeManager.getPlaneCounts(companyId)).reduce((a, b) => a + b, 0);
+            const counts = this.planeManager.getPlaneCounts(companyId);
+            const currentPlaneCounts = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
             const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
             
             if (currentPlaneCounts < aiMaxPlanes) {
                 const types = ['small', 'medium', 'large', 'super'];
                 const randomType = types[Math.floor(Math.random() * types.length)];
-                this.planeManager.addPlane(randomType, companyId);
+                
+                // ★追加: AIの機体購入時の資金チェックと支払い処理
+                const planeConf = CONFIG.ECONOMY.PLANES[randomType];
+                if (this.economyManager && planeConf) {
+                    if (this.economyManager.canAiAfford(companyId, planeConf.cost)) {
+                        this.economyManager.deductAiFunds(companyId, planeConf.cost);
+                        this.planeManager.addPlane(randomType, companyId);
+                    }
+                }
             } else {
                 const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
                 const originNode = this.airportManager.getAirportById(originId);
@@ -178,10 +191,11 @@ export class RivalManager {
         const bestEscapes = validEscapes.filter(e => competitionManager.getShare(e.id, 'player') === minShare);
 
         const escapeDest = bestEscapes[Math.floor(Math.random() * bestEscapes.length)];
-        this.expandNetwork(companyId, escapeDest);
+        this.expandNetwork(companyId, escapeDest, true); // 逃亡時は無料
     }
 
-    expandNetwork(companyId, originNode) {
+    // ★追加: isFree フラグを用いて、拡張時の資金チェックと支払い処理を追加
+    expandNetwork(companyId, originNode, isFree = false) {
         const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
@@ -197,7 +211,7 @@ export class RivalManager {
             return true;
         });
 
-        if (validCandidates.length === 0) return;
+        if (validCandidates.length === 0) return false;
 
         validCandidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
@@ -208,7 +222,17 @@ export class RivalManager {
         const poolSize = Math.min(validCandidates.length, 4);
         const selectedDest = validCandidates[Math.floor(Math.random() * poolSize)];
 
+        // ★追加: 資金チェックと消費
+        if (!isFree && this.economyManager) {
+            const cost = this.economyManager.calculateRouteCost(originNode, selectedDest);
+            if (!this.economyManager.canAiAfford(companyId, cost)) {
+                return false; 
+            }
+            this.economyManager.deductAiFunds(companyId, cost);
+        }
+
         this.networkManager.addRoute(originNode, selectedDest, companyId);
         this.planeManager.wakeUpPlanes(companyId);
+        return true;
     }
 }
