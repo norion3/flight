@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバル撤退専用トーストの呼び出し適用】
- * RivalManager の撤退イベント (onWithdraw) にて、旧来の `showToast` ではなく、
- * 新設された `showWithdrawToast` を呼び出すように修正し、撤退した会社のブランドカラーが
- * トースト通知に動的に適用されるようにしました。
+ * 【Phase 4: グラフデータの定期更新適用】
+ * 1. グラフタブ（panel-overview）が開かれている際にも、ライバルパネル同様に1秒に1回
+ * `updateOverviewPanelData` を呼び出して動的SVGグラフを描画・更新するようにフックを追加しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -44,11 +43,9 @@ export class GameManager {
         
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager);
         
-        // ★修正: ライバル撤退時に専用の showWithdrawToast を呼び出しブランドカラーを適用
         this.rivalManager.onWithdraw = (companyId, airportId) => {
             const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
             if (comp) {
-                // UIマネージャーにブランドカラー付きの専用トーストを出させる
                 this.uiManager.showWithdrawToast(`${comp.name} が撤退・逃亡しました！`, companyId);
             }
         };
@@ -165,17 +162,26 @@ export class GameManager {
             }
         };
 
-        // メニュー内リンククリック時のイベントフック
         document.querySelectorAll('.cc-link-btn[data-target="panel-upgrades"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
             });
         });
         
-        // ライバルパネルを開いた瞬間にデータを最新化
         document.querySelectorAll('.cc-link-btn[data-target="panel-rivals"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.updateRivalsPanelData(); 
+            });
+        });
+
+        // ★追加: グラフタブの切り替えやパネルを開いた時にグラフを描画
+        this.uiManager.onGraphTabChanged = () => {
+            this.updateOverviewPanelData();
+        };
+
+        document.querySelectorAll('.cc-link-btn[data-target="panel-overview"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.updateOverviewPanelData(); 
             });
         });
 
@@ -185,7 +191,7 @@ export class GameManager {
         this.selectedDestination = null;
 
         this.clock = new THREE.Clock();
-        this.rivalUiTimer = 0; // ライバルUIの定期更新タイマー
+        this.rivalUiTimer = 0; 
 
         window.addEventListener('resize', this.onWindowResize.bind(this));
         this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
@@ -193,47 +199,44 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
+    // ★追加: グラフパネルの更新をUIManagerへ依頼
+    updateOverviewPanelData() {
+        this.uiManager.updateOverviewPanel(this.economyManager.historyData, CONFIG.COMPANIES);
+    }
+
     updateRivalsPanelData() {
         const stats = CONFIG.COMPANIES.map(comp => {
-            // 1. 総路線数の計算
             let routeCount = 0;
             const net = this.networkManager.network[comp.id];
             if (net) {
                 for (const origin in net) {
                     routeCount += net[origin].length;
                 }
-                routeCount = Math.floor(routeCount / 2); // 双方向なので2で割る
+                routeCount = Math.floor(routeCount / 2); 
             }
 
-            // 2. 稼働機体数と、そこから導く「推定企業総資産」の計算
             let planeCount = 0;
             let assetValue = 0;
             const planes = this.planeManager.planes.filter(p => p.companyId === comp.id);
             planeCount = planes.length;
             
-            // 持っている飛行機の価値を加算
             planes.forEach(p => {
                 const conf = CONFIG.ECONOMY.PLANES[p.sizeType];
                 if (conf) assetValue += conf.cost;
             });
-            // 開拓済みの「路線の価値」を加算
             assetValue += routeCount * CONFIG.ECONOMY.ROUTE_BASE_COST * 2; 
             
-            // プレイヤーの場合は手持ちの「現金」も資産に加算
             if (comp.id === 'player') {
                 assetValue += this.economyManager.funds;
             } else {
-                // AIにも見栄えのため雑な隠し資産（路線数比例）を持たせておく
                 assetValue += routeCount * 1000000;
             }
 
-            // 3. 顧客満足度（ブランド力）の取得
             let satisfaction = this.competitionManager.baseAiSatisfaction;
             if (comp.id === 'player') {
                 satisfaction = this.upgradeManager.getBonuses().satisfaction || 0;
             }
 
-            // 4. 世界シェア率の取得
             const globalShare = this.competitionManager.getGlobalShare(comp.id);
 
             return {
@@ -248,7 +251,6 @@ export class GameManager {
             };
         });
 
-        // 世界シェア率が高い順（1位〜6位）にソートしてUIへ渡す
         stats.sort((a, b) => b.globalShare - a.globalShare);
         this.uiManager.updateRivalsPanel(stats);
     }
@@ -499,12 +501,15 @@ export class GameManager {
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
         this.rivalManager.update(delta, this.competitionManager);
         
-        // ライバルパネルが開いている時は、1秒に1回データを自動更新する
+        // ★修正: ライバルパネル・グラフパネルが開いている時は、1秒に1回データを自動更新する
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
             this.rivalUiTimer = 0;
             if (this.uiManager.isRivalsPanelOpen()) {
                 this.updateRivalsPanelData();
+            }
+            if (this.uiManager.isOverviewPanelOpen()) {
+                this.updateOverviewPanelData();
             }
         }
 

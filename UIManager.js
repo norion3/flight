@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【超軽量設計へのリファクタリング】
- * `updateTopHUD` にて、`innerHTML` によるDOMの再構築処理を完全に廃止しました。
- * 単位となる「機」「%」「人」などのタグは `index.html` 側に静的に配置し、
- * JS側は IDを指定して純粋な数値だけを `innerText` で書き換える最高速の設計になっています。
+ * 【Phase 4: 実績とグラフ情報の可視化】
+ * `updateOverviewPanel` を追加し、EconomyManagerの24ヶ月分の履歴データを用いて、
+ * 選択中のタブ（資金・収益・客数・機体数）に応じた動的SVGグラフを描画するようにしました。
+ * 横軸は提案通り「〇月」という日本語の月表記を等間隔に間引いて表示し、
+ * 右端が最新月となるようにローリングする美しいデザインに仕上げています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -48,12 +49,15 @@ export class UIManager {
         this.onZoomIn = null;
         this.onZoomOut = null;
         this.onUpgradeRequested = null;
+        this.onGraphTabChanged = null; // ★追加
         this.currentRouteAction = null; 
         
         this._isUpgradesOpen = false;
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
+        this._isOverviewOpen = false; // ★追加
         
+        this.currentGraphTab = 'funds'; // ★追加: 初期タブ
         this._openedRivalId = null; 
 
         this._initFleetPrices(); 
@@ -66,6 +70,18 @@ export class UIManager {
         if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$${Math.floor(value / 1000)}K`;
         return `$${Math.floor(value)}`;
+    }
+    
+    _formatMoneyNumber(value) {
+        if (value >= 1000000000000) return (value / 1000000000000).toFixed(2) + 'T';
+        if (value >= 1000000000) return (value / 1000000000).toFixed(2) + 'B';
+        if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+        if (value >= 1000) return Math.floor(value / 1000) + 'K';
+        return Math.floor(value);
+    }
+    
+    _formatNumber(value) {
+        return Math.floor(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 
     _initFleetPrices() {
@@ -232,6 +248,7 @@ export class UIManager {
             this.controlCenter.classList.remove('show');
             this._isUpgradesOpen = false; 
             this._isRivalsOpen = false; 
+            this._isOverviewOpen = false;
             this._toggleMainButtons(true);
             setTimeout(() => {
                 this._resetControlCenterView();
@@ -261,6 +278,7 @@ export class UIManager {
                     
                     this._isUpgradesOpen = (targetId === 'panel-upgrades');
                     this._isRivalsOpen = (targetId === 'panel-rivals');
+                    this._isOverviewOpen = (targetId === 'panel-overview');
 
                     if (this._isRivalsOpen) {
                         this.controlCenter.classList.remove('h-[400px]');
@@ -282,6 +300,7 @@ export class UIManager {
                 this._resetControlCenterView();
                 this._isUpgradesOpen = false; 
                 this._isRivalsOpen = false;
+                this._isOverviewOpen = false;
                 
                 this.controlCenter.classList.add('h-[400px]');
                 this.controlCenter.style.height = '';
@@ -289,6 +308,7 @@ export class UIManager {
             });
         }
 
+        // ★Phase 4: グラフのタブ切り替えイベント
         document.querySelectorAll('.graph-tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -297,6 +317,9 @@ export class UIManager {
                     t.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors";
                 });
                 e.currentTarget.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors";
+                
+                this.currentGraphTab = e.currentTarget.getAttribute('data-tab');
+                if (this.onGraphTabChanged) this.onGraphTabChanged(); // すぐに再描画させる
             });
         });
 
@@ -375,7 +398,6 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★ innerHTML を廃止し、innerText による超軽量更新に対応
     updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -578,6 +600,7 @@ export class UIManager {
         this._isUpgradesOpen = false;
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
+        this._isOverviewOpen = false;
         this._openedRivalId = null; 
         
         this._toggleMainButtons(true);
@@ -586,6 +609,7 @@ export class UIManager {
     isUpgradePanelOpen() { return this._isUpgradesOpen; }
     isBuyMenuOpen() { return this._isBuyMenuOpen; }
     isRivalsPanelOpen() { return this._isRivalsOpen; } 
+    isOverviewPanelOpen() { return this._isOverviewOpen; } // ★追加
 
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
         if (!this._isBuyMenuOpen) return;
@@ -669,6 +693,179 @@ export class UIManager {
                 }
             }
         });
+    }
+
+    /**
+     * ★Phase 4: 実績とグラフ情報の動的描画（SVGによる折れ線とX軸のローリング間引き表示）
+     */
+    updateOverviewPanel(historyData, companies) {
+        if (!historyData || !historyData['player']) return;
+        
+        const playerHistory = historyData['player'];
+        if (playerHistory.length === 0) return;
+
+        // タブに応じた値を取得
+        const getVal = (snap) => {
+            if (!snap) return 0;
+            switch(this.currentGraphTab) {
+                case 'funds': return snap.funds;
+                case 'income': return snap.income;
+                case 'passengers': return snap.passengers;
+                case 'planes': return snap.planes;
+                default: return 0;
+            }
+        };
+
+        const formatVal = (val) => {
+            if (this.currentGraphTab === 'planes') return Math.floor(val) + ' 機';
+            if (this.currentGraphTab === 'passengers') return this._formatNumber(Math.floor(val)) + ' 人';
+            const isNegative = val < 0;
+            const formatted = this._formatMoneyShort(Math.abs(val));
+            return (isNegative ? '-' : '') + formatted.replace('$', '$ ');
+        };
+
+        // 現在の指標におけるトップライバルを探索
+        let topRivalId = null;
+        let topRivalVal = -Infinity;
+
+        companies.forEach(comp => {
+            if (comp.id === 'player') return;
+            const hist = historyData[comp.id];
+            if (!hist || hist.length === 0) return;
+            const val = getVal(hist[hist.length - 1]);
+            if (val > topRivalVal) {
+                topRivalVal = val;
+                topRivalId = comp.id;
+            }
+        });
+
+        if (!topRivalId) topRivalId = 'rival_eu'; 
+
+        const rivalHistory = historyData[topRivalId] || [];
+        const topRivalComp = companies.find(c => c.id === topRivalId);
+        const rivalColor = topRivalComp ? '#' + topRivalComp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
+
+        // グラフのY軸スケール計算
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        const processHistory = (hist) => {
+            hist.forEach(snap => {
+                const v = getVal(snap);
+                if (v < minY) minY = v;
+                if (v > maxY) maxY = v;
+            });
+        };
+
+        processHistory(playerHistory);
+        processHistory(rivalHistory);
+
+        // 収益以外は原則0ベースにする
+        if (minY > 0 && this.currentGraphTab !== 'income') minY = 0; 
+        if (minY === maxY) {
+            maxY += 10;
+            if (minY > 0) minY -= 10;
+        }
+
+        const range = maxY - minY;
+        const padding = range * 0.1;
+        const graphMax = maxY + padding;
+        const graphMin = minY - padding;
+        const graphRange = graphMax - graphMin;
+
+        // SVG座標の計算（最新が右端のx=240となるようにローリング）
+        const svgW = 240;
+        const svgH = 100;
+
+        const createPoints = (hist) => {
+            if (!hist || hist.length === 0) return '';
+            return hist.map((snap, i) => {
+                const v = getVal(snap);
+                // 最新データが右端に来るよう逆算（24ヶ月の固定幅で左へ流れる）
+                const x = svgW - ((hist.length - 1 - i) * (svgW / 23));
+                const y = svgH - (((v - graphMin) / graphRange) * svgH);
+                return `${x},${y}`;
+            }).join(' ');
+        };
+
+        const playerPoints = createPoints(playerHistory);
+        const rivalPoints = createPoints(rivalHistory);
+
+        const playerLastVal = getVal(playerHistory[playerHistory.length - 1]);
+        const rivalLastVal = rivalHistory.length > 0 ? getVal(rivalHistory[rivalHistory.length - 1]) : 0;
+
+        // SVGパスとポイントの更新
+        const playerLine = document.getElementById('graph-line-player');
+        const rivalLine = document.getElementById('graph-line-rival');
+        const playerPoint = document.getElementById('graph-point-player');
+        const rivalPoint = document.getElementById('graph-point-rival');
+
+        if (playerLine) playerLine.setAttribute('points', playerPoints);
+        if (rivalLine) {
+            rivalLine.setAttribute('points', rivalPoints);
+            rivalLine.setAttribute('stroke', rivalColor);
+        }
+
+        if (playerHistory.length > 0 && playerPoint) {
+            const lastP = playerPoints.split(' ').pop().split(',');
+            playerPoint.setAttribute('cx', lastP[0]);
+            playerPoint.setAttribute('cy', lastP[1]);
+            playerPoint.classList.remove('opacity-0');
+        }
+        if (rivalHistory.length > 0 && rivalPoint) {
+            const lastR = rivalPoints.split(' ').pop().split(',');
+            rivalPoint.setAttribute('cx', lastR[0]);
+            rivalPoint.setAttribute('cy', lastR[1]);
+            rivalPoint.setAttribute('fill', rivalColor);
+            rivalPoint.classList.remove('opacity-0');
+        }
+
+        // テキストUIの更新
+        const titlePlayer = document.getElementById('graph-title-player');
+        const valPlayer = document.getElementById('graph-value-player');
+        const titleRival = document.getElementById('graph-title-rival');
+        const valRival = document.getElementById('graph-value-rival');
+
+        let titleStr = '';
+        switch(this.currentGraphTab) {
+            case 'funds': titleStr = '当期資金推移'; break;
+            case 'income': titleStr = '月間収益推移'; break;
+            case 'passengers': titleStr = '累計搭乗数'; break;
+            case 'planes': titleStr = '稼働機体推移'; break;
+        }
+
+        if (titlePlayer) titlePlayer.innerText = titleStr;
+        if (valPlayer) valPlayer.innerText = formatVal(playerLastVal);
+
+        if (titleRival) {
+            const shortName = topRivalComp ? topRivalComp.name : '---';
+            let rankStr = playerLastVal >= rivalLastVal ? '2位' : '1位'; 
+            titleRival.innerText = `${rankStr}: ${shortName}`;
+            titleRival.style.color = rivalColor;
+        }
+        if (valRival) valRival.innerText = formatVal(rivalLastVal);
+
+        // X軸ラベルの生成（「〇月」という日本語表記を4ヶ月おきに間引き・右端が最新になるようローリング）
+        const labelsContainer = document.getElementById('graph-x-labels');
+        if (labelsContainer) {
+            let labelsHtml = '';
+            const latestSnap = playerHistory[playerHistory.length - 1];
+            if (latestSnap && latestSnap.monthLabel) {
+                const parts = latestSnap.monthLabel.split('-');
+                let currM = parseInt(parts[1]); // 例: "1年目-12月" -> 12
+                
+                const labels = [];
+                for(let i = 0; i < 6; i++) {
+                    let m = currM - (i * 4); 
+                    while (m <= 0) { m += 12; }
+                    labels.unshift(`${m}月`);
+                }
+                labels.forEach(l => {
+                    labelsHtml += `<span>${l}</span>`;
+                });
+            }
+            labelsContainer.innerHTML = labelsHtml;
+        }
     }
 
     updateRivalsPanel(stats) {
@@ -803,137 +1000,5 @@ export class UIManager {
                 </div>
             </div>
         </div>`;
-    }
-
-    updateUpgradePanel(upgradeManager, currentFunds) {
-        const panel = document.getElementById('panel-upgrades');
-        if (!panel) return;
-
-        const categories = [
-            { id: 'special', title: '特別拡張枠', keys: ['fleet_capacity'], color: 'text-amber-400' },
-            { id: 'finance', title: '財務・運航', keys: ['ticket_price', 'flight_speed', 'cabin_comfort'], color: 'text-cyan-400' },
-            { id: 'staff',   title: '人員・スタッフ', keys: ['pilot_training', 'ground_ops', 'hr_management'], color: 'text-cyan-400' },
-            { id: 'service', title: 'サービス', keys: ['catering', 'entertainment', 'vip_lounge'], color: 'text-cyan-400' }
-        ];
-
-        let html = '';
-
-        categories.forEach(cat => {
-            html += `<div class="text-xs font-bold ${cat.color} mt-2 mb-1 tracking-widest uppercase">${cat.title}</div>`;
-
-            cat.keys.forEach(key => {
-                const data = UPGRADE_DATA[key];
-                if (!data) return;
-
-                const currentLevel = upgradeManager.getCurrentLevel(key);
-                const currentStep = upgradeManager.getCurrentStep(key); 
-                const maxLevel = upgradeManager.getMaxLevel(key);
-                const nextCost = upgradeManager.getNextCost(key);
-                
-                const currentLevelData = data.levels.find(l => l.level === currentLevel);
-                let currentStepData = null;
-                if (currentLevelData && currentLevelData.steps) {
-                    currentStepData = currentLevelData.steps.find(s => s.step === currentStep);
-                }
-
-                const isMax = currentLevel >= maxLevel;
-
-                let nextStepData = null;
-                if (!isMax) {
-                    const nLvlData = data.levels.find(l => l.level === currentLevel);
-                    if (nLvlData && nLvlData.steps) {
-                        nextStepData = nLvlData.steps.find(s => s.step === (currentStep + 1));
-                    }
-                }
-
-                let dotsHtml = '';
-                for (let i = 0; i < 5; i++) {
-                    if (isMax || i <= currentStep) {
-                        const dotColor = key === 'fleet_capacity' ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.3)]' : 
-                                         (cat.id === 'staff' ? 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.3)]' : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)]');
-                        dotsHtml += `<div class="h-1.5 w-full ${dotColor} rounded-full transition-all duration-300"></div>`;
-                    } else {
-                        dotsHtml += `<div class="h-1.5 w-full bg-slate-700 rounded-full transition-all duration-300"></div>`;
-                    }
-                }
-
-                let effectText = 'MAX レベル達成';
-                let effectColor = 'text-slate-400';
-                
-                if (nextStepData && currentStepData) {
-                    if (nextStepData.capacity !== undefined) effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
-                    else if (nextStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% ➔ ${Math.round((nextStepData.speedMultiplier - 1) * 100)}%`;
-                    else if (nextStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% ➔ +${Math.round(currentStepData.bonusIncomeRate * 100)}%`;
-                    else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
-                    
-                    if (key === 'fleet_capacity') effectColor = 'text-amber-400';
-                    else if (cat.id === 'staff') effectColor = 'text-blue-400';
-                    else effectColor = 'text-emerald-400';
-                } else if (isMax && currentStepData) {
-                    if (currentStepData.capacity !== undefined) effectText = `機体上限 ${currentStepData.capacity} 機 (MAX)`;
-                    else if (currentStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% (MAX)`;
-                    else if (currentStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% (MAX)`;
-                    else if (currentStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} (MAX)`;
-                }
-
-                let btnHtml = '';
-                if (isMax) {
-                    btnHtml = `<button class="bg-slate-700 text-slate-400 text-[12px] font-bold px-3 py-2.5 rounded-lg shadow-md font-mono tracking-wide shrink-0 min-w-[70px] text-center disabled:pointer-events-none" disabled>MAX</button>`;
-                } else {
-                    const canAfford = currentFunds >= nextCost;
-                    const costStr = this._formatMoneyShort(nextCost);
-                    
-                    if (currentStep === 4) {
-                        const btnClass = canAfford ? 
-                            `bg-yellow-500 active:bg-yellow-400 text-slate-900 shadow-md active:scale-95` : 
-                            `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
-                            
-                        btnHtml = `
-                            <button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center flex flex-col items-center justify-center leading-none" data-id="${key}" ${canAfford ? '' : 'disabled'}>
-                                <span class="text-[9px] mb-1 font-sans font-black tracking-widest ${canAfford ? 'text-slate-900' : 'text-slate-500'}">昇格</span>
-                                <span>${costStr}</span>
-                            </button>
-                        `;
-                    } else {
-                        const btnClass = canAfford ? 
-                            `bg-emerald-500 active:bg-emerald-400 text-white shadow-md active:scale-95` : 
-                            `bg-slate-700 text-slate-400 opacity-70 disabled:pointer-events-none`;
-                        
-                        btnHtml = `<button class="upgrade-action-btn ${btnClass} text-[12px] font-bold px-3 py-2.5 rounded-lg transition-all font-mono tracking-wide shrink-0 min-w-[70px] text-center" data-id="${key}" ${canAfford ? '' : 'disabled'}>${costStr}</button>`;
-                    }
-                }
-
-                const displayLevel = isMax ? 'MAX' : `Lv ${currentLevel + 1}`;
-
-                html += `
-                <div class="flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-transparent shadow-inner mb-2">
-                    <div class="flex-1 pr-3">
-                        <div class="text-sm font-bold text-slate-200 flex items-baseline">
-                            ${data.name} <span class="text-slate-400 text-[10px] ml-1.5 font-mono">${displayLevel}</span>
-                        </div>
-                        <div class="text-[11px] font-bold ${effectColor} mt-0.5">${effectText}</div>
-                        <div class="flex gap-1 mt-1.5">${dotsHtml}</div>
-                    </div>
-                    ${btnHtml}
-                </div>`;
-            });
-        });
-
-        html += `<div class="h-4"></div>`;
-        panel.innerHTML = html;
-
-        panel.querySelectorAll('.upgrade-action-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (btn.disabled) {
-                    this.soundManager.playErrorSound();
-                    return;
-                }
-                const upgradeId = e.currentTarget.getAttribute('data-id');
-                if (this.onUpgradeRequested) {
-                    this.onUpgradeRequested(upgradeId);
-                }
-            });
-        });
     }
 }
