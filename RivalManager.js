@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AIのアクション頻度の最適化】
- * クラッシュ原因は他ファイルでしたが、一貫性を持たせるために
- * 30秒サイクルの高速拡張ロジックを保持した状態のファイルを再生成しています。
+ * 【Phase 2.11: ライバルのしぶとい逃亡・1路線死守ロジック ＆ 頻度最適化】
+ * 撤退・逃亡などの既存機能は一切触れず、AIの行動タイマーのみを
+ * 「60秒」から「30秒（1ヶ月半相当）」へと最適化しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -18,7 +18,8 @@ export class RivalManager {
         
         this.timers = {};
         this.rivals.forEach(rival => {
-            this.timers[rival.id] = Math.random() * 30; // 30秒スタート
+            // ★変更: 30秒スタートに短縮
+            this.timers[rival.id] = Math.random() * 30;
         });
 
         this.isInitialized = false;
@@ -58,6 +59,7 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
+            // ★変更: 判定を30秒へ短縮
             if (this.timers[rival.id] >= 30) {
                 this.timers[rival.id] = 0; 
                 this.performAction(rival.id, competitionManager);
@@ -71,20 +73,19 @@ export class RivalManager {
         if (!net) return 0;
         
         for (const originId in net) {
-            if (net[originId]) routeCount += net[originId].length;
+            routeCount += net[originId].length;
         }
         return Math.floor(routeCount / 2);
     }
 
     performAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
-        if (!net) return;
         const currentRouteCount = this._getRivalRouteCount(companyId);
         
         if (competitionManager) {
             let didWithdraw = false;
             for (const originId of Object.keys(net)) {
-                if (!net[originId] || net[originId].length === 0) continue;
+                if (net[originId].length === 0) continue;
                 
                 const myShare = competitionManager.getShare(originId, companyId);
                 
@@ -113,7 +114,7 @@ export class RivalManager {
         }
 
         const connectedIds = Object.keys(net).filter(id => {
-            if (!net[id] || net[id].length === 0) return false;
+            if (net[id].length === 0) return false;
             const airportNode = this.airportManager.getAirportById(id);
             if (!airportNode) return false;
             
@@ -128,8 +129,7 @@ export class RivalManager {
             const originNode = this.airportManager.getAirportById(originId);
             this.expandNetwork(companyId, originNode);
         } else {
-            const counts = this.planeManager.getPlaneCounts(companyId);
-            const currentPlaneCounts = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
+            const currentPlaneCounts = Object.values(this.planeManager.getPlaneCounts(companyId)).reduce((a, b) => a + b, 0);
             const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
             
             if (currentPlaneCounts < aiMaxPlanes) {

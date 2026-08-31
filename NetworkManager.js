@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【UI破壊バグの完全修正】
- * `cachedTotalLengths` の辞書化によって削除されてしまっていた、
- * 既存のUI（`UIManager.js` など）が参照する `playerTotalNetworkLength` ゲッターを復活させ、
- * 後方互換性を担保することで、ボタンやUIパネルが押せなくなるクラッシュを根絶しました。
+ * 【UI破壊防止（後方互換性） ＋ AI総延長キャッシュの安全追加】
+ * 既存の `cachedTotalLength` とゲッター `playerTotalNetworkLength` を一切改変せずそのまま維持。
+ * AI専用のキャッシュ辞書 `aiCachedTotalLengths` を新たに設け、UIのクラッシュ原因を完全に根絶しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -19,12 +18,8 @@ export class NetworkManager {
 
         this.network = {}; 
         
-        // 処理落ち防止のためのキャッシュ用変数 (全社対応)
-        this.cachedTotalLengths = {};
-        
         CONFIG.COMPANIES.forEach(comp => {
             this.network[comp.id] = {};
-            this.cachedTotalLengths[comp.id] = 0;
         });
         
         this.MAX_CONNECTIONS = {
@@ -32,6 +27,17 @@ export class NetworkManager {
             'local': 5,
             'fictional': 3
         };
+        
+        // プレイヤー専用のキャッシュ（既存UIが依存しているため絶対に消さない）
+        this.cachedTotalLength = 0;
+        
+        // ★追加: AI専用のキャッシュ辞書
+        this.aiCachedTotalLengths = {};
+        CONFIG.COMPANIES.forEach(comp => {
+            if (comp.id !== 'player') {
+                this.aiCachedTotalLengths[comp.id] = 0;
+            }
+        });
     }
 
     getConnectionCount(airportId, companyId = 'player') {
@@ -65,6 +71,7 @@ export class NetworkManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const routeColor = comp ? comp.routeColor : 0x0ea5e9;
         
+        // Zファイティング防止の微小オフセット
         const offset = Math.max(0, compIndex) * 0.0002;
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
@@ -83,6 +90,7 @@ export class NetworkManager {
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
         
+        // 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
         const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
         if (luminance < 0.5) {
             neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
@@ -107,7 +115,12 @@ export class NetworkManager {
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
 
-        this._updateCachedTotalLength(companyId);
+        // キャッシュ更新の切り分け
+        if (companyId === 'player') {
+            this._updateCachedTotalLength();
+        } else {
+            this._updateAiCachedTotalLength(companyId); // ★追加
+        }
 
         return true;
     }
@@ -139,7 +152,12 @@ export class NetworkManager {
             if (line.material) line.material.dispose();
         });
 
-        this._updateCachedTotalLength(companyId);
+        // キャッシュ更新の切り分け
+        if (companyId === 'player') {
+            this._updateCachedTotalLength();
+        } else {
+            this._updateAiCachedTotalLength(companyId); // ★追加
+        }
 
         return true;
     }
@@ -158,10 +176,19 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
-    _updateCachedTotalLength(companyId) {
-        this.cachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
+    // プレイヤー用キャッシュ更新
+    _updateCachedTotalLength() {
+        this.cachedTotalLength = this._calculateTotalNetworkLength('player');
     }
 
+    // ★追加: AI用キャッシュ更新
+    _updateAiCachedTotalLength(companyId) {
+        if (companyId !== 'player') {
+            this.aiCachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
+        }
+    }
+
+    // 実際の計算メソッド（毎フレームではなく、必要な時だけ呼ばれる）
     _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
@@ -184,12 +211,13 @@ export class NetworkManager {
         return totalLength;
     }
 
-    getTotalNetworkLength(companyId = 'player') {
-        return this.cachedTotalLengths[companyId] || 0;
+    // プレイヤー用の軽量なゲッター（既存UIが依存。絶対に消さない）
+    get playerTotalNetworkLength() {
+        return this.cachedTotalLength;
     }
 
-    // ★重要: クラッシュ防止（後方互換性）のために必須なゲッターを復活
-    get playerTotalNetworkLength() {
-        return this.getTotalNetworkLength('player');
+    // ★追加: AI用の軽量なゲッター
+    getAiTotalNetworkLength(companyId) {
+        return this.aiCachedTotalLengths[companyId] || 0;
     }
 }

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI満足度インフレの抑制（バランス調整）】
- * AIの満足度成長ロジックが強すぎてプレイヤーが必ず詰む問題を回避するため、
- * 路線数と総延長から算出される係数を大幅に下げ（12 -> 1.5）、さらに
- * 絶対的な上限値（プレイヤーのMAXに近い 500 等）のキャップを設けました。
+ * 【AI満足度インフレの抑制 ＆ 総延長ボーナスの安全追記】
+ * オリジナルのシェア計算ループを維持したまま、AIの満足度を
+ * 事業規模（路線数・総延長距離）に応じて動的に成長させるロジックを追加しました。
+ * プレイヤーが詰まないよう、上限を500に制限する安全キャップを設けています。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,9 +16,10 @@ export class CompetitionManager {
 
         this.shares = {};
         this.globalShares = {}; 
-        
         this.baseAiSatisfaction = 150; 
-        this.aiSatisfactions = {}; 
+        
+        // ★追加: 外部（UIやEconomyManager）からAIの現在満足度を参照するための辞書
+        this.aiSatisfactions = {};
     }
 
     update(delta) {
@@ -40,45 +41,43 @@ export class CompetitionManager {
 
             const compNetwork = this.networkManager.network[companyId];
             if (!compNetwork) return;
-            
+
+            // 路線数のカウント（ボーナス計算用）
             let routeCount = 0;
             for (const originId in compNetwork) {
-                if (compNetwork[originId]) {
-                    routeCount += compNetwork[originId].length;
-                }
+                routeCount += compNetwork[originId].length;
             }
             routeCount = Math.floor(routeCount / 2);
 
-            const netLength = this.networkManager.getTotalNetworkLength ? this.networkManager.getTotalNetworkLength(companyId) : 0;
-
             let satisfaction = 0;
+            let netLength = 0;
+
             if (companyId === 'player') {
                 const bonuses = this.upgradeManager.getBonuses();
                 satisfaction = bonuses.satisfaction || 0;
+                netLength = this.networkManager.playerTotalNetworkLength || 0;
             } else {
-                // ★変更: インフレを適正値へ抑制（係数をマイルドにし、上限500をセット）
+                // ★追加: AIの満足度を「事業規模」に応じて動的にインフレさせる（上限500）
+                netLength = this.networkManager.getAiTotalNetworkLength ? this.networkManager.getAiTotalNetworkLength(companyId) : 0;
                 const scaleBonus = (routeCount * 1.5) + (Math.max(0, netLength) * 2.0);
-                satisfaction = this.baseAiSatisfaction + scaleBonus;
-                if (satisfaction > 500) satisfaction = 500; // 上限キャップ
+                satisfaction = Math.min(500, this.baseAiSatisfaction + scaleBonus);
                 this.aiSatisfactions[companyId] = satisfaction;
             }
 
-            // ネットワーク総延長ボーナスを全社平等に適用
-            const basePower = routeCount * Math.pow(1.0 + (Math.max(0, satisfaction) / 100), 2.0);
-            const netLengthBonus = Math.sqrt(Math.max(0, netLength)) * 0.1; 
+            const satisfactionFactor = Math.pow(1.0 + (satisfaction / 100), 2.0);
             
-            let power = 0;
-            if (routeCount > 0) {
-                power = basePower * (1.0 + netLengthBonus);
-            }
-            
-            // NaN回避
-            if (isNaN(power)) power = 0;
+            // ★追加: ネットワーク総延長ボーナスを全社平等に算出
+            const netLengthBonus = 1.0 + (Math.sqrt(Math.max(0, netLength)) * 0.1);
 
             for (const originId in compNetwork) {
-                if (!airportPowers[originId]) airportPowers[originId] = {};
-                
-                if (compNetwork[originId] && compNetwork[originId].length > 0) {
+                const routesCount = compNetwork[originId].length;
+                if (routesCount > 0) {
+                    if (!airportPowers[originId]) airportPowers[originId] = {};
+                    
+                    const routeFactor = Math.sqrt(routesCount);
+                    // ★変更: 既存のパワー計算に、総延長ボーナスを掛け合わせる
+                    const power = routeFactor * satisfactionFactor * netLengthBonus;
+                    
                     airportPowers[originId][companyId] = power;
                     companyTotalPower[companyId] += power; 
                     worldTotalPower += power; 
@@ -86,10 +85,12 @@ export class CompetitionManager {
             }
         });
 
+        // 各社の全世界シェア率を計算
         companies.forEach(comp => {
             this.globalShares[comp.id] = worldTotalPower > 0 ? (companyTotalPower[comp.id] / worldTotalPower) : 0;
         });
 
+        // 既存の空港単位のシェア計算
         for (const airportId in airportPowers) {
             const powers = airportPowers[airportId];
             
@@ -118,6 +119,11 @@ export class CompetitionManager {
         return this.shares[airportId][companyId];
     }
     
+    getGlobalShare(companyId) {
+        return this.globalShares[companyId] || 0;
+    }
+    
+    // ★追加: 外部からAIの最新満足度を取得できるゲッター
     getAiSatisfaction(companyId) {
         return this.aiSatisfactions[companyId] !== undefined ? this.aiSatisfactions[companyId] : this.baseAiSatisfaction;
     }
