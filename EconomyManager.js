@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI経済の完全リアル化 ＆ 青天井の解消】
- * AIの資金を「固定の資産積算」から「手持ち現金（aiFunds）」による完全なキャッシュフロー方式へ移行。
- * 機体や路線に応じたリアルな収支計算を行い、お金がないと買えなくすることで、
- * 異常な資金の急上昇（青天井）を完全に解決しました。
+ * 【航路開拓コストの5段階距離別計算の実装】
+ * `calculateRouteCost` を改修し、空港間の距離に応じて
+ * 国内線（$200K）から海洋横断（$25M）までの5段階テーブルを参照する設計に変更しました。
+ * 既存のAIリアル経済計算やセーフティネット処理には一切変更を加えていません。
  */
 
 import { CONFIG } from './Config.js';
@@ -34,8 +34,8 @@ export class EconomyManager {
         this.historyData = {}; 
         
         this.aiPassengers = {}; 
-        this.aiFunds = {};       // ★追加: AIのリアル現金残高
-        this.aiLastIncome = {};  // ★追加: AIのリアル月間収益
+        this.aiFunds = {};       
+        this.aiLastIncome = {};  
         
         CONFIG.COMPANIES.forEach(comp => {
             this.historyData[comp.id] = [];
@@ -62,7 +62,6 @@ export class EconomyManager {
         if (this.funds < 0) this.funds = 0;
     }
 
-    // ★追加: AIの資金操作メソッド群
     getAiFunds(companyId) {
         return this.aiFunds[companyId] || 0;
     }
@@ -78,15 +77,31 @@ export class EconomyManager {
         }
     }
 
+    // ★修正: 5段階の距離別コスト計算
     calculateRouteCost(originData, destData) {
         const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
         const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
         const dist = posA.distanceTo(posB);
 
+        // 距離に応じたベースコストの判定 (5段階)
+        let baseCost = 25000000; 
+        if (CONFIG.ECONOMY.ROUTE_TIERS) {
+            const matchedTier = CONFIG.ECONOMY.ROUTE_TIERS.find(tier => dist <= tier.maxDist);
+            if (matchedTier) {
+                baseCost = matchedTier.baseCost;
+            }
+        } else {
+            if (dist < 0.6) baseCost = 200000;
+            else if (dist < 1.3) baseCost = 800000;
+            else if (dist < 2.5) baseCost = 3000000;
+            else if (dist < 4.2) baseCost = 10000000;
+        }
+
         const fromRank = CONFIG.ECONOMY.AIRPORT_RANKS[originData.type].multiplier;
         const toRank = CONFIG.ECONOMY.AIRPORT_RANKS[destData.type].multiplier;
+        const rankMultiplier = (fromRank + toRank) / 2;
         
-        return CONFIG.ECONOMY.ROUTE_BASE_COST + (dist * CONFIG.ECONOMY.ROUTE_DISTANCE_COST_RATE * ((fromRank + toRank) / 2));
+        return baseCost * rankMultiplier;
     }
 
     update(delta, planes, networkManager, upgradeManager, competitionManager) {
@@ -123,7 +138,6 @@ export class EconomyManager {
                     currentIncome = this.lastSecondIncome; 
                     currentPass = this.totalPassengers;
                 } else {
-                    // ★変更: 固定資産の積算（青天井の原因）を廃止し、リアルな現金の動きを記録
                     currentFunds = this.aiFunds[companyId] || 0; 
                     currentIncome = this.aiLastIncome[companyId] || 0; 
                     currentPass = this.aiPassengers[companyId] || 0; 
@@ -204,7 +218,6 @@ export class EconomyManager {
             this.upkeepBuffer = 0;
         }
 
-        // ★メソッド名を変更し、客数だけでなく資金も更新する
         this._updateAiEconomy(delta, planes, networkManager, competitionManager);
 
         if (this.uiUpdateTimer >= 0.2) {
@@ -250,7 +263,6 @@ export class EconomyManager {
         );
     }
 
-    // ★追加: AIのリアルな客数・資金（収益計算）の統合メソッド
     _updateAiEconomy(delta, planes, networkManager, competitionManager) {
         const aiPlaneCounts = {};
         if (planes) {
@@ -291,14 +303,13 @@ export class EconomyManager {
             const globalShare = competitionManager ? (competitionManager.globalShares[comp.id] || 0) : 0;
             const shareMult = 0.5 + (globalShare * 3.0); 
 
-            // AIの基本収益力（機体と路線の規模に応じる）
             const baseIncome = (routeCount * 2500) + (planeCount * 3500); 
             let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
             let upkeep = planeCount * 1200; 
             
             let netIncome = grossIncome - upkeep;
 
-            // AI用セーフティネット（下限0からの再起用・月間+$500K相当）
+            // AI用セーフティネット
             if (this.aiFunds[comp.id] <= 5000000 && netIncome < 0) {
                 netIncome = Math.max(netIncome, 25000); 
             }
