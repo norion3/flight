@@ -1,11 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【全社激闘グラフの実装】
- * `updateOverviewPanel` を拡張し、全6社（自社＋ライバル5社）のグラフを同時に描画するようにしました。
- * 1. 毎秒ごとにデータを走査し「そのタブで現在1位のライバル」を判定します。
- * 2. 1位のライバルは `graph-line-1st` の要素を使い、少し太い線(1.5)で自社のすぐ奥に描画します。
- * 3. 1位以外のライバルは `graph-line-other-*` の要素を使い、細い線(0.8)で一番奥に描画します。
- * これにより、1位が交代した際も瞬時に太さと重なり順が滑らかに入れ替わるドラマチックな表現を実現しています。
+ * 【Phase 4.1: グラフX軸のズレ解消・メモリ線(ティック)の導入】
+ * `updateOverviewPanel` の最後部において、過去の月を「4ヶ月引きで逆算」するロジックを廃止。
+ * `playerHistory` のデータが存在する実際のX座標(パーセンテージ)と完全に同期させ、
+ * 1ヶ月ごとに短い縦線(ティック)を引き、奇数月にのみ数字を描画する Absolute 配置へ変更しました。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -834,11 +832,6 @@ export class UIManager {
         });
     }
 
-    /**
-     * ★Phase 4: 全社激闘グラフの描画
-     * SVGのZオーダー（描画順序）を活かし、一番奥から「その他のライバル」「1位のライバル」「自社」の順に
-     * HTML上の該当タグへとデータを流し込みます。これにより1位交代時も瞬時に太さが切り替わります。
-     */
     updateOverviewPanel(historyData, companies) {
         if (!historyData || !historyData['player']) return;
         
@@ -869,7 +862,6 @@ export class UIManager {
         let minY = Infinity;
         let maxY = -Infinity;
 
-        // 全社の履歴を走査して Y軸スケールを決定し、同時にライバル1位を特定する
         companies.forEach(comp => {
             const hist = historyData[comp.id];
             if (!hist || hist.length === 0) return;
@@ -919,7 +911,6 @@ export class UIManager {
             }).join(' ');
         };
 
-        // ライバルグラフの描画（1位とその他でタグと太さを分ける）
         let otherIndex = 0;
         companies.forEach(comp => {
             if (comp.id === 'player') return;
@@ -965,7 +956,6 @@ export class UIManager {
             }
         });
 
-        // 自社グラフの描画（常に最前面）
         const playerPts = createPoints(playerHistory);
         const playerLastVal = getVal(playerHistory[playerHistory.length - 1]);
         const playerLastP = playerPts.split(' ').pop().split(',');
@@ -1008,24 +998,34 @@ export class UIManager {
         }
         if (valRival) valRival.innerText = formatVal(topRivalVal);
 
+        // ★Phase 4.1: X軸のティック（縦線）と数字ラベルの完全同期生成
         const labelsContainer = document.getElementById('graph-x-labels');
-        if (labelsContainer) {
+        const ticksContainer = document.getElementById('graph-x-ticks');
+
+        if (labelsContainer && ticksContainer) {
             let labelsHtml = '';
-            const latestSnap = playerHistory[playerHistory.length - 1];
-            if (latestSnap && latestSnap.monthLabel) {
-                const parts = latestSnap.monthLabel.split('-');
-                let currM = parseInt(parts[1]); 
-                
-                const labels = [];
-                for(let i = 0; i < 6; i++) {
-                    let m = currM - (i * 4); 
-                    while (m <= 0) { m += 12; }
-                    labels.unshift(`${m}月`);
+            let ticksHtml = '';
+
+            playerHistory.forEach((snap, i) => {
+                // SVG内のX座標の計算と完全に同じ式を使ってパーセンテージを導き出す
+                const x = svgW - ((playerHistory.length - 1 - i) * (svgW / 23));
+                const xPct = (x / svgW) * 100;
+
+                // 1ヶ月ごとの短い縦線(ティック)を常に描画（背景線の少し下にはみ出させる）
+                ticksHtml += `<div class="absolute -bottom-1 w-px h-1.5 bg-slate-600" style="left: ${xPct}%;"></div>`;
+
+                if (snap && snap.monthLabel) {
+                    const parts = snap.monthLabel.split('-');
+                    const month = parseInt(parts[1]);
+                    
+                    // 奇数月にのみ数字ラベルを描画（文字同士の衝突を防ぐため）
+                    if (month % 2 !== 0) {
+                        labelsHtml += `<div class="absolute top-0.5 text-[9px] text-slate-400 font-mono" style="left: ${xPct}%; transform: translateX(-50%);">${month}</div>`;
+                    }
                 }
-                labels.forEach(l => {
-                    labelsHtml += `<span>${l}</span>`;
-                });
-            }
+            });
+
+            ticksContainer.innerHTML = ticksHtml;
             labelsContainer.innerHTML = labelsHtml;
         }
     }

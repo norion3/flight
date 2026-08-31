@@ -518,7 +518,7 @@
                             <!-- UIManager.js が動的に項目を注入します -->
                         </div>
 
-                        <!-- ★全社激闘グラフ対応 -->
+                        <!-- 全社激闘グラフ対応 -->
                         <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
                             <div class="flex bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
                                 <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors" data-tab="funds">資金</button>
@@ -548,7 +548,7 @@
                                         <div class="w-full h-px bg-slate-700/50"></div>
                                     </div>
                                     <svg viewBox="0 0 240 100" class="w-full h-full absolute inset-0 overflow-visible" preserveAspectRatio="none">
-                                        <!-- ★Zオーダー(重なり順)に基づく全社分の静的要素 -->
+                                        <!-- Zオーダー(重なり順)に基づく全社分の静的要素 -->
                                         <!-- 一番奥: その他のライバルたち -->
                                         <polyline id="graph-line-other-0" points="" fill="none" />
                                         <polyline id="graph-line-other-1" points="" fill="none" />
@@ -567,8 +567,15 @@
                                         <circle id="graph-point-1st" cx="0" cy="0" r="2" class="transition-opacity duration-300 opacity-0" />
                                         <circle id="graph-point-player" cx="0" cy="0" r="3" fill="#34d399" class="animate-pulse transition-opacity duration-300 opacity-0" />
                                     </svg>
+                                    
+                                    <!-- ★Phase 4.1: 動的ティックマーク（縦線）の領域 -->
+                                    <div id="graph-x-ticks" class="absolute inset-0 w-full h-full pointer-events-none overflow-visible"></div>
                                 </div>
-                                <div id="graph-x-labels" class="flex justify-between text-[9px] text-slate-500 mt-2 font-mono">
+                                
+                                <!-- ★Phase 4.1: X軸の数字ラベルと単位 -->
+                                <div class="relative w-full h-4 mt-0.5">
+                                    <div id="graph-x-labels" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                                    <div class="absolute -right-2 top-0 text-[8px] text-slate-500 font-bold">(月)</div>
                                 </div>
                             </div>
                         </div>
