@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ1.5: ネットワーク規模のキャッシュ化によるパフォーマンス改善 (Proposal 022)】
- * 毎フレーム総延長を計算し `Set` を生成する重い処理を廃止し、
- * `cachedTotalLength` プロパティを導入しました。
- * 路線が追加(addRoute)・削除(removeRoute)された瞬間にのみ再計算を行うことで、
- * 処理落ち・フリーズの危険性を完全に根絶しています。
+ * 【フェーズ2.12: 全社ネットワーク総延長の個別キャッシュ化】
+ * 総延長距離の算出対象をプレイヤーのみから「全AI会社」へ拡張しました。
+ * 重い計算を防ぐため `cachedTotalLengths` を辞書化し、各AIが路線を
+ * 開拓・廃止した瞬間にのみ個別に再計算されるよう最適化しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -20,8 +19,12 @@ export class NetworkManager {
 
         this.network = {}; 
         
+        // ★変更: 処理落ち防止のためのキャッシュ用変数 (全社対応へ拡張)
+        this.cachedTotalLengths = {};
+        
         CONFIG.COMPANIES.forEach(comp => {
             this.network[comp.id] = {};
+            this.cachedTotalLengths[comp.id] = 0;
         });
         
         this.MAX_CONNECTIONS = {
@@ -29,9 +32,6 @@ export class NetworkManager {
             'local': 5,
             'fictional': 3
         };
-        
-        // ★追加: 処理落ち防止のためのキャッシュ用変数
-        this.cachedTotalLength = 0;
     }
 
     getConnectionCount(airportId, companyId = 'player') {
@@ -65,7 +65,6 @@ export class NetworkManager {
         const comp = CONFIG.COMPANIES[compIndex];
         const routeColor = comp ? comp.routeColor : 0x0ea5e9;
         
-        // Zファイティング防止の微小オフセット
         const offset = Math.max(0, compIndex) * 0.0002;
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
@@ -84,7 +83,6 @@ export class NetworkManager {
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
         
-        // 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
         const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
         if (luminance < 0.5) {
             neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
@@ -109,10 +107,8 @@ export class NetworkManager {
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
 
-        // ★追加: ルート開拓が成功した時だけ、総延長を再計算してキャッシュに保存
-        if (companyId === 'player') {
-            this._updateCachedTotalLength();
-        }
+        // ★追加: ルート開拓が成功した時、会社に関わらず総延長を再計算してキャッシュに保存
+        this._updateCachedTotalLength(companyId);
 
         return true;
     }
@@ -144,10 +140,8 @@ export class NetworkManager {
             if (line.material) line.material.dispose();
         });
 
-        // ★追加: ルート削除が成功した時だけ、総延長を再計算してキャッシュに保存
-        if (companyId === 'player') {
-            this._updateCachedTotalLength();
-        }
+        // ★追加: ルート削除が成功した時、会社に関わらず総延長を再計算してキャッシュに保存
+        this._updateCachedTotalLength(companyId);
 
         return true;
     }
@@ -166,12 +160,11 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
-    // ★追加: キャッシュを更新する内部メソッド
-    _updateCachedTotalLength() {
-        this.cachedTotalLength = this._calculateTotalNetworkLength('player');
+    // ★追加: 特定の会社のキャッシュを更新する内部メソッド
+    _updateCachedTotalLength(companyId) {
+        this.cachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
     }
 
-    // 実際の計算メソッド（毎フレームではなく、必要な時だけ呼ばれる）
     _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
@@ -194,8 +187,8 @@ export class NetworkManager {
         return totalLength;
     }
 
-    // ★追加: EconomyManager 等から参照するための軽量なゲッター
-    get playerTotalNetworkLength() {
-        return this.cachedTotalLength;
+    // ★追加: 任意の会社の総延長距離を返すゲッター
+    getTotalNetworkLength(companyId = 'player') {
+        return this.cachedTotalLengths[companyId] || 0;
     }
 }

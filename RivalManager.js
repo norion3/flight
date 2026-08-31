@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.11: ライバルのしぶとい逃亡・1路線死守ロジック】
- * 撤退・逃亡イベントが発生した際に、外部（GameManager）にそれを伝えるための
- * `onWithdraw` コールバックの発火処理を追加しました。
+ * 【AIのアクション頻度の最適化】
+ * ゲーム内経済（20秒で1ヶ月）のテンポに合わせ、AIの行動判断サイクルを
+ * 60秒から「30秒（1.5ヶ月相当）」へと高速化しました。
+ * 資金制限のないAIが凄まじい勢いで世界中に進出するようになります。
  */
 
 import { CONFIG } from './Config.js';
@@ -18,11 +19,12 @@ export class RivalManager {
         
         this.timers = {};
         this.rivals.forEach(rival => {
-            this.timers[rival.id] = Math.random() * 60;
+            // ★変更: アクション初期タイマーを最大30秒に短縮
+            this.timers[rival.id] = Math.random() * 30;
         });
 
         this.isInitialized = false;
-        this.onWithdraw = null; // ★追加: 撤退時の外部通知用コールバック
+        this.onWithdraw = null; 
     }
 
     init() {
@@ -58,7 +60,8 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            if (this.timers[rival.id] >= 60) {
+            // ★変更: アクション判定サイクルを60秒から30秒（1.5ヶ月相当）へ高速化
+            if (this.timers[rival.id] >= 30) {
                 this.timers[rival.id] = 0; 
                 this.performAction(rival.id, competitionManager);
             }
@@ -88,7 +91,6 @@ export class RivalManager {
                 const myShare = competitionManager.getShare(originId, companyId);
                 
                 if (myShare < 0.1) {
-                    // 最後の1路線なら絶対に撤退しない（死守）
                     if (currentRouteCount <= 1) {
                         break; 
                     }
@@ -102,10 +104,8 @@ export class RivalManager {
                         this.planeManager.checkAndReassignPlanes(companyId);
                         didWithdraw = true;
                         
-                        // ★追加: GameManagerに「撤退したよ！」と知らせてトーストを出させる
                         if (this.onWithdraw) this.onWithdraw(companyId, originId);
                         
-                        // 新天地へワープ（逃亡）
                         this._escapeToNewAirport(companyId, competitionManager);
                         break; 
                     }
