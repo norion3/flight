@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI客数と資産の完全実数化＆総延長ボーナスの適用】
- * AIの履歴データ（客数や資産）をプレイヤーのシェアに基づく仮計算から、
- * AI自身が保有する「実際の路線数・機体数」と「総延長距離」に基づく絶対値計算へ改修しました。
+ * 【クラッシュ回避とAI客数計算の安定化】
+ * AIの月間客数や資産を計算する際、undefinedやNaNが発生してメインループが
+ * クラッシュしないよう、安全なNullチェックとフォールバック（初期値）を徹底しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,7 +32,7 @@ export class EconomyManager {
         this.monthTimer = 0; // 20秒で1ヶ月
         this.historyData = {}; // 全社の24ヶ月分の履歴
         
-        this.aiPassengers = {}; // ★追加: AIの自立した累計客数
+        this.aiPassengers = {}; // AIの自立した累計客数
         
         CONFIG.COMPANIES.forEach(comp => {
             this.historyData[comp.id] = [];
@@ -56,37 +56,41 @@ export class EconomyManager {
         }
         
         let playerPlaneCount = 0;
-        planes.forEach(plane => {
-            if (plane.companyId === 'player') {
-                playerPlaneCount++;
-                if (plane.currentRoute) {
-                    const planeConf = CONFIG.ECONOMY.PLANES[plane.sizeType];
-                    const dist = plane.currentRoute.length;
-                    
-                    const bonuses = upgradeManager.getBonuses();
-                    const incomeRate = bonuses.incomeRate || 1.0;
-                    
-                    currentGrossIncome += planeConf.incomeBase * (1.0 + dist * 5.0) * incomeRate;
-                    currentPassRate += planeConf.baseDemand * (1.0 + dist * 2.0);
-                    currentUpkeep += planeConf.upkeep;
+        if (planes) {
+            planes.forEach(plane => {
+                if (plane && plane.companyId === 'player') {
+                    playerPlaneCount++;
+                    if (plane.currentRoute) {
+                        const planeConf = CONFIG.ECONOMY.PLANES[plane.sizeType];
+                        const dist = plane.currentRoute.length;
+                        
+                        const bonuses = upgradeManager.getBonuses();
+                        const incomeRate = bonuses.incomeRate || 1.0;
+                        
+                        currentGrossIncome += planeConf.incomeBase * (1.0 + dist * 5.0) * incomeRate;
+                        currentPassRate += planeConf.baseDemand * (1.0 + dist * 2.0);
+                        currentUpkeep += planeConf.upkeep;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // ネットワーク総延長ボーナス (プレイヤー)
-        const totalNetLength = networkManager.getTotalNetworkLength('player');
-        const distanceBonus = Math.sqrt(totalNetLength) * 0.05;
+        const totalNetLength = networkManager.getTotalNetworkLength ? networkManager.getTotalNetworkLength('player') : 0;
+        const distanceBonus = Math.sqrt(Math.max(0, totalNetLength)) * 0.05;
         
         currentGrossIncome *= (1.0 + distanceBonus);
         currentPassRate *= (1.0 + distanceBonus);
 
         // 競争(シェア)による補正
-        for (const airportId in playerNet) {
-            if (playerNet[airportId].length > 0) {
-                const share = competitionManager.getShare(airportId, 'player');
-                const shareMult = 0.5 + (share * 0.5); 
-                currentGrossIncome *= shareMult;
-                currentPassRate *= shareMult;
+        if (playerNet && competitionManager) {
+            for (const airportId in playerNet) {
+                if (playerNet[airportId].length > 0) {
+                    const share = competitionManager.getShare(airportId, 'player');
+                    const shareMult = 0.5 + (share * 0.5); 
+                    currentGrossIncome *= shareMult;
+                    currentPassRate *= shareMult;
+                }
             }
         }
 
@@ -105,7 +109,7 @@ export class EconomyManager {
             this.lastSecondIncome = currentNetIncome;
         }
 
-        // ★追加: AIライバルの毎秒の客数（スコア）の絶対値計算と加算
+        // AIライバルの毎秒の客数（スコア）の絶対値計算と加算
         this._updateAiPassengers(delta, planes, networkManager, competitionManager);
 
         // --- カレンダー進行と履歴保存 ---
@@ -134,30 +138,34 @@ export class EconomyManager {
 
     _updateAiPassengers(delta, planes, networkManager, competitionManager) {
         const aiPlaneCounts = {};
-        planes.forEach(p => {
-            if (p.companyId !== 'player') {
-                aiPlaneCounts[p.companyId] = (aiPlaneCounts[p.companyId] || 0) + 1;
-            }
-        });
+        if (planes) {
+            planes.forEach(p => {
+                if (p && p.companyId !== 'player') {
+                    aiPlaneCounts[p.companyId] = (aiPlaneCounts[p.companyId] || 0) + 1;
+                }
+            });
+        }
 
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id === 'player') return;
 
             const routeCount = this._getRouteCount(networkManager.network[comp.id]);
             const planeCount = aiPlaneCounts[comp.id] || 0;
-            const netLength = networkManager.getTotalNetworkLength(comp.id);
-            const satisfaction = competitionManager.getAiSatisfaction ? competitionManager.getAiSatisfaction(comp.id) : 150;
+            const netLength = networkManager.getTotalNetworkLength ? networkManager.getTotalNetworkLength(comp.id) : 0;
+            const satisfaction = (competitionManager && competitionManager.getAiSatisfaction) ? competitionManager.getAiSatisfaction(comp.id) : 150;
             
             // 路線と機体から基礎客数を算出
             const baseAiRate = (routeCount * 2.2) + (planeCount * 3.5);
             
             // AI自身の満足度と総延長ボーナスを適用
-            const satBonus = Math.pow(1.0 + (satisfaction / 100), 2.0);
-            const distBonus = Math.sqrt(netLength) * 0.05;
+            const satBonus = Math.pow(1.0 + (Math.max(0, satisfaction) / 100), 2.0);
+            const distBonus = Math.sqrt(Math.max(0, netLength)) * 0.05;
             
             const currentAiRate = baseAiRate * satBonus * (1.0 + distBonus);
             
-            this.aiPassengers[comp.id] += (currentAiRate * delta);
+            if (!isNaN(currentAiRate)) {
+                this.aiPassengers[comp.id] += (currentAiRate * delta);
+            }
         });
     }
 
@@ -167,8 +175,8 @@ export class EconomyManager {
         
         if (planes) {
             planes.forEach(p => {
-                if (p.companyId === 'player') playerPlaneCount++;
-                else aiPlaneCounts[p.companyId] = (aiPlaneCounts[p.companyId] || 0) + 1;
+                if (p && p.companyId === 'player') playerPlaneCount++;
+                else if (p) aiPlaneCounts[p.companyId] = (aiPlaneCounts[p.companyId] || 0) + 1;
             });
         }
 
@@ -185,17 +193,18 @@ export class EconomyManager {
                     planes: playerPlaneCount,
                     routeCount: this._getRouteCount(networkManager.network['player']),
                     satisfaction: 0,
-                    globalShare: competitionManager.globalShares['player'] || 0,
+                    globalShare: competitionManager ? (competitionManager.globalShares['player'] || 0) : 0,
                     assetValue: this.funds
                 });
             } else {
                 const routeCount = this._getRouteCount(networkManager.network[comp.id]);
                 const planeCount = aiPlaneCounts[comp.id] || 0;
                 
-                // ★完全実数化: 開拓コストと機体コストの概算からAIの資産を算出
+                // 開拓コストと機体コストの概算からAIの資産を算出
                 const assetValue = (routeCount * 50000000) + (planeCount * 25000000);
                 const monthIncome = (routeCount * 120000) + (planeCount * 180000);
                 const currentPass = this.aiPassengers[comp.id] || 0;
+                const satisfaction = (competitionManager && competitionManager.getAiSatisfaction) ? competitionManager.getAiSatisfaction(comp.id) : 150;
 
                 hist.push({
                     monthLabel: `${this.currentYear}-${this.currentMonth}`,
@@ -204,8 +213,8 @@ export class EconomyManager {
                     passengers: currentPass,
                     planes: planeCount,
                     routeCount: routeCount,
-                    satisfaction: competitionManager.getAiSatisfaction ? competitionManager.getAiSatisfaction(comp.id) : 150,
-                    globalShare: competitionManager.globalShares[comp.id] || 0,
+                    satisfaction: satisfaction,
+                    globalShare: competitionManager ? (competitionManager.globalShares[comp.id] || 0) : 0,
                     assetValue: assetValue
                 });
             }
@@ -216,33 +225,38 @@ export class EconomyManager {
     _getRouteCount(network) {
         if (!network) return 0;
         let count = 0;
-        for (const id in network) count += network[id].length;
+        for (const id in network) {
+            if (network[id]) count += network[id].length;
+        }
         return Math.floor(count / 2);
     }
 
     _updateUI(totalPlanesCount, competitionManager) {
-        const displayVal = this.lastSecondIncome;
+        const displayVal = this.lastSecondIncome || 0;
         const prefix = displayVal >= 0 ? '+$ ' : '-$ ';
         const formattedIncome = `${prefix}${this._formatMoneyNumber(Math.abs(displayVal))}`;
         
         const calendarStr = `${this.currentYear}年目-${this.currentMonth}月`;
-        const passStr = this._formatNumber(Math.floor(this.totalPassengers));
+        const passStr = this._formatNumber(Math.floor(this.totalPassengers || 0));
         
         const playerShare = competitionManager ? (competitionManager.globalShares['player'] || 0) : 0;
         const shareStr = (playerShare * 100).toFixed(1);
 
-        this.uiManager.updateTopHUD(
-            calendarStr,
-            this._formatMoney(this.funds),
-            totalPlanesCount,
-            this.maxPlanes,
-            formattedIncome,
-            passStr,
-            shareStr
-        );
+        if (this.uiManager && this.uiManager.updateTopHUD) {
+            this.uiManager.updateTopHUD(
+                calendarStr,
+                this._formatMoney(this.funds),
+                totalPlanesCount,
+                this.maxPlanes,
+                formattedIncome,
+                passStr,
+                shareStr
+            );
+        }
     }
 
     _formatMoney(value) {
+        if (value === undefined || value === null || isNaN(value)) return '$ 0';
         const absVal = Math.abs(value);
         let str = '';
         if (absVal >= 1000000000000) str = `$ ${(absVal / 1000000000000).toFixed(2)}T`;
@@ -254,6 +268,7 @@ export class EconomyManager {
     }
 
     _formatMoneyNumber(value) {
+        if (value === undefined || value === null || isNaN(value)) return 0;
         const absVal = Math.abs(value);
         if (absVal >= 1000000000000) return (absVal / 1000000000000).toFixed(2) + 'T';
         if (absVal >= 1000000000) return (absVal / 1000000000).toFixed(2) + 'B';
@@ -263,6 +278,7 @@ export class EconomyManager {
     }
 
     _formatNumber(value) {
+        if (value === undefined || value === null || isNaN(value)) return "0";
         return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 }

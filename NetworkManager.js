@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【フェーズ2.12: 全社ネットワーク総延長の個別キャッシュ化】
- * 総延長距離の算出対象をプレイヤーのみから「全AI会社」へ拡張しました。
- * 重い計算を防ぐため `cachedTotalLengths` を辞書化し、各AIが路線を
- * 開拓・廃止した瞬間にのみ個別に再計算されるよう最適化しています。
+ * 【UI破壊バグの完全修正】
+ * `cachedTotalLengths` の辞書化によって削除されてしまっていた、
+ * 既存のUI（`UIManager.js` など）が参照する `playerTotalNetworkLength` ゲッターを復活させ、
+ * 後方互換性を担保することで、ボタンやUIパネルが押せなくなるクラッシュを根絶しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -19,7 +19,7 @@ export class NetworkManager {
 
         this.network = {}; 
         
-        // ★変更: 処理落ち防止のためのキャッシュ用変数 (全社対応へ拡張)
+        // 処理落ち防止のためのキャッシュ用変数 (全社対応)
         this.cachedTotalLengths = {};
         
         CONFIG.COMPANIES.forEach(comp => {
@@ -107,7 +107,6 @@ export class NetworkManager {
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
 
-        // ★追加: ルート開拓が成功した時、会社に関わらず総延長を再計算してキャッシュに保存
         this._updateCachedTotalLength(companyId);
 
         return true;
@@ -140,7 +139,6 @@ export class NetworkManager {
             if (line.material) line.material.dispose();
         });
 
-        // ★追加: ルート削除が成功した時、会社に関わらず総延長を再計算してキャッシュに保存
         this._updateCachedTotalLength(companyId);
 
         return true;
@@ -160,7 +158,6 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
-    // ★追加: 特定の会社のキャッシュを更新する内部メソッド
     _updateCachedTotalLength(companyId) {
         this.cachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
     }
@@ -187,8 +184,12 @@ export class NetworkManager {
         return totalLength;
     }
 
-    // ★追加: 任意の会社の総延長距離を返すゲッター
     getTotalNetworkLength(companyId = 'player') {
         return this.cachedTotalLengths[companyId] || 0;
+    }
+
+    // ★重要: クラッシュ防止（後方互換性）のために必須なゲッターを復活
+    get playerTotalNetworkLength() {
+        return this.getTotalNetworkLength('player');
     }
 }
