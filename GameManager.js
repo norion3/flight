@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【パネル描画の不発バグ修正】
- * スマホ環境等で投資パネルが空になる現象を防ぐため、ボタンごとの個別クリックリスナーを廃止し、
- * UIManager からの統合コールバック `onPanelOpened` を受け取って確実に描画を実行するよう修正しました。
+ * 【ライバルパネルでのAI動的満足度表示の正常化】
+ * ライバル状況パネル（`updateRivalsPanelData`）にて、AIの満足度を固定値(150)ではなく
+ * `competitionManager.getAiSatisfaction(comp.id)` から取得するよう修正しました。
+ * これにより、AIのサービス品質の成長がUI上でも正しく反映されるようになります。
  */
 
 import { CONFIG } from './Config.js';
@@ -162,7 +163,6 @@ export class GameManager {
             }
         };
 
-        // ★修正: パネルが開かれたときの統合コールバックで各描画メソッドを呼ぶ
         this.uiManager.onPanelOpened = (panelId) => {
             if (panelId === 'panel-upgrades') {
                 this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
@@ -173,7 +173,6 @@ export class GameManager {
             }
         };
 
-        // グラフタブの切り替えイベント
         this.uiManager.onGraphTabChanged = () => {
             this.updateOverviewPanelData();
         };
@@ -224,9 +223,12 @@ export class GameManager {
                 assetValue += routeCount * 1000000;
             }
 
-            let satisfaction = this.competitionManager.baseAiSatisfaction;
+            // ★修正: AIの満足度は固定値ではなく dynamic な `getAiSatisfaction` から取得してUIに反映
+            let satisfaction = 0;
             if (comp.id === 'player') {
                 satisfaction = this.upgradeManager.getBonuses().satisfaction || 0;
+            } else {
+                satisfaction = this.competitionManager.getAiSatisfaction ? this.competitionManager.getAiSatisfaction(comp.id) : 150;
             }
 
             const globalShare = this.competitionManager.getGlobalShare(comp.id);

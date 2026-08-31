@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【超軽量設計へのリファクタリング（維持） ＋ AIの実数化の安全追記】
- * オリジナルの超軽量UI更新ロジックやプレイヤーの計算ループは1ミリも変更せず完全に保持しています。
- * AI専用の絶対値計算（客数・資産）を別の関数 `_updateAiPassengers` として分離・追記し、
- * 既存の処理を絶対に壊さない形で「AIの自立」を実現しました。
+ * 【経営再起システム（セーフティネット）の実装】
+ * 1. 資金がマイナスに沈んで破産状態になるのを防ぐため、計算後の資金に下限 0 を強制適用。
+ * 2. 資金が 0 でかつ純損失（赤字）が続いている場合、強制的に最低保証のプラス収益を発生させ、
+ * プレイヤーが必ず再起（巻き返し）できるように保護するセーフティネットを追加しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -28,13 +28,11 @@ export class EconomyManager {
         
         this.uiUpdateTimer = 0;
 
-        // カレンダーと履歴データ用プロパティ
         this.currentYear = 1;
         this.currentMonth = 1;
-        this.monthTimer = 0; // 20秒で1ヶ月
-        this.historyData = {}; // 全社の24ヶ月分の履歴
+        this.monthTimer = 0; 
+        this.historyData = {}; 
         
-        // ★追加: AIの自立した累計客数
         this.aiPassengers = {}; 
         
         CONFIG.COMPANIES.forEach(comp => {
@@ -48,6 +46,8 @@ export class EconomyManager {
     addFunds(amount) {
         if (isNaN(amount)) return; 
         this.funds += amount;
+        // ★追加: 資金が絶対にマイナスにならない下限ガード
+        if (this.funds < 0) this.funds = 0;
     }
 
     canAfford(amount) {
@@ -56,6 +56,7 @@ export class EconomyManager {
 
     deductFunds(amount) {
         this.funds -= amount;
+        if (this.funds < 0) this.funds = 0;
     }
 
     calculateRouteCost(originData, destData) {
@@ -75,7 +76,6 @@ export class EconomyManager {
         this.incomeTimer += delta;
         this.uiUpdateTimer += delta;
         
-        // カレンダーの進行と月次データの記録（20秒ごとに実行）
         this.monthTimer += delta;
         if (this.monthTimer >= 20.0) {
             this.monthTimer -= 20.0;
@@ -87,7 +87,6 @@ export class EconomyManager {
 
             const monthLabel = `${this.currentYear}年目-${this.currentMonth}月`;
 
-            // 全社のスナップショットを記録
             CONFIG.COMPANIES.forEach(comp => {
                 const companyId = comp.id;
                 let currentFunds = 0;
@@ -95,7 +94,6 @@ export class EconomyManager {
                 let currentPass = 0;
                 const currentShare = competitionManager ? (competitionManager.globalShares[companyId] || 0) : 0;
                 
-                // 機体数と路線数の集計
                 let planeCount = 0;
                 planes.forEach(p => {
                     if (p.companyId === companyId) planeCount++;
@@ -115,10 +113,9 @@ export class EconomyManager {
                     currentIncome = this.lastSecondIncome; 
                     currentPass = this.totalPassengers;
                 } else {
-                    // ★変更: プレイヤーのシェアに依存していた仮計算を廃止し、完全実数化
-                    currentFunds = (planeCount * 25000000) + (routeCount * 50000000); // 資産実数化
-                    currentIncome = (planeCount * 180000) + (routeCount * 120000); // 月間収益実数化
-                    currentPass = this.aiPassengers[companyId] || 0; // 客数実数化
+                    currentFunds = (planeCount * 25000000) + (routeCount * 50000000); 
+                    currentIncome = (planeCount * 180000) + (routeCount * 120000); 
+                    currentPass = this.aiPassengers[companyId] || 0; 
                 }
 
                 const snapshot = {
@@ -183,7 +180,12 @@ export class EconomyManager {
             }
         });
 
-        const currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
+        let currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
+
+        // ★追加: セーフティネット（資金が0かつ赤字の場合、強制的に最低保証のプラス収益を与える）
+        if (this.funds <= 1000 && currentNetIncome < 0) {
+            currentNetIncome = Math.max(currentNetIncome, 5000); // 毎秒 +$5K の政府補助金・最低保証
+        }
 
         if (this.incomeTimer >= 1.0) {
             this.lastSecondIncome = isNaN(currentNetIncome) ? 0 : currentNetIncome;
@@ -192,7 +194,6 @@ export class EconomyManager {
             this.upkeepBuffer = 0;
         }
 
-        // ★追加: 毎フレーム、AIの自立した客数（スコア）を計算・加算
         this._updateAiPassengers(delta, planes, networkManager, competitionManager);
 
         if (this.uiUpdateTimer >= 0.2) {
@@ -217,7 +218,6 @@ export class EconomyManager {
             this.displayIncome = this.lastSecondIncome;
         }
 
-        // HTMLタグを含まず、純粋な値のみを抽出して UIManager へ渡す（超軽量化対応）
         const displayVal = Math.round(this.displayIncome);
         const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
         const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}`;
@@ -239,7 +239,6 @@ export class EconomyManager {
         );
     }
 
-    // ★追加: AI客数用の独立メソッド（既存ロジックを邪魔しない）
     _updateAiPassengers(delta, planes, networkManager, competitionManager) {
         const aiPlaneCounts = {};
         if (planes) {
