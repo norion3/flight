@@ -159,11 +159,9 @@
         Message
     </div>
 
-    <!-- ★スマートHUD（超軽量化対応: 単位を静的タグに分離・初期表示日本語化） -->
     <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/85 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-11 pb-2 shadow-xl shadow-slate-950/50">
         <div class="flex flex-col w-full max-w-md px-4 gap-1.5">
             
-            <!-- 1段目: カレンダー、資金、収益 -->
             <div class="flex items-center justify-between border-b border-slate-700/40 pb-1.5">
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs">🗓️</span>
@@ -182,7 +180,6 @@
                 </div>
             </div>
             
-            <!-- 2段目: 稼働機体 と 世界シェア -->
             <div class="flex items-center justify-between border-b border-slate-700/40 pb-1.5 text-xs">
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs">✈️</span>
@@ -198,7 +195,6 @@
                 </div>
             </div>
 
-            <!-- 3段目: 累計客数 -->
             <div class="flex items-center justify-between pt-0.5 text-xs">
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs">👥</span>
@@ -522,7 +518,7 @@
                             <!-- UIManager.js が動的に項目を注入します -->
                         </div>
 
-                        <!-- ★Phase 4: 動的SVGグラフパネル -->
+                        <!-- ★全社激闘グラフ対応 -->
                         <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
                             <div class="flex bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
                                 <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors" data-tab="funds">資金</button>
@@ -552,16 +548,26 @@
                                         <div class="w-full h-px bg-slate-700/50"></div>
                                     </div>
                                     <svg viewBox="0 0 240 100" class="w-full h-full absolute inset-0 overflow-visible" preserveAspectRatio="none">
-                                        <!-- Jsで動的にパスを描画する領域 -->
-                                        <polyline id="graph-line-rival" points="" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.8" />
-                                        <polyline id="graph-line-player" points="" fill="none" stroke="#34d399" stroke-width="2" />
+                                        <!-- ★Zオーダー(重なり順)に基づく全社分の静的要素 -->
+                                        <!-- 一番奥: その他のライバルたち -->
+                                        <polyline id="graph-line-other-0" points="" fill="none" />
+                                        <polyline id="graph-line-other-1" points="" fill="none" />
+                                        <polyline id="graph-line-other-2" points="" fill="none" />
+                                        <polyline id="graph-line-other-3" points="" fill="none" />
+                                        <!-- 真ん中: 現在のトップのライバル -->
+                                        <polyline id="graph-line-1st" points="" fill="none" />
+                                        <!-- 最前面: 自社 -->
+                                        <polyline id="graph-line-player" points="" fill="none" />
                                         
                                         <!-- 最新点のマーカー -->
-                                        <circle id="graph-point-rival" cx="0" cy="0" r="2" fill="#3b82f6" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-0" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-1" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-2" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-3" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-1st" cx="0" cy="0" r="2" class="transition-opacity duration-300 opacity-0" />
                                         <circle id="graph-point-player" cx="0" cy="0" r="3" fill="#34d399" class="animate-pulse transition-opacity duration-300 opacity-0" />
                                     </svg>
                                 </div>
-                                <!-- X軸ラベル (JSで間引いて生成) -->
                                 <div id="graph-x-labels" class="flex justify-between text-[9px] text-slate-500 mt-2 font-mono">
                                 </div>
                             </div>

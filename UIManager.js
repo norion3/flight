@@ -1,8 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【パネル描画の不発バグ修正】
- * `cc-link-btn` クリック時に、非表示解除だけでなく統合コールバック `onPanelOpened` を発行するように修正。
- * また `updateUpgradePanel` 内部のテキスト描画で、一部プロパティの参照先が誤っていた箇所を静かに修正しました。
+ * 【全社激闘グラフの実装】
+ * `updateOverviewPanel` を拡張し、全6社（自社＋ライバル5社）のグラフを同時に描画するようにしました。
+ * 1. 毎秒ごとにデータを走査し「そのタブで現在1位のライバル」を判定します。
+ * 2. 1位のライバルは `graph-line-1st` の要素を使い、少し太い線(1.5)で自社のすぐ奥に描画します。
+ * 3. 1位以外のライバルは `graph-line-other-*` の要素を使い、細い線(0.8)で一番奥に描画します。
+ * これにより、1位が交代した際も瞬時に太さと重なり順が滑らかに入れ替わるドラマチックな表現を実現しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -49,7 +52,7 @@ export class UIManager {
         this.onUpgradeRequested = null;
         
         this.onGraphTabChanged = null; 
-        this.onPanelOpened = null; // ★追加: パネルが開かれた時の統合コールバック
+        this.onPanelOpened = null; 
 
         this.currentRouteAction = null; 
         
@@ -281,7 +284,6 @@ export class UIManager {
                     this._isRivalsOpen = (targetId === 'panel-rivals');
                     this._isOverviewOpen = (targetId === 'panel-overview');
 
-                    // ★追加: 統合コールバックで GameManager に描画を要求する
                     if (this.onPanelOpened) {
                         this.onPanelOpened(targetId);
                     }
@@ -758,7 +760,6 @@ export class UIManager {
                 if (nextStepData && currentStepData) {
                     if (nextStepData.capacity !== undefined) effectText = `上限 ${currentStepData.capacity} ➔ ${nextStepData.capacity} 機`;
                     else if (nextStepData.speedMultiplier !== undefined) effectText = `フライト時間短縮 ${Math.round((currentStepData.speedMultiplier - 1) * 100)}% ➔ ${Math.round((nextStepData.speedMultiplier - 1) * 100)}%`;
-                    // ★修正: nextStepData の値を正しく参照するよう修正
                     else if (nextStepData.bonusIncomeRate !== undefined) effectText = `収益ボーナス +${Math.round(currentStepData.bonusIncomeRate * 100)}% ➔ +${Math.round(nextStepData.bonusIncomeRate * 100)}%`;
                     else if (nextStepData.bonusSatisfaction !== undefined) effectText = `顧客満足度 +${currentStepData.bonusSatisfaction} ➔ +${nextStepData.bonusSatisfaction}`;
                     
@@ -833,6 +834,11 @@ export class UIManager {
         });
     }
 
+    /**
+     * ★Phase 4: 全社激闘グラフの描画
+     * SVGのZオーダー（描画順序）を活かし、一番奥から「その他のライバル」「1位のライバル」「自社」の順に
+     * HTML上の該当タグへとデータを流し込みます。これにより1位交代時も瞬時に太さが切り替わります。
+     */
     updateOverviewPanel(historyData, companies) {
         if (!historyData || !historyData['player']) return;
         
@@ -860,11 +866,22 @@ export class UIManager {
 
         let topRivalId = null;
         let topRivalVal = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
 
+        // 全社の履歴を走査して Y軸スケールを決定し、同時にライバル1位を特定する
         companies.forEach(comp => {
-            if (comp.id === 'player') return;
             const hist = historyData[comp.id];
             if (!hist || hist.length === 0) return;
+            
+            hist.forEach(snap => {
+                const v = getVal(snap);
+                if (v < minY) minY = v;
+                if (v > maxY) maxY = v;
+            });
+
+            if (comp.id === 'player') return;
+            
             const val = getVal(hist[hist.length - 1]);
             if (val > topRivalVal) {
                 topRivalVal = val;
@@ -874,23 +891,8 @@ export class UIManager {
 
         if (!topRivalId) topRivalId = 'rival_eu'; 
 
-        const rivalHistory = historyData[topRivalId] || [];
         const topRivalComp = companies.find(c => c.id === topRivalId);
         const rivalColor = topRivalComp ? '#' + topRivalComp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
-
-        let minY = Infinity;
-        let maxY = -Infinity;
-
-        const processHistory = (hist) => {
-            hist.forEach(snap => {
-                const v = getVal(snap);
-                if (v < minY) minY = v;
-                if (v > maxY) maxY = v;
-            });
-        };
-
-        processHistory(playerHistory);
-        processHistory(rivalHistory);
 
         if (minY > 0 && this.currentGraphTab !== 'income') minY = 0; 
         if (minY === maxY) {
@@ -917,35 +919,69 @@ export class UIManager {
             }).join(' ');
         };
 
-        const playerPoints = createPoints(playerHistory);
-        const rivalPoints = createPoints(rivalHistory);
+        // ライバルグラフの描画（1位とその他でタグと太さを分ける）
+        let otherIndex = 0;
+        companies.forEach(comp => {
+            if (comp.id === 'player') return;
+            
+            const hist = historyData[comp.id];
+            if (!hist || hist.length === 0) return;
+            
+            const pts = createPoints(hist);
+            const hexColor = '#' + comp.routeColor.toString(16).padStart(6, '0');
+            const lastP = pts.split(' ').pop().split(',');
+            
+            if (comp.id === topRivalId) {
+                const line = document.getElementById('graph-line-1st');
+                const point = document.getElementById('graph-point-1st');
+                if (line) {
+                    line.setAttribute('points', pts);
+                    line.setAttribute('stroke', hexColor);
+                    line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('opacity', '0.8');
+                }
+                if (point) {
+                    point.setAttribute('cx', lastP[0]);
+                    point.setAttribute('cy', lastP[1]);
+                    point.setAttribute('fill', hexColor);
+                    point.classList.remove('opacity-0');
+                }
+            } else {
+                const line = document.getElementById(`graph-line-other-${otherIndex}`);
+                const point = document.getElementById(`graph-point-other-${otherIndex}`);
+                if (line) {
+                    line.setAttribute('points', pts);
+                    line.setAttribute('stroke', hexColor);
+                    line.setAttribute('stroke-width', '0.8');
+                    line.setAttribute('opacity', '0.35');
+                }
+                if (point) {
+                    point.setAttribute('cx', lastP[0]);
+                    point.setAttribute('cy', lastP[1]);
+                    point.setAttribute('fill', hexColor);
+                    point.classList.remove('opacity-0');
+                }
+                otherIndex++;
+            }
+        });
 
+        // 自社グラフの描画（常に最前面）
+        const playerPts = createPoints(playerHistory);
         const playerLastVal = getVal(playerHistory[playerHistory.length - 1]);
-        const rivalLastVal = rivalHistory.length > 0 ? getVal(rivalHistory[rivalHistory.length - 1]) : 0;
-
+        const playerLastP = playerPts.split(' ').pop().split(',');
+        
         const playerLine = document.getElementById('graph-line-player');
-        const rivalLine = document.getElementById('graph-line-rival');
         const playerPoint = document.getElementById('graph-point-player');
-        const rivalPoint = document.getElementById('graph-point-rival');
-
-        if (playerLine) playerLine.setAttribute('points', playerPoints);
-        if (rivalLine) {
-            rivalLine.setAttribute('points', rivalPoints);
-            rivalLine.setAttribute('stroke', rivalColor);
+        if (playerLine) {
+            playerLine.setAttribute('points', playerPts);
+            playerLine.setAttribute('stroke', '#34d399');
+            playerLine.setAttribute('stroke-width', '2.0');
+            playerLine.setAttribute('opacity', '1.0');
         }
-
-        if (playerHistory.length > 0 && playerPoint) {
-            const lastP = playerPoints.split(' ').pop().split(',');
-            playerPoint.setAttribute('cx', lastP[0]);
-            playerPoint.setAttribute('cy', lastP[1]);
+        if (playerPoint) {
+            playerPoint.setAttribute('cx', playerLastP[0]);
+            playerPoint.setAttribute('cy', playerLastP[1]);
             playerPoint.classList.remove('opacity-0');
-        }
-        if (rivalHistory.length > 0 && rivalPoint) {
-            const lastR = rivalPoints.split(' ').pop().split(',');
-            rivalPoint.setAttribute('cx', lastR[0]);
-            rivalPoint.setAttribute('cy', lastR[1]);
-            rivalPoint.setAttribute('fill', rivalColor);
-            rivalPoint.classList.remove('opacity-0');
         }
 
         const titlePlayer = document.getElementById('graph-title-player');
@@ -966,11 +1002,11 @@ export class UIManager {
 
         if (titleRival) {
             const shortName = topRivalComp ? topRivalComp.name : '---';
-            let rankStr = playerLastVal >= rivalLastVal ? '2位' : '1位'; 
+            let rankStr = playerLastVal >= topRivalVal ? '2位' : '1位'; 
             titleRival.innerText = `${rankStr}: ${shortName}`;
             titleRival.style.color = rivalColor;
         }
-        if (valRival) valRival.innerText = formatVal(rivalLastVal);
+        if (valRival) valRival.innerText = formatVal(topRivalVal);
 
         const labelsContainer = document.getElementById('graph-x-labels');
         if (labelsContainer) {
