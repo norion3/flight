@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバルパネルの総資産表示の正常化】
- * RivalManagerの初期化時に economyManager を渡すよう連携を修正し、
- * ライバル情報パネルの資産(assetValue)計算に、AIのリアルな手持ち現金(`getAiFunds`)を
- * 加算することで、路線数・機体数に見合った正確な資産額が表示されるようになりました。
+ * 【ライバルパネルデータ集計時の満足度整数化】
+ * `updateRivalsPanelData` で集計する際にも `satisfaction: Math.round(...)` を施し、
+ * データ層・UI層の双方で小数の混入を二重に防ぐ安全策を施しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -42,7 +41,6 @@ export class GameManager {
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
         
-        // ★修正: RivalManager が資金チェックできるよう、第4引数に economyManager を渡す
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager, this.economyManager);
         
         this.rivalManager.onWithdraw = (companyId, airportId) => {
@@ -218,18 +216,18 @@ export class GameManager {
             });
             assetValue += routeCount * CONFIG.ECONOMY.ROUTE_BASE_COST * 2; 
             
-            // ★変更: プレイヤーと同じく、AIの資産計算にも「手持ちのリアルな現金」を足す
             if (comp.id === 'player') {
                 assetValue += this.economyManager.funds;
             } else {
                 assetValue += this.economyManager.getAiFunds(comp.id);
             }
 
+            // ★修正: 満足度を整数（Math.round）に変換してUIに渡す
             let satisfaction = 0;
             if (comp.id === 'player') {
-                satisfaction = this.upgradeManager.getBonuses().satisfaction || 0;
+                satisfaction = Math.round(this.upgradeManager.getBonuses().satisfaction || 0);
             } else {
-                satisfaction = this.competitionManager.getAiSatisfaction ? this.competitionManager.getAiSatisfaction(comp.id) : 150;
+                satisfaction = Math.round(this.competitionManager.getAiSatisfaction ? this.competitionManager.getAiSatisfaction(comp.id) : 150);
             }
 
             const globalShare = this.competitionManager.getGlobalShare(comp.id);

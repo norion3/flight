@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【全社激闘グラフの完全復旧と、X軸のズレ解消・4ヶ月間引き対応】
- * 1. SVGのZオーダーを活かした全ライバルの動的描画（自社・1位・その他）を正しく復元。
- * 2. `playerHistory` のデータが存在する実際のX座標(パーセンテージ)と完全に同期させ、
- * 1ヶ月ごとに短い縦線(ティック)を引き、最新月から「4ヶ月に1回」のペースで数字のみを
- * スッキリと Absolute 配置する最強のロジックを適用しました。
+ * 【ライバルパネルのUI表示最適化】
+ * 1. 顧客満足度の長い小数を `Math.round()` で整数表示に修正。
+ * 2. 比較ヘッダー表記を「自社 XX / 他社 YY」にスリム化し、スマホ画面幅での折り返し・体裁崩れを解消。
+ * 3. 比較バーのラベルを「敵」から「他社」に統一。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -863,7 +862,6 @@ export class UIManager {
         let minY = Infinity;
         let maxY = -Infinity;
 
-        // 全社の履歴を走査して Y軸スケールを決定し、同時にライバル1位を特定する
         companies.forEach(comp => {
             const hist = historyData[comp.id];
             if (!hist || hist.length === 0) return;
@@ -913,7 +911,6 @@ export class UIManager {
             }).join(' ');
         };
 
-        // ライバルグラフの描画（1位とその他でタグと太さを分ける）
         let otherIndex = 0;
         companies.forEach(comp => {
             if (comp.id === 'player') return;
@@ -959,7 +956,6 @@ export class UIManager {
             }
         });
 
-        // 自社グラフの描画（常に最前面）
         const playerPts = createPoints(playerHistory);
         const playerLastVal = getVal(playerHistory[playerHistory.length - 1]);
         const playerLastP = playerPts.split(' ').pop().split(',');
@@ -1002,7 +998,6 @@ export class UIManager {
         }
         if (valRival) valRival.innerText = formatVal(topRivalVal);
 
-        // ★X軸のティック（縦線）と数字ラベルの完全同期生成
         const labelsContainer = document.getElementById('graph-x-labels');
         const ticksContainer = document.getElementById('graph-x-ticks');
 
@@ -1010,25 +1005,18 @@ export class UIManager {
             let labelsHtml = '';
             let ticksHtml = '';
 
-            // 最新月（配列の一番最後）から過去に向かってループ
             for (let i = playerHistory.length - 1; i >= 0; i--) {
                 const snap = playerHistory[i];
-                
-                // SVG内のX座標の計算と完全に同じ式を使ってパーセンテージを導き出す
                 const x = svgW - ((playerHistory.length - 1 - i) * (svgW / 23));
                 const xPct = (x / svgW) * 100;
 
-                // 1ヶ月ごとの短い縦線(ティック)を常に描画（背景線の少し下にはみ出させる）
                 ticksHtml += `<div class="absolute -bottom-1 w-px h-1.5 bg-slate-600" style="left: ${xPct}%;"></div>`;
 
-                // 最新月から「4ヶ月に1回」のペースで数字ラベルを描画
                 const monthsFromLatest = (playerHistory.length - 1) - i;
                 if (monthsFromLatest % 4 === 0) {
                     if (snap && snap.monthLabel) {
                         const parts = snap.monthLabel.split('-');
                         const month = parseInt(parts[1]); 
-                        
-                        // ズレないように Absolute 配置し、フォントサイズを縮小
                         labelsHtml += `<div class="absolute top-0 text-[10px] text-slate-400 font-mono font-bold" style="left: ${xPct}%; transform: translateX(-50%);">${month}</div>`;
                     }
                 }
@@ -1046,7 +1034,6 @@ export class UIManager {
         let html = ``; 
         
         const playerStat = stats.find(s => s.isPlayer) || stats[0];
-        
         const topRivalStat = stats.find(s => !s.isPlayer) || stats[0];
 
         stats.forEach((stat, index) => {
@@ -1076,6 +1063,7 @@ export class UIManager {
             const compareShareStr = (compareStat.globalShare * 100).toFixed(1) + '%';
             const compareAssetStr = this._formatMoneyShort(compareStat.assetValue);
 
+            // ★修正: 満足度を整数化し、スリムな「他社」表記の比較バーを呼び出す
             html += `
             <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
@@ -1094,11 +1082,11 @@ export class UIManager {
                 
                 <div class="${contentClass} p-3 pt-0 border-t border-slate-700/50 mt-1 rival-accordion-content">
                     <div class="mt-3 flex flex-col gap-3">
-                        ${this._createCompareBarHtml('👑 世界シェア率', playerStat.globalShare, compareStat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', compareShareStr, compareStat.name)}
-                        ${this._createCompareBarHtml('💰 推定企業総資産', playerStat.assetValue, compareStat.assetValue, this._formatMoneyShort(playerStat.assetValue), compareAssetStr, compareStat.name)}
-                        ${this._createCompareBarHtml('⭐ 顧客満足度', playerStat.satisfaction, compareStat.satisfaction, playerStat.satisfaction, compareStat.satisfaction, compareStat.name)}
-                        ${this._createCompareBarHtml('🌐 総路線数', playerStat.routeCount, compareStat.routeCount, playerStat.routeCount, compareStat.routeCount, compareStat.name)}
-                        ${this._createCompareBarHtml('✈️ 稼働機体数', playerStat.planeCount, compareStat.planeCount, playerStat.planeCount, compareStat.planeCount, compareStat.name)}
+                        ${this._createCompareBarHtml('👑 世界シェア率', playerStat.globalShare, compareStat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', compareShareStr)}
+                        ${this._createCompareBarHtml('💰 推定企業総資産', playerStat.assetValue, compareStat.assetValue, this._formatMoneyShort(playerStat.assetValue), compareAssetStr)}
+                        ${this._createCompareBarHtml('⭐ 顧客満足度', playerStat.satisfaction, compareStat.satisfaction, Math.round(playerStat.satisfaction), Math.round(compareStat.satisfaction))}
+                        ${this._createCompareBarHtml('🌐 総路線数', playerStat.routeCount, compareStat.routeCount, playerStat.routeCount, compareStat.routeCount)}
+                        ${this._createCompareBarHtml('✈️ 稼働機体数', playerStat.planeCount, compareStat.planeCount, playerStat.planeCount, compareStat.planeCount)}
                     </div>
                 </div>
             </div>`;
@@ -1129,7 +1117,8 @@ export class UIManager {
         });
     }
 
-    _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay, rivalName) {
+    // ★修正: 相手の名前を「他社」に固定短縮し、バーのラベルも「他社」に統一
+    _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;
         const rPct = (rivalVal / total) * 100;
@@ -1148,13 +1137,11 @@ export class UIManager {
             resultColor = 'text-slate-400';
         }
 
-        const shortRivalName = rivalName.length > 8 ? rivalName.substring(0, 8) + '.' : rivalName;
-
         return `
         <div>
             <div class="flex justify-between text-[10px] font-bold mb-1.5">
                 <span class="text-slate-300">${title}</span>
-                <span>自社 ${playerDisplay} <span class="text-slate-600 font-normal mx-0.5">vs</span> ${shortRivalName} ${rivalDisplay} <span class="${resultColor} ml-0.5">${resultText}</span></span>
+                <span>自社 ${playerDisplay} <span class="text-slate-600 font-normal mx-0.5">/</span> 他社 ${rivalDisplay} <span class="${resultColor} ml-0.5">${resultText}</span></span>
             </div>
             <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
@@ -1164,7 +1151,7 @@ export class UIManager {
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <span class="text-[9px] text-slate-500 w-6">敵</span>
+                    <span class="text-[9px] text-slate-500 w-6">他社</span>
                     <div class="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden flex shadow-inner">
                         <div class="h-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.3)] transition-all duration-500" style="width: ${rPct}%"></div>
                     </div>
