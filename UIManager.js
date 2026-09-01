@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【コントロールセンター個別最適高さ（400px / 460px / 430px / 470px）の反映】
- * 1. メニューTOP: 400px（ボタン5つが底面余白とともに完全に収まる基準値）
- * 2. 投資・アップグレード: 460px（3枚目のカード「フライト速度強化」が見切れずに美しく収まる）
- * 3. 実績とグラフ情報: 430px（6タブ化に対応し、最下部「(月)」目盛りまでスクロールなしでジャスト）
- * 4. ライバル会社状況: 470px（6社全員が一覧でき、下の無駄な大余白を削ったジャスト寸法）
- * 5. 内部レイアウト・折れ線描画・ハイブリッド客数表示・ピロリン通知音等は100%完全保持。
+ * 【コントロールセンター個別最適高さ（メニュー: 410px / グラフ: 410px / 投資: 450px / ライバル: 510px）の反映】
+ * 1. メニューTOP: 410px
+ * 2. 実績とグラフ情報: 410px
+ * 3. 投資・アップグレード: 450px
+ * 4. ライバル会社状況: 510px
+ * 5. 提案箇所以外の内部レイアウト、折れ線描画、客数ハイブリッド表示、ピロリン通知音等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -258,13 +258,13 @@ export class UIManager {
             this._toggleMainButtons(true);
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.classList.add('h-[410px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
         });
 
-        // ★修正: 確定寸法（400px / 460px / 430px / 470px）へ滑らかに伸縮
+        // ★修正: 指定寸法（メニュー: 410px / グラフ: 410px / 投資: 450px / ライバル: 510px）へ伸縮
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -291,19 +291,19 @@ export class UIManager {
                         this.onPanelOpened(targetId);
                     }
 
-                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[420px]', 'h-[430px]', 'h-[440px]', 'h-[450px]', 'h-[460px]', 'h-[470px]', 'h-[480px]', 'h-[500px]', 'h-[560px]', 'h-[580px]');
+                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[410px]', 'h-[420px]', 'h-[430px]', 'h-[440px]', 'h-[450px]', 'h-[460px]', 'h-[470px]', 'h-[480px]', 'h-[500px]', 'h-[510px]', 'h-[560px]', 'h-[580px]');
                     
                     if (this._isRivalsOpen) {
-                        this.controlCenter.style.height = '470px';
+                        this.controlCenter.style.height = '510px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else if (this._isUpgradesOpen) {
-                        this.controlCenter.style.height = '460px';
+                        this.controlCenter.style.height = '450px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else if (this._isOverviewOpen) {
-                        this.controlCenter.style.height = '430px';
+                        this.controlCenter.style.height = '410px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else {
-                        this.controlCenter.style.height = '400px';
+                        this.controlCenter.style.height = '410px';
                         this.controlCenter.style.maxHeight = '';
                     }
                 }
@@ -319,7 +319,7 @@ export class UIManager {
                 this._isRivalsOpen = false;
                 this._isOverviewOpen = false;
                 
-                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.classList.add('h-[410px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             });
@@ -346,7 +346,7 @@ export class UIManager {
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
-                    this.controlCenter.classList.add('h-[400px]');
+                    this.controlCenter.classList.add('h-[410px]');
                     this.controlCenter.style.height = '';
                     this.controlCenter.style.maxHeight = '';
                     
@@ -658,7 +658,7 @@ export class UIManager {
             this.controlCenter.classList.remove('show');
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.classList.add('h-[410px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
