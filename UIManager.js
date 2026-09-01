@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【コントロールセンター個別最適高さ（440px / 400px / 380px / 580px）の反映】
- * 1. メニューTOP: 440px（下部ボタンの窮屈感を解消）
- * 2. 投資・アップグレード: 400px（3枚目の見切れを解消し2枚がピタッと収まる）
- * 3. 実績とグラフ情報: 380px（グラフ下の過剰な余白をカットしてジャストフィット）
- * 4. ライバル会社状況: 580px（6社目の自社カードが見切れず全部見える）
+ * 【コントロールセンター個別最適高さ（400px / 460px / 430px / 470px）の反映】
+ * 1. メニューTOP: 400px（ボタン5つが底面余白とともに完全に収まる基準値）
+ * 2. 投資・アップグレード: 460px（3枚目のカード「フライト速度強化」が見切れずに美しく収まる）
+ * 3. 実績とグラフ情報: 430px（6タブ化に対応し、最下部「(月)」目盛りまでスクロールなしでジャスト）
+ * 4. ライバル会社状況: 470px（6社全員が一覧でき、下の無駄な大余白を削ったジャスト寸法）
  * 5. 内部レイアウト・折れ線描画・ハイブリッド客数表示・ピロリン通知音等は100%完全保持。
  */
 
@@ -258,13 +258,13 @@ export class UIManager {
             this._toggleMainButtons(true);
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[440px]');
+                this.controlCenter.classList.add('h-[400px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
         });
 
-        // ★修正: 4画面の個別最適高さ（440px / 400px / 380px / 580px）へ滑らかに伸縮
+        // ★修正: 確定寸法（400px / 460px / 430px / 470px）へ滑らかに伸縮
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -291,19 +291,19 @@ export class UIManager {
                         this.onPanelOpened(targetId);
                     }
 
-                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[440px]', 'h-[460px]', 'h-[480px]', 'h-[500px]', 'h-[560px]', 'h-[580px]');
+                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[420px]', 'h-[430px]', 'h-[440px]', 'h-[450px]', 'h-[460px]', 'h-[470px]', 'h-[480px]', 'h-[500px]', 'h-[560px]', 'h-[580px]');
                     
                     if (this._isRivalsOpen) {
-                        this.controlCenter.style.height = '580px';
+                        this.controlCenter.style.height = '470px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else if (this._isUpgradesOpen) {
-                        this.controlCenter.style.height = '400px';
+                        this.controlCenter.style.height = '460px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else if (this._isOverviewOpen) {
-                        this.controlCenter.style.height = '380px';
+                        this.controlCenter.style.height = '430px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else {
-                        this.controlCenter.style.height = '440px';
+                        this.controlCenter.style.height = '400px';
                         this.controlCenter.style.maxHeight = '';
                     }
                 }
@@ -319,7 +319,7 @@ export class UIManager {
                 this._isRivalsOpen = false;
                 this._isOverviewOpen = false;
                 
-                this.controlCenter.classList.add('h-[440px]');
+                this.controlCenter.classList.add('h-[400px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             });
@@ -346,7 +346,7 @@ export class UIManager {
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
-                    this.controlCenter.classList.add('h-[440px]');
+                    this.controlCenter.classList.add('h-[400px]');
                     this.controlCenter.style.height = '';
                     this.controlCenter.style.maxHeight = '';
                     
@@ -658,7 +658,7 @@ export class UIManager {
             this.controlCenter.classList.remove('show');
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[440px]');
+                this.controlCenter.classList.add('h-[400px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
@@ -1023,7 +1023,6 @@ export class UIManager {
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
-                    point.setAttribute('cy', lastP[1]);
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
                 }
