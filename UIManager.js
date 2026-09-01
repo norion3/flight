@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【コントロールセンター個別最適高さ（メニュー: 410px / グラフ: 410px / 投資: 450px / ライバル: 510px）の反映】
+ * 【コントロールセンター個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 420px / ライバル: 560px）の反映】
  * 1. メニューTOP: 410px
- * 2. 実績とグラフ情報: 410px
+ * 2. 実績とグラフ情報: 420px
  * 3. 投資・アップグレード: 450px
- * 4. ライバル会社状況: 510px
+ * 4. ライバル会社状況: 560px
  * 5. 提案箇所以外の内部レイアウト、折れ線描画、客数ハイブリッド表示、ピロリン通知音等は100%完全保持。
  */
 
@@ -264,7 +264,7 @@ export class UIManager {
             }, 300);
         });
 
-        // ★修正: 指定寸法（メニュー: 410px / グラフ: 410px / 投資: 450px / ライバル: 510px）へ伸縮
+        // ★修正: 指定寸法（メニュー: 410px / グラフ: 420px / 投資: 450px / ライバル: 560px）へ伸縮
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -294,13 +294,13 @@ export class UIManager {
                     this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[410px]', 'h-[420px]', 'h-[430px]', 'h-[440px]', 'h-[450px]', 'h-[460px]', 'h-[470px]', 'h-[480px]', 'h-[500px]', 'h-[510px]', 'h-[560px]', 'h-[580px]');
                     
                     if (this._isRivalsOpen) {
-                        this.controlCenter.style.height = '510px';
+                        this.controlCenter.style.height = '560px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else if (this._isUpgradesOpen) {
                         this.controlCenter.style.height = '450px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else if (this._isOverviewOpen) {
-                        this.controlCenter.style.height = '410px';
+                        this.controlCenter.style.height = '420px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else {
                         this.controlCenter.style.height = '410px';
