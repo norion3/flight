@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI満足度インフレの上限キャップ調整】
- * AIの顧客満足度の動的成長のキャップ（上限）を 500 から「400」へと変更しました。
- * プレイヤーがアップグレードを最大まで進めれば、確実にAIの品質を上回ることができます。
+ * 【業界シェアと世界シェア（世界カバー率）の明確な分離】
+ * 1. 既存のライバル間パワー比較による占有率（globalShares）は「業界シェア」として完全維持。
+ * 2. 地球上の全空港数を母数とした「世界シェア（世界カバー率: getWorldShare）」メソッドを新設。
+ * これにより、序盤に日本周辺を繋いだだけで世界シェアが60%超になる違和感を解消しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -54,7 +55,6 @@ export class CompetitionManager {
                 satisfaction = bonuses.satisfaction || 0;
                 netLength = this.networkManager.playerTotalNetworkLength || 0;
             } else {
-                // ★修正: AIの満足度上限を 500 から「400」にキャップ
                 netLength = this.networkManager.getAiTotalNetworkLength ? this.networkManager.getAiTotalNetworkLength(companyId) : 0;
                 const scaleBonus = (routeCount * 1.5) + (Math.max(0, netLength) * 2.0);
                 satisfaction = Math.min(400, this.baseAiSatisfaction + scaleBonus);
@@ -79,6 +79,7 @@ export class CompetitionManager {
             }
         });
 
+        // 業界内シェア（ライバル間でのパイ比率）
         companies.forEach(comp => {
             this.globalShares[comp.id] = worldTotalPower > 0 ? (companyTotalPower[comp.id] / worldTotalPower) : 0;
         });
@@ -111,8 +112,22 @@ export class CompetitionManager {
         return this.shares[airportId][companyId];
     }
     
+    // 業界シェア（ライバル間占有率）
     getGlobalShare(companyId) {
         return this.globalShares[companyId] || 0;
+    }
+
+    // ★追加: 地球全体の全空港数（約75箇所）を母数とした「世界シェア（世界カバー率）」
+    getWorldShare(companyId = 'player') {
+        const compNetwork = this.networkManager.network[companyId];
+        if (!compNetwork) return 0;
+
+        const connectedAirports = Object.keys(compNetwork).filter(id => compNetwork[id] && compNetwork[id].length > 0);
+        const connectedCount = connectedAirports.length;
+        
+        // 地球上の全就航可能空港数（約75箇所）
+        const TOTAL_WORLD_AIRPORTS = 75;
+        return Math.min(1.0, connectedCount / TOTAL_WORLD_AIRPORTS);
     }
     
     getAiSatisfaction(companyId) {

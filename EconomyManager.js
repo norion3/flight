@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI収益インフレの最適化 ＆ 5段階開拓コストの完全保持】
- * 1. AIの収益計算式における基礎係数と満足度倍率をプレイヤーと同等のスケールに調整し、
- * 2年目に資金が $700M などの青天井になる現象を完全に解消。
- * 2. 5段階の距離別開拓コスト（$200K〜$25M）およびセーフティネットは100%保持しています。
+ * 【トップHUDへの世界シェア（世界カバー率）連動】
+ * トップHUDに表示する「世界シェア」に、地球全体の全空港を母数とした実質カバー率（getWorldShare）を
+ * 連携させることで、序盤の数値の違和感を解消し、世界制覇の手応えを自然に向上させました。
  */
 
 import { CONFIG } from './Config.js';
@@ -253,8 +252,9 @@ export class EconomyManager {
         const calendarStr = `${this.currentYear}年目-${this.currentMonth}月`;
         const passStr = this._formatNumber(Math.floor(this.totalPassengers));
         
-        const playerShare = competitionManager ? (competitionManager.globalShares['player'] || 0) : 0;
-        const shareStr = (playerShare * 100).toFixed(1);
+        // ★修正: トップHUDには全地球を母数とした「世界シェア（世界カバー率）」を表示
+        const playerWorldShare = competitionManager ? (competitionManager.getWorldShare ? competitionManager.getWorldShare('player') : 0) : 0;
+        const shareStr = (playerWorldShare * 100).toFixed(1);
 
         this.uiManager.updateTopHUD(
             calendarStr,
@@ -303,7 +303,7 @@ export class EconomyManager {
                 this.aiPassengers[comp.id] += (currentAiRate * delta);
             }
 
-            // ② 資金（リアル現金収支）計算: プレイヤーと同等スケールにマイルド化
+            // ② 資金（リアル現金収支）計算
             const globalShare = competitionManager ? (competitionManager.globalShares[comp.id] || 0) : 0;
             const shareMult = 0.5 + (globalShare * 1.5); 
 

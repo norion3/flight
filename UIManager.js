@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバル比較バーの表示スリム化】
- * 1. 比較項目ヘッダーから「(勝ち!)」「(負け)」「(互角)」の不要なテキストを削除し、
- * 「自社 XX / 他社 YY」の数値と2本の色分けバーのみで直感的に把握できる洗練されたUIへ修正。
- * 2. イベントモーダルのバックドロップ表示、満足度整数化、全社グラフ描画等は完全に保持しています。
+ * 【ライバル状況パネルの「業界シェア」表記統一】
+ * 1. ライバル状況パネルの項目名を「👑 業界シェア」、サマリー行を「業界シェア XX%」に変更。
+ * 2. 比較バーの「自社 XX / 他社 YY」数値表示と2本の色分けバーによる洗練UIを完全保持。
+ * 3. イベントモーダルのバックドロップ表示、満足度整数化、全社グラフ描画等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -1120,6 +1120,7 @@ export class UIManager {
             const compareShareStr = (compareStat.globalShare * 100).toFixed(1) + '%';
             const compareAssetStr = this._formatMoneyShort(compareStat.assetValue);
 
+            // ★修正: 項目名を「👑 業界シェア」、サマリーを「業界シェア」に変更
             html += `
             <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
@@ -1128,7 +1129,7 @@ export class UIManager {
                         <div class="w-7 h-7 rounded-full ${iconBg} flex items-center justify-center font-bold text-white text-[10px] shadow">${shortName}</div>
                         <div class="text-left ml-1">
                             <div class="text-sm font-bold ${titleColor} leading-tight">${stat.name} ${isPlayer ? '★' : ''}</div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">シェア <span class="font-mono text-slate-300">${shareStr}</span> / 資産 <span class="font-mono text-slate-300">${assetStr}</span></div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">業界シェア <span class="font-mono text-slate-300">${shareStr}</span> / 資産 <span class="font-mono text-slate-300">${assetStr}</span></div>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -1138,7 +1139,7 @@ export class UIManager {
                 
                 <div class="${contentClass} p-3 pt-0 border-t border-slate-700/50 mt-1 rival-accordion-content">
                     <div class="mt-3 flex flex-col gap-3">
-                        ${this._createCompareBarHtml('👑 世界シェア率', playerStat.globalShare, compareStat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', compareShareStr)}
+                        ${this._createCompareBarHtml('👑 業界シェア', playerStat.globalShare, compareStat.globalShare, (playerStat.globalShare*100).toFixed(1)+'%', compareShareStr)}
                         ${this._createCompareBarHtml('💰 推定企業総資産', playerStat.assetValue, compareStat.assetValue, this._formatMoneyShort(playerStat.assetValue), compareAssetStr)}
                         ${this._createCompareBarHtml('⭐ 顧客満足度', playerStat.satisfaction, compareStat.satisfaction, Math.round(playerStat.satisfaction), Math.round(compareStat.satisfaction))}
                         ${this._createCompareBarHtml('🌐 総路線数', playerStat.routeCount, compareStat.routeCount, playerStat.routeCount, compareStat.routeCount)}
@@ -1173,7 +1174,6 @@ export class UIManager {
         });
     }
 
-    // ★修正: 「(勝ち!)」「(負け)」「(互角)」のテキスト判定を削除し、数値とバーのみのクリーンな表示に更新
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;
