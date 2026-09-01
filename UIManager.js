@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【コントロールセンター個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 420px / ライバル: 560px）の反映】
+ * 【コントロールセンター個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 420px / ライバル: 560px）＆ グラフ縦スクロール禁止】
  * 1. メニューTOP: 410px
- * 2. 実績とグラフ情報: 420px
+ * 2. 実績とグラフ情報: 420px（グラフ画面表示時は詳細コンテナの overflow-y を hidden に固定し、スクロールバーを完全禁止）
  * 3. 投資・アップグレード: 450px
  * 4. ライバル会社状況: 560px
- * 5. 提案箇所以外の内部レイアウト、折れ線描画、客数ハイブリッド表示、ピロリン通知音等は100%完全保持。
+ * 5. 内部レイアウト、折れ線描画、客数ハイブリッド表示、ピロリン通知音等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -264,7 +264,7 @@ export class UIManager {
             }, 300);
         });
 
-        // ★修正: 指定寸法（メニュー: 410px / グラフ: 420px / 投資: 450px / ライバル: 560px）へ伸縮
+        // ★修正: 指定寸法（メニュー: 410px / グラフ: 420px / 投資: 450px / ライバル: 560px）へ伸縮＆グラフ画面のスクロールバー禁止
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -291,7 +291,17 @@ export class UIManager {
                         this.onPanelOpened(targetId);
                     }
 
-                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[410px]', 'h-[420px]', 'h-[430px]', 'h-[440px]', 'h-[450px]', 'h-[460px]', 'h-[470px]', 'h-[480px]', 'h-[500px]', 'h-[510px]', 'h-[560px]', 'h-[580px]');
+                    // ★グラフ画面のみ縦スクロールを完全禁止（非表示）にし、他パネルは auto に設定
+                    const detailScrollContainer = this.ccLayerDetail.querySelector('.flex-1');
+                    if (detailScrollContainer) {
+                        if (this._isOverviewOpen) {
+                            detailScrollContainer.style.overflowY = 'hidden';
+                        } else {
+                            detailScrollContainer.style.overflowY = 'auto';
+                        }
+                    }
+
+                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[410px]', 'h-[420px]', 'h-[430px]', 'h-[440px]', 'h-[450px]', 'h-[460px]', 'h-[470px]', 'h-[480px]', 'h-[500px]', 'h-[510px]', 'h-[550px]', 'h-[560px]', 'h-[580px]');
                     
                     if (this._isRivalsOpen) {
                         this.controlCenter.style.height = '560px';
@@ -319,6 +329,11 @@ export class UIManager {
                 this._isRivalsOpen = false;
                 this._isOverviewOpen = false;
                 
+                const detailScrollContainer = this.ccLayerDetail.querySelector('.flex-1');
+                if (detailScrollContainer) {
+                    detailScrollContainer.style.overflowY = 'auto';
+                }
+
                 this.controlCenter.classList.add('h-[410px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
