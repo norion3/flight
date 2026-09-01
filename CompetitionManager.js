@@ -1,18 +1,21 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【業界シェアと世界シェア（世界カバー率）の明確な分離】
- * 1. 既存のライバル間パワー比較による占有率（globalShares）は「業界シェア」として完全維持。
- * 2. 地球上の全空港数を母数とした「世界シェア（世界カバー率: getWorldShare）」メソッドを新設。
- * これにより、序盤に日本周辺を繋いだだけで世界シェアが60%超になる違和感を解消しました。
+ * 【世界シェア（世界カバー率）の空港ランク別総ポイント計算への刷新】
+ * 1. 固定値（75）を完全撤廃し、地球儀上に配置された全空港のランク別ポイント（Major: 5点 / Local: 2点 / Fictional: 1点）
+ * を合計した「世界総ポイント（分母: 約350点）」を動的に算出。
+ * 2. 自社が就航している空港のポイント合計を分子として割ることで、日本国内を網羅した段階で約3%〜4%、
+ * アジア・欧米へ進出するごとに10% ➔ 30% ➔ 70%と伸びる直感通りの世界シェア計算に改修しました。
+ * 3. 既存のライバル間占有率（globalShares: 業界シェア）や満足度上限キャップ（400）は完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
 
 export class CompetitionManager {
-    constructor(networkManager, upgradeManager, rivalManager) {
+    constructor(networkManager, upgradeManager, rivalManager, airportManager) {
         this.networkManager = networkManager;
         this.upgradeManager = upgradeManager;
         this.rivalManager = rivalManager;
+        this.airportManager = airportManager; // 全空港データ参照用
 
         this.shares = {};
         this.globalShares = {}; 
@@ -117,17 +120,37 @@ export class CompetitionManager {
         return this.globalShares[companyId] || 0;
     }
 
-    // ★追加: 地球全体の全空港数（約75箇所）を母数とした「世界シェア（世界カバー率）」
+    // ★修正: 地球全体の全空港ランク別総ポイント（分母: 約350点）に基づく「世界シェア（世界カバー率）」
     getWorldShare(companyId = 'player') {
         const compNetwork = this.networkManager.network[companyId];
         if (!compNetwork) return 0;
 
-        const connectedAirports = Object.keys(compNetwork).filter(id => compNetwork[id] && compNetwork[id].length > 0);
-        const connectedCount = connectedAirports.length;
+        const rankWeights = { 'major': 5, 'local': 2, 'fictional': 1 };
         
-        // 地球上の全就航可能空港数（約75箇所）
-        const TOTAL_WORLD_AIRPORTS = 75;
-        return Math.min(1.0, connectedCount / TOTAL_WORLD_AIRPORTS);
+        // 1. 地球儀上の全空港マーカーから世界総ポイントを動的算出
+        let totalWorldPoints = 0;
+        if (this.airportManager && this.airportManager.markers && this.airportManager.markers.length > 0) {
+            this.airportManager.markers.forEach(m => {
+                const type = m.userData && m.userData.airportData ? m.userData.airportData.type : 'fictional';
+                totalWorldPoints += (rankWeights[type] || 1);
+            });
+        }
+        if (totalWorldPoints <= 0) totalWorldPoints = 350; // 安全フォールバック
+
+        // 2. 自社が就航している空港のポイント合計を算出
+        let connectedPoints = 0;
+        for (const airportId in compNetwork) {
+            if (compNetwork[airportId] && compNetwork[airportId].length > 0) {
+                let airportType = 'fictional';
+                if (this.airportManager && this.airportManager.getAirportById) {
+                    const node = this.airportManager.getAirportById(airportId);
+                    if (node) airportType = node.type;
+                }
+                connectedPoints += (rankWeights[airportType] || 1);
+            }
+        }
+
+        return Math.min(1.0, connectedPoints / totalWorldPoints);
     }
     
     getAiSatisfaction(companyId) {

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【イベント中タップ干渉防止 ＆ 安定した一時停止制御】
- * 1. `handleTap` の冒頭で、イベント表示中（`this.isPaused` または `isEventActive`）は
- * 地球儀タップ処理を即座に無視（return）し、モーダルが勝手に消えるのを防止。
- * 2. 既存のライバル情報集計、満足度整数化、5段階開拓コスト等は完全に保持しています。
+ * 【CompetitionManager への airportManager 連携】
+ * 1. CompetitionManager インスタンス化時に第4引数として `this.airportManager` を渡し、
+ * 全空港のランク別総ポイント（分母: 約350点）の動的計算を可能にしました。
+ * 2. イベントモーダルの表示・一時停止制御、満足度整数化、5段階開拓コスト等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -53,7 +53,13 @@ export class GameManager {
             }
         };
 
-        this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
+        // ★修正: 第4引数に this.airportManager を渡して全空港ランク別ポイント計算を連携
+        this.competitionManager = new CompetitionManager(
+            this.networkManager,
+            this.upgradeManager,
+            this.rivalManager,
+            this.airportManager
+        );
 
         this.eventManager = new EventManager(
             this,
@@ -379,7 +385,6 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        // ★修正: イベントモーダル表示中は地球儀タップ処理を完全無視して誤動作を防ぐ
         if (this.isPaused || (this.eventManager && this.eventManager.isEventActive)) return;
 
         const tapX = event.clientX;
