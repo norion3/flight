@@ -1,9 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【稼働機体数HUD更新バグ修正 ＆ 各画面最適高さ・相対比較バー完全保持】
- * 1. `updateTopHUD` 内で `elPlanesCount` の取得先が `hud-planes-max` になっていたミスを `hud-planes-count` に修正。
- * 2. ライバル比較バーの相対比較方式（大きい方を100%MAX基準）、全ライバル折れ線の太さ統一（1.5）、自社太線（2.0）完全保持。
- * 3. コントロールセンター各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）およびグラフ縦スクロール禁止完全保持。
+ * 【航路開拓ボタンのリアルタイム資金連動・グレーアウト実装 ＆ 全機能100%完全保持】
+ * 1. 航路開拓確認画面（#route-confirm-card）において、資金不足時は「開拓する」ボタンをグレーアウト（disabled）にし、
+ * 画面を開いたまま資金が貯まった瞬間に青色（有効）へ自動点灯するリアルタイム判定（checkRouteConfirmButton）を実装。
+ * 2. 空路廃止（撤退）時は資金が増加するため常時有効（赤色）を維持。
+ * 3. 上部HUD稼働機体数更新（hud-planes-count）、ライバル比較バーの相対比較方式（大きい方を100%MAX基準）、
+ * 全ライバル折れ線太さ（1.5）、自社太線（2.0）、各画面最適高さ（410px/450px/410px/540px）、グラフ縦スクロール禁止等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -54,6 +56,8 @@ export class UIManager {
         this.onPanelOpened = null; 
 
         this.currentRouteAction = null; 
+        this.currentRouteCost = 50000;
+        this._isRouteConfirmOpen = false;
         
         this._isUpgradesOpen = false;
         this._isBuyMenuOpen = false;
@@ -130,6 +134,11 @@ export class UIManager {
         document.getElementById('btn-cancel-connect').addEventListener('click', cancelRoute);
 
         document.getElementById('btn-action-route').addEventListener('click', () => {
+            const btnAction = document.getElementById('btn-action-route');
+            if (btnAction && btnAction.disabled) {
+                this.soundManager.playErrorSound();
+                return;
+            }
             this.soundManager.playSuccessSound();
             if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
         });
@@ -289,7 +298,6 @@ export class UIManager {
                         this.onPanelOpened(targetId);
                     }
 
-                    // ★グラフ画面のみ縦スクロールを完全禁止（非表示）にし、他パネルは auto に設定
                     const detailScrollContainer = this.ccLayerDetail.querySelector('.flex-1');
                     if (detailScrollContainer) {
                         if (this._isOverviewOpen) {
@@ -479,7 +487,6 @@ export class UIManager {
         }
     }
 
-    // ★修正: elPlanesCount の取得先を 'hud-planes-count' に正しく設定
     updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -624,6 +631,8 @@ export class UIManager {
         const btnAction = document.getElementById('btn-action-route');
 
         this.currentRouteAction = isConnected ? 'remove' : 'add';
+        this.currentRouteCost = routeCost;
+        this._isRouteConfirmOpen = true;
 
         const formattedCost = this._formatMoneyShort(routeCost);
 
@@ -632,6 +641,7 @@ export class UIManager {
             titleEl.className = "text-xs text-red-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
             
+            btnAction.disabled = false;
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnRemoveRoute || "廃止する"}</span>
@@ -644,13 +654,14 @@ export class UIManager {
             titleEl.className = "text-xs text-yellow-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute show";
             
+            btnAction.disabled = true;
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
-                    <span class="text-[11px] text-slate-300 font-mono tracking-wider">-${formattedCost}</span>
+                    <span class="text-[11px] text-slate-400 font-mono tracking-wider">-${formattedCost}</span>
                 </div>
             `;
-            btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors";
+            btnAction.className = "flex-1 py-3 rounded-xl bg-slate-700 text-slate-400 opacity-70 font-bold transition-colors disabled:pointer-events-none";
         }
 
         this._toggleMainButtons(false);
@@ -658,6 +669,7 @@ export class UIManager {
 
     hideRouteConfirm() {
         this.routeCard.classList.remove('show');
+        this._isRouteConfirmOpen = false;
     }
 
     hideAll() {
@@ -665,6 +677,7 @@ export class UIManager {
 
         this.infoCard.classList.remove('show');
         this.routeCard.classList.remove('show');
+        this._isRouteConfirmOpen = false;
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         
@@ -696,7 +709,44 @@ export class UIManager {
     isOverviewPanelOpen() { return this._isOverviewOpen; } 
     isEventModalOpen() { return this._isEventModalOpen; }
 
+    // ★航路開拓ボタンのリアルタイム資金連動（画面を開いたまま資金到達で青色に点灯）
+    checkRouteConfirmButton(currentFunds) {
+        if (!this._isRouteConfirmOpen) return;
+        if (this.currentRouteAction !== 'add') return;
+
+        const btnAction = document.getElementById('btn-action-route');
+        if (!btnAction) return;
+
+        const cost = this.currentRouteCost || 50000;
+        const canAfford = currentFunds >= cost;
+
+        if (canAfford !== !btnAction.disabled) {
+            btnAction.disabled = !canAfford;
+            const formattedCost = this._formatMoneyShort(cost);
+            if (canAfford) {
+                btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors";
+                btnAction.innerHTML = `
+                    <div class="flex items-center justify-center gap-3">
+                        <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
+                        <span class="text-[11px] text-slate-300 font-mono tracking-wider">-${formattedCost}</span>
+                    </div>
+                `;
+            } else {
+                btnAction.className = "flex-1 py-3 rounded-xl bg-slate-700 text-slate-400 opacity-70 font-bold transition-colors disabled:pointer-events-none";
+                btnAction.innerHTML = `
+                    <div class="flex items-center justify-center gap-3">
+                        <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
+                        <span class="text-[11px] text-slate-400 font-mono tracking-wider">-${formattedCost}</span>
+                    </div>
+                `;
+            }
+        }
+    }
+
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
+        // 毎フレームのループで航路確認ボタンの資金も連動チェック
+        this.checkRouteConfirmButton(currentFunds);
+
         if (!this._isBuyMenuOpen) return;
         
         const isFull = currentPlanes >= maxPlanes;
