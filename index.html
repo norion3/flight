@@ -545,8 +545,9 @@
                         <div id="panel-upgrades" class="hidden py-4 flex flex-col gap-3">
                         </div>
 
-                        <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
-                            <div class="grid grid-cols-3 gap-1 bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
+                        <!-- ★修正: タイトルバーとの間に mt-2 の隙間を確保し、グラフカード内のマージンを微調整してはみ出しを防止 -->
+                        <div id="panel-overview" class="hidden py-2 flex flex-col gap-2">
+                            <div class="grid grid-cols-3 gap-1 bg-slate-800/80 rounded-lg p-1 border border-slate-700/50 mt-2">
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors text-center" data-tab="funds">資金</button>
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="income">収益</button>
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="passengers">客数</button>
@@ -555,8 +556,8 @@
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="share">シェア</button>
                             </div>
 
-                            <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">
-                                <div class="flex justify-between items-end mb-3">
+                            <div class="bg-slate-800 rounded-xl p-3.5 border border-transparent shadow-inner">
+                                <div class="flex justify-between items-end mb-2">
                                     <div>
                                         <div id="graph-title-player" class="text-[10px] text-slate-400 font-bold mb-0.5">当期資金推移</div>
                                         <div id="graph-value-player" class="text-2xl font-bold text-emerald-400 font-mono leading-none">$ 0</div>
@@ -567,7 +568,7 @@
                                     </div>
                                 </div>
                                 
-                                <div class="w-full h-32 relative mt-4">
+                                <div class="w-full h-32 relative mt-2.5">
                                     <div class="absolute inset-0 flex flex-col justify-between">
                                         <div class="w-full h-px bg-slate-700/50"></div>
                                         <div class="w-full h-px bg-slate-700/50"></div>
