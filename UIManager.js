@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【コントロールセンター基本高さの460px最適化 ＆ スクロールバー完全解消】
- * 1. パネルの基本高さを `400px` から `460px` に統一し、6タブ拡張後の実績・グラフ情報画面で
- * 縦スクロールバーが出ずにジャストフィットで表示されるよう調整。
- * 2. 既存の顧客満足度・業界シェアを含む6タブ描画、ハイブリッド客数フォーマット、
- * イベントモーダルのピロリン通知音（playNoticeSound）、トースト位置（top-48）等は完全に保持しています。
+ * 【コントロールセンター個別最適サイズ（動的伸縮）＆ 黄金比余白設計】
+ * 1. メニューTOP（390px）、実績とグラフ情報（440px）、投資・アップグレード（480px）、
+ * ライバル会社状況（500px）へ、画面遷移に合わせてパネル枠が滑らかにアニメーション伸縮。
+ * 2. グラフやボタンの内部レイアウト、折れ線描画、客数ハイブリッド表示、ピロリン通知音（playNoticeSound）等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -257,12 +256,13 @@ export class UIManager {
             this._toggleMainButtons(true);
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[460px]');
+                this.controlCenter.classList.add('h-[390px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
         });
 
+        // ★修正: 各画面のコンテンツ量・黄金比余白（16〜24px）に合わせた個別最適高さへ滑らかに伸縮
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -289,13 +289,19 @@ export class UIManager {
                         this.onPanelOpened(targetId);
                     }
 
+                    this.controlCenter.classList.remove('h-[390px]', 'h-[400px]', 'h-[440px]', 'h-[460px]', 'h-[480px]', 'h-[500px]', 'h-[560px]');
+                    
                     if (this._isRivalsOpen) {
-                        this.controlCenter.classList.remove('h-[460px]');
-                        this.controlCenter.style.height = '560px';
+                        this.controlCenter.style.height = '500px';
+                        this.controlCenter.style.maxHeight = '80vh';
+                    } else if (this._isUpgradesOpen) {
+                        this.controlCenter.style.height = '480px';
+                        this.controlCenter.style.maxHeight = '80vh';
+                    } else if (this._isOverviewOpen) {
+                        this.controlCenter.style.height = '440px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else {
-                        this.controlCenter.classList.add('h-[460px]');
-                        this.controlCenter.style.height = '';
+                        this.controlCenter.style.height = '390px';
                         this.controlCenter.style.maxHeight = '';
                     }
                 }
@@ -311,7 +317,7 @@ export class UIManager {
                 this._isRivalsOpen = false;
                 this._isOverviewOpen = false;
                 
-                this.controlCenter.classList.add('h-[460px]');
+                this.controlCenter.classList.add('h-[390px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             });
@@ -338,7 +344,7 @@ export class UIManager {
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
-                    this.controlCenter.classList.add('h-[460px]');
+                    this.controlCenter.classList.add('h-[390px]');
                     this.controlCenter.style.height = '';
                     this.controlCenter.style.maxHeight = '';
                     
@@ -650,7 +656,7 @@ export class UIManager {
             this.controlCenter.classList.remove('show');
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[460px]');
+                this.controlCenter.classList.add('h-[390px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
