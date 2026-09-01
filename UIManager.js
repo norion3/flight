@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバル比較バーの相対比較方式（大きい方を100%MAX基準）への刷新】
- * 1. `_createCompareBarHtml` において、自社と他社の大きい方の値を100%（MAX）としてバーを算出。
- * 資産が互角なら両方のバーがほぼ100%まで伸び、シェアに差があれば多い方が100%、少ない方が比率通りに表示される直感的な仕様に変更。
- * 2. コントロールセンター各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）完全保持。
- * 3. グラフ画面の縦スクロール禁止、全ライバル折れ線の太さ統一（1.5 / 0.8）、自社太線（2.0 / 1.0）等も100%完全保持。
+ * 【稼働機体数HUD更新バグ修正 ＆ 各画面最適高さ・相対比較バー完全保持】
+ * 1. `updateTopHUD` 内で `elPlanesCount` の取得先が `hud-planes-max` になっていたミスを `hud-planes-count` に修正。
+ * 2. ライバル比較バーの相対比較方式（大きい方を100%MAX基準）、全ライバル折れ線の太さ統一（1.5）、自社太線（2.0）完全保持。
+ * 3. コントロールセンター各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）およびグラフ縦スクロール禁止完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -263,7 +262,7 @@ export class UIManager {
             }, 300);
         });
 
-        // ★修正: 指定寸法（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）へ伸縮＆グラフ画面のスクロールバー禁止
+        // ★各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）へ伸縮＆グラフ画面のスクロールバー禁止
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -480,10 +479,11 @@ export class UIManager {
         }
     }
 
+    // ★修正: elPlanesCount の取得先を 'hud-planes-count' に正しく設定
     updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
-        const elPlanesCount = document.getElementById('hud-planes-max');
+        const elPlanesCount = document.getElementById('hud-planes-count');
         const elPlanesMax = document.getElementById('hud-planes-max');
         const elIncome = document.getElementById('hud-income');
         const elPassengers = document.getElementById('hud-passengers');
@@ -1037,6 +1037,7 @@ export class UIManager {
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
+                    point.setAttribute('cy', lastP[1]);
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
                 }
@@ -1206,7 +1207,6 @@ export class UIManager {
         });
     }
 
-    // ★修正: 大きい方の値を 100%（MAX基準）として相対的にバーを伸ばす直感的な計算方式
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const maxVal = Math.max(playerVal, rivalVal, 0.0001);
         const pPct = maxVal > 0.0001 ? Math.min(100, Math.max(0, (playerVal / maxVal) * 100)) : 0;
