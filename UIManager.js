@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【コントロールセンター個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）＆ グラフ縦スクロール禁止】
- * 1. メニューTOP: 410px
- * 2. 実績とグラフ情報: 410px（グラフ画面表示時は詳細コンテナの overflow-y を hidden に固定し、スクロールバーを完全禁止）
- * 3. 投資・アップグレード: 450px
- * 4. ライバル会社状況: 540px
- * 5. 内部レイアウト、折れ線描画、客数ハイブリッド表示、ピロリン通知音等は100%完全保持。
+ * 【ライバル折れ線の太さ統一（全ライバル 1.5 / 自社 2.0）】
+ * 1. 実績とグラフ情報画面において、1位以外の他社ライン（graph-line-other-*）の太さを 0.8 ➔ 1.5、
+ * 不透明度を 0.35 ➔ 0.8 に引き上げ、1位と同じ太さで視認性を統一。
+ * 2. 自社ライン（graph-line-player）の太線（2.0 / 不透明度 1.0）はそのまま強調を維持。
+ * 3. 各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）および
+ * グラフ縦スクロール禁止、ハイブリッド客数表示、通知音等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -1033,11 +1033,13 @@ export class UIManager {
                 if (line) {
                     line.setAttribute('points', pts);
                     line.setAttribute('stroke', hexColor);
-                    line.setAttribute('stroke-width', '0.8');
-                    line.setAttribute('opacity', '0.35');
+                    // ★修正: 他社ラインも1位と同じ太さ(1.5)・視認性の良い不透明度(0.8)に統一
+                    line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('opacity', '0.8');
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
+                    point.setAttribute('cy', lastP[1]);
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
                 }
