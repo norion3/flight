@@ -1,9 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【EconomyManager への EventManager 連携】
- * 1. `animate` ループ内の `this.economyManager.update(...)` に第6引数として
- * `this.eventManager` を渡し、イベント一時バフのリアルタイム計算を有効化。
- * 2. CompetitionManager への airportManager 連携、トースト通知位置、イベントモーダル制御等は完全に保持しています。
+ * 【航路開拓ボタンへの所持金連携 ＆ リアルタイム更新の確実な実行】
+ * 1. `handleTap` および `onRouteActionConfirmed` で `showRouteConfirm` を呼ぶ際、
+ * 第5引数として `this.economyManager.funds` を渡し、開いた瞬間に正しい資金判定（青色点灯）を実行。
+ * 2. `animate` ループ内で毎フレーム `this.uiManager.checkRouteConfirmButton(this.economyManager.funds)` を呼び、
+ * 開拓画面を開いたままでも資金到達時に即座に有効化されるリアルタイム連動を完全保証。
+ * 3. 一時イベントバフ計算、CompetitionManager への airportManager 連携、トースト通知等は完全に保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -101,7 +103,7 @@ export class GameManager {
                     if (success) {
                         this.economyManager.deductFunds(routeCost);
                         this.planeManager.wakeUpPlanes();
-                        this.uiManager.showRouteConfirm(originData, destData, true, routeCost);
+                        this.uiManager.showRouteConfirm(originData, destData, true, routeCost, this.economyManager.funds);
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
@@ -111,7 +113,7 @@ export class GameManager {
                     
                     if (this.networkManager.canConnect(originData, destData)) {
                         const routeCost = this.economyManager.calculateRouteCost(originData, destData);
-                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost);
+                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost, this.economyManager.funds);
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
@@ -451,7 +453,7 @@ export class GameManager {
                 const routeCost = this.economyManager.calculateRouteCost(originData, destData);
 
                 if (isConnected) {
-                    this.uiManager.showRouteConfirm(originData, destData, true, routeCost); 
+                    this.uiManager.showRouteConfirm(originData, destData, true, routeCost, this.economyManager.funds); 
                 } else {
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
                     const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
@@ -464,7 +466,7 @@ export class GameManager {
                         this.airportManager.clearHighlight('dest'); 
                         this.uiManager.setConnectingMode();
                     } else if (this.networkManager.canConnect(originData, destData)) {
-                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost); 
+                        this.uiManager.showRouteConfirm(originData, destData, false, routeCost, this.economyManager.funds); 
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                         this.selectedDestination = null;
@@ -512,7 +514,6 @@ export class GameManager {
 
         this.competitionManager.update(delta);
         
-        // ★修正: 第6引数に this.eventManager を渡し、一時バフ（倍率）を計算に反映
         this.economyManager.update(
             delta,
             this.planeManager.planes,
@@ -526,6 +527,9 @@ export class GameManager {
         if (this.eventManager) {
             this.eventManager.update(delta);
         }
+
+        // ★追加: 航路開拓確認ボタンのリアルタイム資金連動チェック
+        this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
 
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {

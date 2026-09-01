@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【航路開拓ボタンのリアルタイム資金連動・グレーアウト実装 ＆ 全機能100%完全保持】
- * 1. 航路開拓確認画面（#route-confirm-card）において、資金不足時は「開拓する」ボタンをグレーアウト（disabled）にし、
- * 画面を開いたまま資金が貯まった瞬間に青色（有効）へ自動点灯するリアルタイム判定（checkRouteConfirmButton）を実装。
- * 2. 空路廃止（撤退）時は資金が増加するため常時有効（赤色）を維持。
- * 3. 上部HUD稼働機体数更新（hud-planes-count）、ライバル比較バーの相対比較方式（大きい方を100%MAX基準）、
- * 全ライバル折れ線太さ（1.5）、自社太線（2.0）、各画面最適高さ（410px/450px/410px/540px）、グラフ縦スクロール禁止等は100%完全保持。
+ * 【航路開拓ボタンの初期表示判定 ＆ リアルタイム資金連動の完全修正】
+ * 1. `showRouteConfirm` において、画面を開いた瞬間の所持金（currentFunds）を受け取り、
+ * 資金が十分にあれば即座に有効（青色）、不足していればグレーアウト（無効）で描画するよう修正。
+ * 2. `checkRouteConfirmButton` により、画面を開いたまま資金が目標額に達した瞬間に自動で青色点灯。
+ * 3. 各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）、
+ * グラフ縦スクロール禁止、相対比較バー（パターンA）、HUD稼働機体数更新等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -621,7 +621,8 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    showRouteConfirm(fromData, toData, isConnected, routeCost = 50000) {
+    // ★修正: 開いた瞬間の所持金判定を行い、十分にあれば青色(有効)、不足ならグレー(無効)で即座に描画
+    showRouteConfirm(fromData, toData, isConnected, routeCost = 50000, currentFunds = null) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
         document.getElementById('route-from').innerText = fromData.id;
@@ -654,14 +655,26 @@ export class UIManager {
             titleEl.className = "text-xs text-yellow-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-yellow-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-yellow-900/20 absolute show";
             
-            btnAction.disabled = true;
-            btnAction.innerHTML = `
-                <div class="flex items-center justify-center gap-3">
-                    <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
-                    <span class="text-[11px] text-slate-400 font-mono tracking-wider">-${formattedCost}</span>
-                </div>
-            `;
-            btnAction.className = "flex-1 py-3 rounded-xl bg-slate-700 text-slate-400 opacity-70 font-bold transition-colors disabled:pointer-events-none";
+            const canAfford = (currentFunds !== null) ? (currentFunds >= routeCost) : true;
+            btnAction.disabled = !canAfford;
+
+            if (canAfford) {
+                btnAction.className = "flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold active:bg-blue-500 shadow-lg shadow-blue-900/50 transition-colors";
+                btnAction.innerHTML = `
+                    <div class="flex items-center justify-center gap-3">
+                        <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
+                        <span class="text-[11px] text-slate-300 font-mono tracking-wider">-${formattedCost}</span>
+                    </div>
+                `;
+            } else {
+                btnAction.className = "flex-1 py-3 rounded-xl bg-slate-700 text-slate-400 opacity-70 font-bold transition-colors disabled:pointer-events-none";
+                btnAction.innerHTML = `
+                    <div class="flex items-center justify-center gap-3">
+                        <span>${window.APP_LANG.btnOpenRoute || "開拓する"}</span>
+                        <span class="text-[11px] text-slate-400 font-mono tracking-wider">-${formattedCost}</span>
+                    </div>
+                `;
+            }
         }
 
         this._toggleMainButtons(false);
@@ -709,7 +722,7 @@ export class UIManager {
     isOverviewPanelOpen() { return this._isOverviewOpen; } 
     isEventModalOpen() { return this._isEventModalOpen; }
 
-    // ★航路開拓ボタンのリアルタイム資金連動（画面を開いたまま資金到達で青色に点灯）
+    // ★航路開拓ボタンのリアルタイム資金連動（毎フレーム監視し、画面を開いたまま資金到達で青色に点灯）
     checkRouteConfirmButton(currentFunds) {
         if (!this._isRouteConfirmOpen) return;
         if (this.currentRouteAction !== 'add') return;
@@ -744,9 +757,6 @@ export class UIManager {
     }
 
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
-        // 毎フレームのループで航路確認ボタンの資金も連動チェック
-        this.checkRouteConfirmButton(currentFunds);
-
         if (!this._isBuyMenuOpen) return;
         
         const isFull = currentPlanes >= maxPlanes;
@@ -1087,7 +1097,6 @@ export class UIManager {
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
-                    point.setAttribute('cy', lastP[1]);
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
                 }
