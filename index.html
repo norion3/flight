@@ -173,11 +173,11 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <div id="toast-notification" class="fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
+    <!-- ★修正: top-36 から top-48 へ変更し、HUDとの干渉を防ぎ視認性を向上 -->
+    <div id="toast-notification" class="fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
         Message
     </div>
 
-    <!-- ★修正: 画面中央に確実にポップアップするイベントモーダル（バックドロップ付き） -->
     <div id="event-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
         <div id="event-modal-card" class="bg-slate-900/95 border-2 border-amber-500/80 rounded-2xl p-5 shadow-2xl shadow-amber-950/60 w-full max-w-sm">
             <div class="flex items-center gap-2 mb-2.5">
@@ -186,7 +186,6 @@
             </div>
             <p id="event-modal-desc" class="text-xs text-slate-200 leading-relaxed mb-4">イベントの状況説明文がここに入ります。</p>
             <div class="flex flex-col gap-2" id="event-modal-options">
-                <!-- 動的に選択ボタンを注入 -->
             </div>
         </div>
     </div>

@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバル状況パネルの「業界シェア」表記統一】
- * 1. ライバル状況パネルの項目名を「👑 業界シェア」、サマリー行を「業界シェア XX%」に変更。
- * 2. 比較バーの「自社 XX / 他社 YY」数値表示と2本の色分けバーによる洗練UIを完全保持。
- * 3. イベントモーダルのバックドロップ表示、満足度整数化、全社グラフ描画等は完全に保持しています。
+ * 【トースト通知位置の人間工学・視認性最適化】
+ * 1. `showToast` および `showWithdrawToast` の表示基準位置を `top-36` から `top-48`（約192px）へ下げ、
+ * 上部HUDとのクラッター（視覚競合）を解消し、自然な視線焦点でパッと読めるように最適化。
+ * 2. 既存のライバルパネル「業界シェア」表記、満足度整数化、イベントモーダル表示等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -503,8 +503,9 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
+    // ★修正: top-36 から top-48 へ変更し、HUDとの干渉を防ぎ視認性を向上
     showToast(message, type = 'error') {
-        const baseClasses = "fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -528,9 +529,10 @@ export class UIManager {
         }, 3000); 
     }
 
+    // ★修正: top-36 から top-48 へ変更し、HUDとの干渉を防ぎ視認性を向上
     showWithdrawToast(message, rivalId) {
         this.soundManager.playEventSound();
-        const baseClasses = "fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
@@ -1120,7 +1122,6 @@ export class UIManager {
             const compareShareStr = (compareStat.globalShare * 100).toFixed(1) + '%';
             const compareAssetStr = this._formatMoneyShort(compareStat.assetValue);
 
-            // ★修正: 項目名を「👑 業界シェア」、サマリーを「業界シェア」に変更
             html += `
             <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
