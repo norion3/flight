@@ -1,8 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【トップHUDへの世界シェア（世界カバー率）連動】
- * トップHUDに表示する「世界シェア」に、地球全体の全空港を母数とした実質カバー率（getWorldShare）を
- * 連携させることで、序盤の数値の違和感を解消し、世界制覇の手応えを自然に向上させました。
+ * 【イベント一時バフ（activeBuffs）の直接乗算連携】
+ * 1. `update` メソッドに `eventManager` を連携し、イベントで獲得した一時的な
+ * 「収益ボーナス（incomeRateDelta）」および「搭乗客数ボーナス（passengersRateDelta）」を
+ * プレイヤー機の毎秒計算式に直接反映（乗算）するように修正。
+ * 2. 既存の全空港ランク別総ポイントによる世界シェア計算（getWorldShare）、5段階開拓コスト、
+ * AI自立経済モデル等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -108,7 +111,7 @@ export class EconomyManager {
         return baseCost * rankMultiplier;
     }
 
-    update(delta, planes, networkManager, upgradeManager, competitionManager) {
+    update(delta, planes, networkManager, upgradeManager, competitionManager, eventManager) {
         if (delta <= 0.0001) return;
 
         this.incomeTimer += delta;
@@ -173,6 +176,11 @@ export class EconomyManager {
         const networkBonus = 1.0 + (Math.sqrt(netLen) * 0.1); 
         const passNetworkBonus = 1.0 + (Math.sqrt(netLen) * 0.05); 
 
+        // ★追加: イベントによる一時バフ（倍率）を取得
+        const eventBuffs = (eventManager && eventManager.getBuffs) ? eventManager.getBuffs() : null;
+        const eventIncomeBonus = 1.0 + (eventBuffs ? (eventBuffs.incomeRate || 0) : 0);
+        const eventPassBonus = 1.0 + (eventBuffs ? (eventBuffs.passengersRate || 0) : 0);
+
         planes.forEach(plane => {
             if (plane.companyId !== 'player') return;
             totalPlanesCount++;
@@ -200,10 +208,12 @@ export class EconomyManager {
                     }
                 }
 
-                const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare * networkBonus;
+                // ★修正: イベント収益バフを乗算
+                const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare * networkBonus * eventIncomeBonus;
                 grossIncomeThisFrame += incomePerSec * delta;
 
-                const passPerSec = (planeConf.baseDemand / 4) * effectiveShare * passNetworkBonus * satisfactionBonus;
+                // ★修正: イベント搭乗客数バフを乗算
+                const passPerSec = (planeConf.baseDemand / 4) * effectiveShare * passNetworkBonus * satisfactionBonus * eventPassBonus;
                 currentFramePassengers += passPerSec * delta;
             }
         });
@@ -252,7 +262,6 @@ export class EconomyManager {
         const calendarStr = `${this.currentYear}年目-${this.currentMonth}月`;
         const passStr = this._formatNumber(Math.floor(this.totalPassengers));
         
-        // ★修正: トップHUDには全地球を母数とした「世界シェア（世界カバー率）」を表示
         const playerWorldShare = competitionManager ? (competitionManager.getWorldShare ? competitionManager.getWorldShare('player') : 0) : 0;
         const shareStr = (playerWorldShare * 100).toFixed(1);
 

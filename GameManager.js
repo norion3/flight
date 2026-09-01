@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【CompetitionManager への airportManager 連携】
- * 1. CompetitionManager インスタンス化時に第4引数として `this.airportManager` を渡し、
- * 全空港のランク別総ポイント（分母: 約350点）の動的計算を可能にしました。
- * 2. イベントモーダルの表示・一時停止制御、満足度整数化、5段階開拓コスト等は完全に保持しています。
+ * 【EconomyManager への EventManager 連携】
+ * 1. `animate` ループ内の `this.economyManager.update(...)` に第6引数として
+ * `this.eventManager` を渡し、イベント一時バフのリアルタイム計算を有効化。
+ * 2. CompetitionManager への airportManager 連携、トースト通知位置、イベントモーダル制御等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -53,7 +53,6 @@ export class GameManager {
             }
         };
 
-        // ★修正: 第4引数に this.airportManager を渡して全空港ランク別ポイント計算を連携
         this.competitionManager = new CompetitionManager(
             this.networkManager,
             this.upgradeManager,
@@ -513,7 +512,15 @@ export class GameManager {
 
         this.competitionManager.update(delta);
         
-        this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
+        // ★修正: 第6引数に this.eventManager を渡し、一時バフ（倍率）を計算に反映
+        this.economyManager.update(
+            delta,
+            this.planeManager.planes,
+            this.networkManager,
+            this.upgradeManager,
+            this.competitionManager,
+            this.eventManager
+        );
         this.rivalManager.update(delta, this.competitionManager);
         
         if (this.eventManager) {
