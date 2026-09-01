@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 5: EventManagerの統合と一時停止/再開制御】
- * 1. EventManager インスタンスを生成し、アニメーションループ内で更新。
- * 2. イベント発生時（isPaused = true）は、3Dアニメーションや経済シミュレーション時間を
- * 一時停止し、モーダルでの選択完了後にスムーズに再開します。
- * 3. 既存のライバル情報集計、満足度整数化、5段階開拓コスト等は完全に保持しています。
+ * 【イベント中タップ干渉防止 ＆ 安定した一時停止制御】
+ * 1. `handleTap` の冒頭で、イベント表示中（`this.isPaused` または `isEventActive`）は
+ * 地球儀タップ処理を即座に無視（return）し、モーダルが勝手に消えるのを防止。
+ * 2. 既存のライバル情報集計、満足度整数化、5段階開拓コスト等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -18,7 +17,7 @@ import { RivalManager } from './RivalManager.js';
 import { EconomyManager } from './EconomyManager.js';
 import { UpgradeManager } from './UpgradeManager.js';
 import { CompetitionManager } from './CompetitionManager.js';
-import { EventManager } from './EventManager.js'; // ★追加
+import { EventManager } from './EventManager.js';
 import { Utils } from './Utils.js';
 
 const STATE_IDLE = 0;
@@ -32,7 +31,7 @@ export class GameManager {
         this.state = STATE_IDLE;
         this.selectedOrigin = null;
         this.targetDistance = null; 
-        this.isPaused = false; // ★追加: イベント時の一時停止フラグ
+        this.isPaused = false; 
 
         this.initThree();
         this.globe = new Globe(this.scene);
@@ -56,7 +55,6 @@ export class GameManager {
 
         this.competitionManager = new CompetitionManager(this.networkManager, this.upgradeManager, this.rivalManager);
 
-        // ★追加: EventManager の初期化
         this.eventManager = new EventManager(
             this,
             this.uiManager,
@@ -381,6 +379,8 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
+        // ★修正: イベントモーダル表示中は地球儀タップ処理を完全無視して誤動作を防ぐ
+        if (this.isPaused || (this.eventManager && this.eventManager.isEventActive)) return;
 
         const tapX = event.clientX;
         const tapY = event.clientY;
@@ -483,7 +483,6 @@ export class GameManager {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         const rawDelta = this.clock.getDelta();
-        // ★イベントモーダル表示時はシミュレーション時間を一時停止（delta = 0）
         const delta = this.isPaused ? 0 : rawDelta;
 
         if (this.targetDistance !== null) {
@@ -512,7 +511,6 @@ export class GameManager {
         this.economyManager.update(delta, this.planeManager.planes, this.networkManager, this.upgradeManager, this.competitionManager);
         this.rivalManager.update(delta, this.competitionManager);
         
-        // ★追加: EventManager の更新
         if (this.eventManager) {
             this.eventManager.update(delta);
         }

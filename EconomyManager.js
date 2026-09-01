@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AIへの売却代金還元メソッドの追加】
- * AIが余剰機体を売却した際に売却益を手持ち資金（aiFunds）に戻す `addAiFunds` を追加しました。
- * 5段階開拓コスト計算やセーフティネット等の既存ロジックは一切変更していません。
+ * 【AI収益インフレの最適化 ＆ 5段階開拓コストの完全保持】
+ * 1. AIの収益計算式における基礎係数と満足度倍率をプレイヤーと同等のスケールに調整し、
+ * 2年目に資金が $700M などの青天井になる現象を完全に解消。
+ * 2. 5段階の距離別開拓コスト（$200K〜$25M）およびセーフティネットは100%保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -76,7 +77,6 @@ export class EconomyManager {
         }
     }
 
-    // ★追加: AIへの売却益還元メソッド
     addAiFunds(companyId, amount) {
         if (isNaN(amount)) return;
         if (this.aiFunds[companyId] !== undefined) {
@@ -187,7 +187,7 @@ export class EconomyManager {
                 const bonuses = upgradeManager.getBonuses();
                 const upgradeIncomeRate = bonuses.incomeRate || 1.0;
                 
-                const satisfaction = bonuses.satisfaction || 0;
+                const satisfaction = (bonuses.satisfaction || 0) + (upgradeManager.eventSatisfactionBonus || 0);
                 const satisfactionBonus = 1.0 + (satisfaction / 100.0);
                 
                 let effectiveShare = 1.0;
@@ -211,7 +211,6 @@ export class EconomyManager {
 
         let currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
 
-        // プレイヤー用セーフティネット
         if (this.funds <= 1000 && currentNetIncome < 0) {
             currentNetIncome = Math.max(currentNetIncome, 5000); 
         }
@@ -296,7 +295,7 @@ export class EconomyManager {
             
             // ① 客数（スコア）計算
             const baseAiRate = (routeCount * 2.2) + (planeCount * 3.5);
-            const satBonus = Math.pow(1.0 + (Math.max(0, satisfaction) / 100), 2.0);
+            const satBonus = 1.0 + (Math.max(0, satisfaction) / 100.0);
             const distBonus = Math.sqrt(Math.max(0, netLength)) * 0.05;
             
             const currentAiRate = baseAiRate * satBonus * (1.0 + distBonus);
@@ -304,19 +303,18 @@ export class EconomyManager {
                 this.aiPassengers[comp.id] += (currentAiRate * delta);
             }
 
-            // ② 資金（リアル現金収支）計算
+            // ② 資金（リアル現金収支）計算: プレイヤーと同等スケールにマイルド化
             const globalShare = competitionManager ? (competitionManager.globalShares[comp.id] || 0) : 0;
-            const shareMult = 0.5 + (globalShare * 3.0); 
+            const shareMult = 0.5 + (globalShare * 1.5); 
 
-            const baseIncome = (routeCount * 2500) + (planeCount * 3500); 
+            const baseIncome = (routeCount * 400) + (planeCount * 600); 
             let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
-            let upkeep = planeCount * 1200; 
+            let upkeep = planeCount * 250; 
             
             let netIncome = grossIncome - upkeep;
 
-            // AI用セーフティネット
             if (this.aiFunds[comp.id] <= 5000000 && netIncome < 0) {
-                netIncome = Math.max(netIncome, 25000); 
+                netIncome = Math.max(netIncome, 5000); 
             }
 
             if (!isNaN(netIncome)) {

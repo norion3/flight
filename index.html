@@ -59,7 +59,7 @@
             const now = (new Date()).getTime();
             if (now - lastTouchEnd <= 300) {
                 event.preventDefault();
-                const targetBtn = event.target.closest('button, .cc-link-btn, .buy-plane-btn, .sell-plane-btn, .upgrade-action-btn, .rival-accordion-btn, .graph-tab-btn');
+                const targetBtn = event.target.closest('button, .cc-link-btn, .buy-plane-btn, .sell-plane-btn, .upgrade-action-btn, .rival-accordion-btn, .graph-tab-btn, .event-option-btn');
                 
                 if (targetBtn && !targetBtn.disabled) {
                     targetBtn.click();
@@ -143,6 +143,24 @@
         .toast-show { opacity: 1 !important; transform: translate(-50%, 0) !important; }
         #fab-buy-plane { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #zoom-controls { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* イベントモーダル専用スタイル */
+        #event-modal-backdrop {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #event-modal-backdrop.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #event-modal-card {
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        #event-modal-backdrop.show #event-modal-card {
+            transform: scale(1);
+        }
     </style>
 </head>
 <body class="text-slate-100">
@@ -157,6 +175,20 @@
 
     <div id="toast-notification" class="fixed top-36 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
         Message
+    </div>
+
+    <!-- ★修正: 画面中央に確実にポップアップするイベントモーダル（バックドロップ付き） -->
+    <div id="event-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
+        <div id="event-modal-card" class="bg-slate-900/95 border-2 border-amber-500/80 rounded-2xl p-5 shadow-2xl shadow-amber-950/60 w-full max-w-sm">
+            <div class="flex items-center gap-2 mb-2.5">
+                <span class="text-2xl">📢</span>
+                <h3 id="event-modal-title" class="text-sm font-bold text-amber-300 tracking-wider">イベントタイトル</h3>
+            </div>
+            <p id="event-modal-desc" class="text-xs text-slate-200 leading-relaxed mb-4">イベントの状況説明文がここに入ります。</p>
+            <div class="flex flex-col gap-2" id="event-modal-options">
+                <!-- 動的に選択ボタンを注入 -->
+            </div>
+        </div>
     </div>
 
     <div id="top-status-hud" class="interactive-ui absolute top-0 w-full left-0 right-0 bg-slate-900/85 backdrop-blur-md border-b border-slate-700/50 flex justify-center z-10 transition-transform duration-300 -translate-y-full pt-11 pb-2 shadow-xl shadow-slate-950/50">
@@ -208,18 +240,6 @@
     </div>
 
     <div id="ui-layer" class="pb-4 px-4 relative overflow-hidden flex flex-col items-center">
-        
-        <!-- ★追加: Phase 5 ランダムイベントモーダルダイアログ -->
-        <div id="event-modal-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-amber-500/50 rounded-2xl p-4 backdrop-blur-md shadow-2xl shadow-amber-900/30 absolute z-40">
-            <div class="flex items-center gap-2 mb-2">
-                <span class="text-lg">📢</span>
-                <h3 id="event-modal-title" class="text-sm font-bold text-amber-300 tracking-wider">イベントタイトル</h3>
-            </div>
-            <p id="event-modal-desc" class="text-xs text-slate-200 leading-relaxed mb-4">イベントの状況説明文がここに入ります。</p>
-            <div class="flex flex-col gap-2" id="event-modal-options">
-                <!-- 動的に選択ボタンを注入 -->
-            </div>
-        </div>
 
         <div id="connecting-mode-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-full py-2 px-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 absolute flex items-center justify-between space-x-4">
             <p class="text-xs text-yellow-400 font-bold animate-pulse whitespace-nowrap">行先の空港をタップ...</p>

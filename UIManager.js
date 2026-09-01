@@ -1,8 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 5: ランダムイベントモーダルUIの実装】
- * 1. `event-modal-card` の表示・選択肢バインドおよびコールバック処理を実装。
- * 2. 既存のライバルパネル「他社」表記、満足度整数化、全社グラフ描画等は完全に保持しています。
+ * 【イベントモーダル表示の安定化・誤タップ干渉防止】
+ * 1. `#event-modal-backdrop` による中央ダイアログポップアップに対応。
+ * 2. イベントモーダル表示中（`_isEventModalOpen = true`）は、地球儀タップ等の `hideAll` で
+ * 勝手にモーダルが消去されないよう保護ガードを設置。
+ * 3. 既存のライバルパネル「他社」表記、満足度整数化、全社グラフ描画等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -22,7 +24,7 @@ export class UIManager {
         
         this.exitCard = document.getElementById('exit-confirm-card');
         this.helpMenu = document.getElementById('help-menu');
-        this.eventCard = document.getElementById('event-modal-card'); // ★追加: イベントモーダル
+        this.eventBackdrop = document.getElementById('event-modal-backdrop'); // ★修正: バックドロップ要素
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -404,7 +406,7 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★追加: イベントモーダルの表示・選択処理
+    // ★修正: イベントモーダルの表示処理
     showEventModal(eventData, context, callback) {
         this.soundManager.playWarningSound();
         this.hideAll();
@@ -421,10 +423,10 @@ export class UIManager {
             eventData.options.forEach((opt, idx) => {
                 const cost = opt.getCost(context);
                 const costStr = cost > 0 ? `-${this._formatMoneyShort(cost)}` : '出費なし';
-                const costClass = cost > 0 ? 'text-amber-300 font-mono' : 'text-emerald-300 font-bold';
+                const costClass = cost > 0 ? 'text-amber-300 font-mono font-bold' : 'text-emerald-300 font-bold';
 
                 optionsHtml += `
-                <button class="event-option-btn w-full p-3 bg-slate-800 active:bg-slate-700 border border-slate-700 rounded-xl flex items-center justify-between text-left transition-all" data-idx="${idx}">
+                <button class="event-option-btn w-full p-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-between text-left transition-all active:scale-[0.98]" data-idx="${idx}">
                     <span class="text-xs font-bold text-slate-100 flex-1 pr-2">${opt.text}</span>
                     <span class="text-[11px] ${costClass} shrink-0">${costStr}</span>
                 </button>`;
@@ -442,16 +444,16 @@ export class UIManager {
             });
         }
 
-        if (this.eventCard) {
-            this.eventCard.classList.add('show');
+        if (this.eventBackdrop) {
+            this.eventBackdrop.classList.add('show');
             this._isEventModalOpen = true;
             this._toggleMainButtons(false);
         }
     }
 
     hideEventModal() {
-        if (this.eventCard) {
-            this.eventCard.classList.remove('show');
+        if (this.eventBackdrop) {
+            this.eventBackdrop.classList.remove('show');
             this._isEventModalOpen = false;
             this._toggleMainButtons(true);
         }
@@ -638,11 +640,13 @@ export class UIManager {
     }
 
     hideAll() {
+        // ★修正: イベントモーダル表示中は地球儀タップ等で勝手に非表示にさせない
+        if (this._isEventModalOpen) return;
+
         this.infoCard.classList.remove('show');
         this.routeCard.classList.remove('show');
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
-        if (this.eventCard) this.eventCard.classList.remove('show'); // ★追加
         
         if (this.controlCenter && this.controlCenter.classList.contains('show')) {
             this.controlCenter.classList.remove('show');
@@ -661,7 +665,6 @@ export class UIManager {
         this._isBuyMenuOpen = false;
         this._isRivalsOpen = false; 
         this._isOverviewOpen = false;
-        this._isEventModalOpen = false;
         this._openedRivalId = null; 
         
         this._toggleMainButtons(true);

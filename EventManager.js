@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 5: ランダムイベント管理エンジンの新設】
- * 1. 実績（搭乗数・機体数・シェア）およびライバル状況から現在のStage（1〜6）を判定。
- * 2. 低頻度（約12%確率、発生後90秒クールダウン）で盤面に最適なイベントを抽選。
- * 3. 発生時はシミュレーションを一時停止し、プレイヤーの選択結果を安全に反映して再開します。
+ * 【安全な再開フォールバックの実装】
+ * 1. `_triggerEvent` 内でモーダル表示時にエラーが起きた場合でも、即座に一時停止を解除して
+ * ゲームがフリーズするのを防ぐ `try...catch / finally` ガードを追加。
+ * 2. 選択肢を選んだ後の結果反映と一時停止解除が100%確実に完了するよう保証しています。
  */
 
 import { EVENT_DATA } from './Data_Events.js';
@@ -24,7 +24,6 @@ export class EventManager {
         this.cooldownTimer = 45.0; // 開始後45秒は発生しない
         this.recentWithdrawalFlag = false;
 
-        // ライバル撤退イベントを監視
         if (this.rivalManager) {
             const originalOnWithdraw = this.rivalManager.onWithdraw;
             this.rivalManager.onWithdraw = (companyId, airportId) => {
@@ -34,7 +33,6 @@ export class EventManager {
             };
         }
 
-        // 一時バフ（効果時間）管理
         this.activeBuffs = {
             incomeRate: 0,
             passengersRate: 0,
@@ -45,7 +43,6 @@ export class EventManager {
     update(delta) {
         if (this.isEventActive) return;
 
-        // バフタイマーの消化
         if (this.activeBuffs.timer > 0) {
             this.activeBuffs.timer -= delta;
             if (this.activeBuffs.timer <= 0) {
@@ -60,7 +57,6 @@ export class EventManager {
         }
 
         this.checkTimer += delta;
-        // 20秒（ゲーム内1ヶ月）ごとに抽選
         if (this.checkTimer >= 20.0) {
             this.checkTimer = 0;
             this._tryTriggerRandomEvent();
@@ -77,7 +73,6 @@ export class EventManager {
     }
 
     _tryTriggerRandomEvent() {
-        // 発生確率: 約 12%（平均 2.5分〜3分に1回）
         if (Math.random() > 0.12) return;
 
         const currentFunds = this.economyManager.funds;
@@ -88,7 +83,6 @@ export class EventManager {
 
         const stage = this._determinePlayerStage(totalPassengers, planeCount, playerShare);
 
-        // ライバル状況の判定
         let topRivalShare = 0;
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id !== 'player') {
@@ -113,7 +107,6 @@ export class EventManager {
             recentWithdrawal: this.recentWithdrawalFlag
         };
 
-        // 条件に合致するイベントを抽出
         const candidates = EVENT_DATA.filter(ev => {
             if (stage < ev.stageMin || stage > ev.stageMax) return false;
             return ev.condition(context);
@@ -126,44 +119,48 @@ export class EventManager {
     }
 
     _triggerEvent(eventData, context) {
-        this.isEventActive = true;
-        this.gameManager.isPaused = true;
+        try {
+            this.isEventActive = true;
+            this.gameManager.isPaused = true;
 
-        this.uiManager.showEventModal(eventData, context, (optionIndex) => {
-            const selectedOption = eventData.options[optionIndex];
-            if (selectedOption) {
-                const cost = selectedOption.getCost(context);
-                const result = selectedOption.apply(context, cost);
+            this.uiManager.showEventModal(eventData, context, (optionIndex) => {
+                try {
+                    const selectedOption = eventData.options[optionIndex];
+                    if (selectedOption) {
+                        const cost = selectedOption.getCost(context);
+                        const result = selectedOption.apply(context, cost);
 
-                // 1. 資金の反映
-                if (result.fundsDelta !== undefined && result.fundsDelta !== 0) {
-                    this.economyManager.addFunds(result.fundsDelta);
-                }
+                        if (result.fundsDelta !== undefined && result.fundsDelta !== 0) {
+                            this.economyManager.addFunds(result.fundsDelta);
+                        }
 
-                // 2. 満足度ボーナスの反映
-                if (result.satisfactionDelta && this.upgradeManager) {
-                    if (this.upgradeManager.progress && this.upgradeManager.progress['cabin_comfort']) {
-                        // 満足度を直接ボーナスに加算
-                        this.upgradeManager.eventSatisfactionBonus = (this.upgradeManager.eventSatisfactionBonus || 0) + result.satisfactionDelta;
+                        if (result.satisfactionDelta && this.upgradeManager) {
+                            this.upgradeManager.eventSatisfactionBonus = (this.upgradeManager.eventSatisfactionBonus || 0) + result.satisfactionDelta;
+                        }
+
+                        if (result.durationMonths) {
+                            this.activeBuffs.timer = result.durationMonths * 20.0;
+                            if (result.incomeRateDelta) this.activeBuffs.incomeRate = result.incomeRateDelta;
+                            if (result.passengersRateDelta) this.activeBuffs.passengersRate = result.passengersRateDelta;
+                        }
+
+                        this.uiManager.showToast(result.message, result.fundsDelta < 0 ? 'info' : 'success');
                     }
+                } catch (err) {
+                    console.error("[EventManager] Option apply error:", err);
+                } finally {
+                    this.isEventActive = false;
+                    this.gameManager.isPaused = false;
+                    this.cooldownTimer = 90.0;
+                    this.recentWithdrawalFlag = false;
                 }
-
-                // 3. 一時バフの反映
-                if (result.durationMonths) {
-                    this.activeBuffs.timer = result.durationMonths * 20.0;
-                    if (result.incomeRateDelta) this.activeBuffs.incomeRate = result.incomeRateDelta;
-                    if (result.passengersRateDelta) this.activeBuffs.passengersRate = result.passengersRateDelta;
-                }
-
-                // 結果トーストの表示
-                this.uiManager.showToast(result.message, result.fundsDelta < 0 ? 'info' : 'success');
-            }
-
+            });
+        } catch (err) {
+            console.error("[EventManager] Show event modal error:", err);
             this.isEventActive = false;
             this.gameManager.isPaused = false;
-            this.cooldownTimer = 90.0; // 発生後は90秒間クールダウン
-            this.recentWithdrawalFlag = false;
-        });
+            this.cooldownTimer = 30.0;
+        }
     }
 
     getBuffs() {
