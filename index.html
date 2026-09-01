@@ -178,7 +178,6 @@
         Message
     </div>
 
-    <!-- ★修正: backdrop-blur-sm を削除し、背景の地球儀や航路がくっきりクリアに見えるように調整 -->
     <div id="event-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
         <div id="event-modal-card" class="bg-slate-900/95 border-2 border-amber-500/80 rounded-2xl p-5 shadow-2xl shadow-amber-950/70 w-full max-w-sm">
             <div class="flex items-center gap-2 mb-2.5">
@@ -549,7 +548,8 @@
                             <div class="flex bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
                                 <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors" data-tab="funds">資金</button>
                                 <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="income">収益</button>
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="passengers">搭乗数</button>
+                                <!-- ★修正: 「搭乗数」から「客数」に統一 -->
+                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="passengers">客数</button>
                                 <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="planes">機体数</button>
                             </div>
 

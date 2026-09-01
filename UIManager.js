@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【イベントモーダル表示時のピロリン通知音連携】
- * 1. `showEventModal` 実行時に `this.soundManager.playNoticeSound()` を呼び出し、
- * イベント発生を上品な「ピロリン♪」チャイム音で通知。
- * 2. トースト通知位置（top-48）、業界シェア表記、満足度整数化等は完全に保持しています。
+ * 【客数用語の完全統一 ＆ グラフヘッダーのハイブリッド短縮フォーマット】
+ * 1. グラフタブおよびタイトルを「累計客数」に統一。
+ * 2. 客数のグラフヘッダー表示を案B（100万人未満はカンマ区切りのフル桁表示、100万人以上は「1.25M 人」等に短縮）に改修し、
+ * ゲーム中盤・終盤における桁あふれ・文字重なりを完全防止。
+ * 3. イベントモーダル表示時のピロリン通知音（playNoticeSound）、トースト位置（top-48）、業界シェア表記等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -405,7 +406,6 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★修正: イベント表示時に playNoticeSound (ピロリン♪) を鳴らす
     showEventModal(eventData, context, callback) {
         this.soundManager.playNoticeSound();
         this.hideAll();
@@ -907,9 +907,15 @@ export class UIManager {
             }
         };
 
+        // ★修正: 【案B】ハイブリッド式フォーマット（100万人未満はカンマ区切り、100万人以上は「M」で短縮）
         const formatVal = (val) => {
             if (this.currentGraphTab === 'planes') return Math.floor(val) + ' 機';
-            if (this.currentGraphTab === 'passengers') return this._formatNumber(Math.floor(val)) + ' 人';
+            if (this.currentGraphTab === 'passengers') {
+                if (val >= 1000000) {
+                    return (val / 1000000).toFixed(2) + 'M 人';
+                }
+                return this._formatNumber(Math.floor(val)) + ' 人';
+            }
             const isNegative = val < 0;
             const formatted = this._formatMoneyShort(Math.abs(val));
             return (isNegative ? '-' : '') + formatted.replace('$', '$ ');
@@ -1037,11 +1043,12 @@ export class UIManager {
         const titleRival = document.getElementById('graph-title-rival');
         const valRival = document.getElementById('graph-value-rival');
 
+        // ★修正: 「累計搭乗数」から「累計客数」に統一
         let titleStr = '';
         switch(this.currentGraphTab) {
             case 'funds': titleStr = '当期資金推移'; break;
             case 'income': titleStr = '月間収益推移'; break;
-            case 'passengers': titleStr = '累計搭乗数'; break;
+            case 'passengers': titleStr = '累計客数'; break;
             case 'planes': titleStr = '稼働機体推移'; break;
         }
 
