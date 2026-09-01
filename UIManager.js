@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【実績グラフへの「顧客満足度」「業界シェア」追加 ＆ 既存レイアウト完全準拠】
- * 1. グラフタブ（6項目: 資金/収益/客数/機体数/満足度/シェア）の切り替え処理を拡張。
- * 2. `satisfaction`（顧客満足度推移）および `share`（業界シェア推移: %）の描画・タイトル・数値フォーマットを追加。
- * 3. グラフ枠、折れ線スタイル（自社太緑線・相手チーム色線・他社薄線）、目盛等の既存レイアウトは100%完全保持。
- * 4. イベントモーダル表示時のピロリン通知音（playNoticeSound）、トースト位置（top-48）、業界シェア表記等は完全に保持しています。
+ * 【コントロールセンター基本高さの460px最適化 ＆ スクロールバー完全解消】
+ * 1. パネルの基本高さを `400px` から `460px` に統一し、6タブ拡張後の実績・グラフ情報画面で
+ * 縦スクロールバーが出ずにジャストフィットで表示されるよう調整。
+ * 2. 既存の顧客満足度・業界シェアを含む6タブ描画、ハイブリッド客数フォーマット、
+ * イベントモーダルのピロリン通知音（playNoticeSound）、トースト位置（top-48）等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -257,7 +257,7 @@ export class UIManager {
             this._toggleMainButtons(true);
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.classList.add('h-[460px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
@@ -290,11 +290,11 @@ export class UIManager {
                     }
 
                     if (this._isRivalsOpen) {
-                        this.controlCenter.classList.remove('h-[400px]');
+                        this.controlCenter.classList.remove('h-[460px]');
                         this.controlCenter.style.height = '560px';
                         this.controlCenter.style.maxHeight = '80vh';
                     } else {
-                        this.controlCenter.classList.add('h-[400px]');
+                        this.controlCenter.classList.add('h-[460px]');
                         this.controlCenter.style.height = '';
                         this.controlCenter.style.maxHeight = '';
                     }
@@ -311,13 +311,12 @@ export class UIManager {
                 this._isRivalsOpen = false;
                 this._isOverviewOpen = false;
                 
-                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.classList.add('h-[460px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             });
         }
 
-        // ★修正: 6個のタブボタンの切り替え処理に対応
         document.querySelectorAll('.graph-tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -339,7 +338,7 @@ export class UIManager {
                 this.controlCenter.classList.remove('show');
                 setTimeout(() => {
                     this._resetControlCenterView();
-                    this.controlCenter.classList.add('h-[400px]');
+                    this.controlCenter.classList.add('h-[460px]');
                     this.controlCenter.style.height = '';
                     this.controlCenter.style.maxHeight = '';
                     
@@ -651,7 +650,7 @@ export class UIManager {
             this.controlCenter.classList.remove('show');
             setTimeout(() => {
                 this._resetControlCenterView();
-                this.controlCenter.classList.add('h-[400px]');
+                this.controlCenter.classList.add('h-[460px]');
                 this.controlCenter.style.height = '';
                 this.controlCenter.style.maxHeight = '';
             }, 300);
@@ -897,7 +896,6 @@ export class UIManager {
         const playerHistory = historyData['player'];
         if (playerHistory.length === 0) return;
 
-        // ★修正: satisfaction と share の値取得に対応
         const getVal = (snap) => {
             if (!snap) return 0;
             switch(this.currentGraphTab) {
@@ -911,7 +909,6 @@ export class UIManager {
             }
         };
 
-        // ★修正: satisfaction と share の数値フォーマットに対応
         const formatVal = (val) => {
             if (this.currentGraphTab === 'planes') return Math.floor(val) + ' 機';
             if (this.currentGraphTab === 'satisfaction') return Math.round(val);
@@ -1049,7 +1046,6 @@ export class UIManager {
         const titleRival = document.getElementById('graph-title-rival');
         const valRival = document.getElementById('graph-value-rival');
 
-        // ★修正: satisfaction / share を含む全6項目のタイトル定義
         let titleStr = '';
         switch(this.currentGraphTab) {
             case 'funds': titleStr = '当期資金推移'; break;

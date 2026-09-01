@@ -474,7 +474,8 @@
             </div>
         </div>
 
-        <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[400px] transition-all duration-300">
+        <!-- ★修正: 高さを h-[400px] から h-[460px] へ拡大し、グラフ画面での不要なスクロールバーを解消 -->
+        <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[460px] transition-all duration-300">
             
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
                 <h2 id="cc-title" class="text-base font-bold text-white tracking-wider">メニュー</h2>
@@ -545,7 +546,6 @@
                         </div>
 
                         <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
-                            <!-- ★修正: タブボタンを 3列×2行 のグリッド配置にし、「満足度」「シェア」を追加 -->
                             <div class="grid grid-cols-3 gap-1 bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors text-center" data-tab="funds">資金</button>
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="income">収益</button>
