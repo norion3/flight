@@ -144,7 +144,7 @@
         #fab-buy-plane { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #zoom-controls { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 
-        /* イベントモーダル専用スタイル */
+        /* イベントモーダル専用スタイル（ぼかしを撤廃し背後を鮮明に見せつつ操作ガード） */
         #event-modal-backdrop {
             opacity: 0;
             pointer-events: none;
@@ -173,13 +173,14 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <!-- ★修正: top-36 から top-48 へ変更し、HUDとの干渉を防ぎ視認性を向上 -->
+    <!-- トースト通知（上部HUDから十分な余白を確保した top-48 ） -->
     <div id="toast-notification" class="fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
         Message
     </div>
 
-    <div id="event-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
-        <div id="event-modal-card" class="bg-slate-900/95 border-2 border-amber-500/80 rounded-2xl p-5 shadow-2xl shadow-amber-950/60 w-full max-w-sm">
+    <!-- ★修正: backdrop-blur-sm を削除し、背景の地球儀や航路がくっきりクリアに見えるように調整 -->
+    <div id="event-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+        <div id="event-modal-card" class="bg-slate-900/95 border-2 border-amber-500/80 rounded-2xl p-5 shadow-2xl shadow-amber-950/70 w-full max-w-sm">
             <div class="flex items-center gap-2 mb-2.5">
                 <span class="text-2xl">📢</span>
                 <h3 id="event-modal-title" class="text-sm font-bold text-amber-300 tracking-wider">イベントタイトル</h3>

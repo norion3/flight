@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【トースト通知位置の人間工学・視認性最適化】
- * 1. `showToast` および `showWithdrawToast` の表示基準位置を `top-36` から `top-48`（約192px）へ下げ、
- * 上部HUDとのクラッター（視覚競合）を解消し、自然な視線焦点でパッと読めるように最適化。
- * 2. 既存のライバルパネル「業界シェア」表記、満足度整数化、イベントモーダル表示等は完全に保持しています。
+ * 【イベントモーダル表示時のピロリン通知音連携】
+ * 1. `showEventModal` 実行時に `this.soundManager.playNoticeSound()` を呼び出し、
+ * イベント発生を上品な「ピロリン♪」チャイム音で通知。
+ * 2. トースト通知位置（top-48）、業界シェア表記、満足度整数化等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -405,8 +405,9 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
+    // ★修正: イベント表示時に playNoticeSound (ピロリン♪) を鳴らす
     showEventModal(eventData, context, callback) {
-        this.soundManager.playWarningSound();
+        this.soundManager.playNoticeSound();
         this.hideAll();
 
         const titleEl = document.getElementById('event-modal-title');
@@ -503,7 +504,6 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
-    // ★修正: top-36 から top-48 へ変更し、HUDとの干渉を防ぎ視認性を向上
     showToast(message, type = 'error') {
         const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
         
@@ -529,7 +529,6 @@ export class UIManager {
         }, 3000); 
     }
 
-    // ★修正: top-36 から top-48 へ変更し、HUDとの干渉を防ぎ視認性を向上
     showWithdrawToast(message, rivalId) {
         this.soundManager.playEventSound();
         const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";

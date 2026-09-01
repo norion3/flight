@@ -1,10 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【プロシージャル・サウンドのウッドブロック化】
- * 履歴304に基づき、iPhoneスピーカーで音が響きすぎて「甲高い・長い」と感じる現象を解消するため、
- * 波形のリリース（減衰）時間を 0.05〜0.15 秒という極短時間へ大幅にカットしました。
- * さらに周波数を落とすことで、耳障りな電子音から「コポッ」「コンッ」といった
- * 心地よい木製の打楽器（ウッドブロックやマリンバ）のようなタイトなサウンドへ再設計しています。
+ * 【イベント発生時「ピロリン♪」チャイム音の新設】
+ * 1. イベント発生を上品に知らせる3音上昇アルペジオの澄んだ通知音 `playNoticeSound` を追加。
+ * 2. 既存のタップ音、サクセス音、警告音、イベントポップ音のタイトなウッドブロック特性は完全に保持しています。
  */
 
 export class SoundManager {
@@ -36,7 +34,7 @@ export class SoundManager {
 
     /**
      * 👆 基本操作音（ボタンタップ）
-     * 修正: 余韻を 0.05秒 にカットし、「ポッ」ではなく「コッ」という硬く短い木琴音へ
+     * 余韻を 0.05秒 にカットした硬く短い木琴音
      */
     playTapSound() {
         if (this.isMuted) return;
@@ -46,7 +44,7 @@ export class SoundManager {
 
     /**
      * ✨ お知らせ音（サクセス・完了）
-     * 修正: ピロリンという長い音を、「トコッ♪」という速くて小気味よい音へ
+     * 「トコッ♪」という速くて小気味よい音
      */
     playSuccessSound() {
         if (this.isMuted) return;
@@ -60,7 +58,7 @@ export class SoundManager {
 
     /**
      * ⚠️ 警告音（ワーニング・エラー・上限到達）
-     * 修正: ププッという音を、より短く「ドッ、ドッ」というマイルドな低音へ
+     * 短く「ドッ、ドッ」というマイルドな低音
      */
     playWarningSound() {
         if (this.isMuted) return;
@@ -74,13 +72,36 @@ export class SoundManager {
 
     /**
      * 🔔 イベント・空港選択音（ポップアップなど）
-     * 修正: 最も指摘のあった「ポワーン」という長い音を廃止。
-     * 「トンッ」という 0.1秒 で消える、上品なアタック音へ変更。
+     * 「トンッ」という 0.1秒 で消える上品なアタック音
      */
     playEventSound() {
         if (this.isMuted) return;
         this._initContext();
         this._playTone(440, 'sine', 0.01, 0.1, 0.2, 220); 
+    }
+
+    /**
+     * 📢 ★新設: ランダムイベント発生時の「ピロリン♪」チャイム音
+     * 澄んだベル音による 3音上昇アルペジオ（ソ ➔ ド ➔ ミ）
+     */
+    playNoticeSound() {
+        if (this.isMuted) return;
+        this._initContext();
+        
+        // 1音目: G5 (784Hz)
+        this._playTone(784.0, 'sine', 0.01, 0.12, 0.18);
+        
+        // 2音目: C6 (1046.5Hz)
+        setTimeout(() => {
+            if (this.isMuted) return;
+            this._playTone(1046.5, 'sine', 0.01, 0.14, 0.18);
+        }, 70);
+
+        // 3音目: E6 (1318.5Hz)
+        setTimeout(() => {
+            if (this.isMuted) return;
+            this._playTone(1318.5, 'sine', 0.01, 0.22, 0.22);
+        }, 140);
     }
 
     _playTone(freq, type, attack, release, maxVol, endFreq = null) {
