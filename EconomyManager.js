@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【イベント一時バフ（activeBuffs）の直接乗算連携】
- * 1. `update` メソッドに `eventManager` を連携し、イベントで獲得した一時的な
- * 「収益ボーナス（incomeRateDelta）」および「搭乗客数ボーナス（passengersRateDelta）」を
- * プレイヤー機の毎秒計算式に直接反映（乗算）するように修正。
- * 2. 既存の全空港ランク別総ポイントによる世界シェア計算（getWorldShare）、5段階開拓コスト、
- * AI自立経済モデル等は完全に保持しています。
+ * 【年次客数データ基盤 ＆ 履歴スナップショット満足度記録】
+ * 1. 毎月の推移スナップショットに `satisfaction`（顧客満足度）を記録し、グラフ描画に対応。
+ * 2. Phase 6に向けた年次客数データ構造（`yearlyPassengers`, `lastYearPassengers`, `bestYearlyPassengers`, `annualHistory`）
+ * を追加し、年末（12月➔1月）の自動確定・自己ベスト更新・新年リセットを実装。
+ * 3. イベント一時バフの直接乗算、全空港ランク別世界シェア計算（getWorldShare）、AI自立経済等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,6 +25,13 @@ export class EconomyManager {
         this.isFirstSecond = true; 
 
         this.totalPassengers = 0;
+        
+        // ★追加: Phase 6に向けた年次客数・ハイスコアデータ基盤
+        this.yearlyPassengers = 0;        // 当年の年間客数 (1〜12月分)
+        this.lastYearPassengers = 0;      // 直近の前年実績客数
+        this.bestYearlyPassengers = 0;    // 歴代最高の年間客数
+        this.annualHistory = [];          // 過去全年度の決算ログ一覧 [{ year: 1, passengers: ... }]
+
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
         
         this.uiUpdateTimer = 0;
@@ -123,6 +129,18 @@ export class EconomyManager {
             this.currentMonth++;
             if (this.currentMonth > 12) {
                 this.currentMonth = 1;
+                
+                // ★年末年始処理: 年間客数の確定・歴代最高更新・年次ログ保存
+                this.lastYearPassengers = Math.floor(this.yearlyPassengers);
+                if (this.lastYearPassengers > this.bestYearlyPassengers) {
+                    this.bestYearlyPassengers = this.lastYearPassengers;
+                }
+                this.annualHistory.push({
+                    year: this.currentYear,
+                    passengers: this.lastYearPassengers
+                });
+                this.yearlyPassengers = 0; // 新年度リセット
+
                 this.currentYear++;
             }
 
@@ -133,6 +151,7 @@ export class EconomyManager {
                 let currentFunds = 0;
                 let currentIncome = 0;
                 let currentPass = 0;
+                let currentSat = 0;
                 const currentShare = competitionManager ? (competitionManager.globalShares[companyId] || 0) : 0;
                 
                 let planeCount = 0;
@@ -144,18 +163,24 @@ export class EconomyManager {
                     currentFunds = this.funds;
                     currentIncome = this.lastSecondIncome; 
                     currentPass = this.totalPassengers;
+                    const baseSat = upgradeManager ? (upgradeManager.getBonuses().satisfaction || 0) : 0;
+                    const eventSat = upgradeManager ? (upgradeManager.eventSatisfactionBonus || 0) : 0;
+                    currentSat = Math.round(baseSat + eventSat);
                 } else {
                     currentFunds = this.aiFunds[companyId] || 0; 
                     currentIncome = this.aiLastIncome[companyId] || 0; 
                     currentPass = this.aiPassengers[companyId] || 0; 
+                    currentSat = Math.round(competitionManager && competitionManager.getAiSatisfaction ? competitionManager.getAiSatisfaction(companyId) : 150);
                 }
 
+                // ★修正: satisfaction（顧客満足度）を含めて記録
                 const snapshot = {
                     monthLabel: monthLabel,
                     funds: currentFunds,
                     income: currentIncome,
                     passengers: currentPass,
                     planes: planeCount,
+                    satisfaction: currentSat,
                     share: currentShare
                 };
 
@@ -176,7 +201,6 @@ export class EconomyManager {
         const networkBonus = 1.0 + (Math.sqrt(netLen) * 0.1); 
         const passNetworkBonus = 1.0 + (Math.sqrt(netLen) * 0.05); 
 
-        // ★追加: イベントによる一時バフ（倍率）を取得
         const eventBuffs = (eventManager && eventManager.getBuffs) ? eventManager.getBuffs() : null;
         const eventIncomeBonus = 1.0 + (eventBuffs ? (eventBuffs.incomeRate || 0) : 0);
         const eventPassBonus = 1.0 + (eventBuffs ? (eventBuffs.passengersRate || 0) : 0);
@@ -208,11 +232,9 @@ export class EconomyManager {
                     }
                 }
 
-                // ★修正: イベント収益バフを乗算
                 const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare * networkBonus * eventIncomeBonus;
                 grossIncomeThisFrame += incomePerSec * delta;
 
-                // ★修正: イベント搭乗客数バフを乗算
                 const passPerSec = (planeConf.baseDemand / 4) * effectiveShare * passNetworkBonus * satisfactionBonus * eventPassBonus;
                 currentFramePassengers += passPerSec * delta;
             }
@@ -246,6 +268,7 @@ export class EconomyManager {
         this.addFunds(currentNetIncome * delta);
         if (!isNaN(currentFramePassengers)) {
             this.totalPassengers += currentFramePassengers;
+            this.yearlyPassengers += currentFramePassengers; // ★当年客数にも加算
         }
 
         const lerpFactor = 1.0 - Math.pow(0.05, delta);

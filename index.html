@@ -288,7 +288,7 @@
                 <span class="text-slate-600">|</span>
                 <span class="text-xs text-slate-400">接続数: <span id="airport-conn" class="text-white font-bold">0/0</span></span>
             </div>
-            <button id="btn-connect" class="w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors">
+            <button id="btn-connect" class="w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50">
                 Connect
             </button>
         </div>
@@ -545,12 +545,14 @@
                         </div>
 
                         <div id="panel-overview" class="hidden py-4 flex flex-col gap-3">
-                            <div class="flex bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors" data-tab="funds">資金</button>
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="income">収益</button>
-                                <!-- ★修正: 「搭乗数」から「客数」に統一 -->
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="passengers">客数</button>
-                                <button class="graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors" data-tab="planes">機体数</button>
+                            <!-- ★修正: タブボタンを 3列×2行 のグリッド配置にし、「満足度」「シェア」を追加 -->
+                            <div class="grid grid-cols-3 gap-1 bg-slate-800/80 rounded-lg p-1 border border-slate-700/50">
+                                <button class="graph-tab-btn text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors text-center" data-tab="funds">資金</button>
+                                <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="income">収益</button>
+                                <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="passengers">客数</button>
+                                <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="planes">機体数</button>
+                                <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="satisfaction">満足度</button>
+                                <button class="graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center" data-tab="share">シェア</button>
                             </div>
 
                             <div class="bg-slate-800 rounded-xl p-4 border border-transparent shadow-inner">

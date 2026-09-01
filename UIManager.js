@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【客数用語の完全統一 ＆ グラフヘッダーのハイブリッド短縮フォーマット】
- * 1. グラフタブおよびタイトルを「累計客数」に統一。
- * 2. 客数のグラフヘッダー表示を案B（100万人未満はカンマ区切りのフル桁表示、100万人以上は「1.25M 人」等に短縮）に改修し、
- * ゲーム中盤・終盤における桁あふれ・文字重なりを完全防止。
- * 3. イベントモーダル表示時のピロリン通知音（playNoticeSound）、トースト位置（top-48）、業界シェア表記等は完全に保持しています。
+ * 【実績グラフへの「顧客満足度」「業界シェア」追加 ＆ 既存レイアウト完全準拠】
+ * 1. グラフタブ（6項目: 資金/収益/客数/機体数/満足度/シェア）の切り替え処理を拡張。
+ * 2. `satisfaction`（顧客満足度推移）および `share`（業界シェア推移: %）の描画・タイトル・数値フォーマットを追加。
+ * 3. グラフ枠、折れ線スタイル（自社太緑線・相手チーム色線・他社薄線）、目盛等の既存レイアウトは100%完全保持。
+ * 4. イベントモーダル表示時のピロリン通知音（playNoticeSound）、トースト位置（top-48）、業界シェア表記等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -317,14 +317,15 @@ export class UIManager {
             });
         }
 
+        // ★修正: 6個のタブボタンの切り替え処理に対応
         document.querySelectorAll('.graph-tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
                 const tabs = e.currentTarget.parentElement.querySelectorAll('.graph-tab-btn');
                 tabs.forEach(t => {
-                    t.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors";
+                    t.className = "graph-tab-btn text-[10px] font-bold py-1.5 text-slate-400 hover:text-slate-200 rounded-md transition-colors text-center";
                 });
-                e.currentTarget.className = "graph-tab-btn flex-1 text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors";
+                e.currentTarget.className = "graph-tab-btn text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors text-center";
                 
                 this.currentGraphTab = e.currentTarget.getAttribute('data-tab');
                 if (this.onGraphTabChanged) this.onGraphTabChanged();
@@ -896,6 +897,7 @@ export class UIManager {
         const playerHistory = historyData['player'];
         if (playerHistory.length === 0) return;
 
+        // ★修正: satisfaction と share の値取得に対応
         const getVal = (snap) => {
             if (!snap) return 0;
             switch(this.currentGraphTab) {
@@ -903,13 +905,17 @@ export class UIManager {
                 case 'income': return snap.income;
                 case 'passengers': return snap.passengers;
                 case 'planes': return snap.planes;
+                case 'satisfaction': return snap.satisfaction || 0;
+                case 'share': return (snap.share || 0) * 100;
                 default: return 0;
             }
         };
 
-        // ★修正: 【案B】ハイブリッド式フォーマット（100万人未満はカンマ区切り、100万人以上は「M」で短縮）
+        // ★修正: satisfaction と share の数値フォーマットに対応
         const formatVal = (val) => {
             if (this.currentGraphTab === 'planes') return Math.floor(val) + ' 機';
+            if (this.currentGraphTab === 'satisfaction') return Math.round(val);
+            if (this.currentGraphTab === 'share') return val.toFixed(1) + ' %';
             if (this.currentGraphTab === 'passengers') {
                 if (val >= 1000000) {
                     return (val / 1000000).toFixed(2) + 'M 人';
@@ -1043,13 +1049,15 @@ export class UIManager {
         const titleRival = document.getElementById('graph-title-rival');
         const valRival = document.getElementById('graph-value-rival');
 
-        // ★修正: 「累計搭乗数」から「累計客数」に統一
+        // ★修正: satisfaction / share を含む全6項目のタイトル定義
         let titleStr = '';
         switch(this.currentGraphTab) {
             case 'funds': titleStr = '当期資金推移'; break;
             case 'income': titleStr = '月間収益推移'; break;
             case 'passengers': titleStr = '累計客数'; break;
             case 'planes': titleStr = '稼働機体推移'; break;
+            case 'satisfaction': titleStr = '顧客満足度推移'; break;
+            case 'share': titleStr = '業界シェア推移'; break;
         }
 
         if (titlePlayer) titlePlayer.innerText = titleStr;
