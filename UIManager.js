@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【イベントモーダル表示の安定化・誤タップ干渉防止】
- * 1. `#event-modal-backdrop` による中央ダイアログポップアップに対応。
- * 2. イベントモーダル表示中（`_isEventModalOpen = true`）は、地球儀タップ等の `hideAll` で
- * 勝手にモーダルが消去されないよう保護ガードを設置。
- * 3. 既存のライバルパネル「他社」表記、満足度整数化、全社グラフ描画等は完全に保持しています。
+ * 【ライバル比較バーの表示スリム化】
+ * 1. 比較項目ヘッダーから「(勝ち!)」「(負け)」「(互角)」の不要なテキストを削除し、
+ * 「自社 XX / 他社 YY」の数値と2本の色分けバーのみで直感的に把握できる洗練されたUIへ修正。
+ * 2. イベントモーダルのバックドロップ表示、満足度整数化、全社グラフ描画等は完全に保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -24,7 +23,7 @@ export class UIManager {
         
         this.exitCard = document.getElementById('exit-confirm-card');
         this.helpMenu = document.getElementById('help-menu');
-        this.eventBackdrop = document.getElementById('event-modal-backdrop'); // ★修正: バックドロップ要素
+        this.eventBackdrop = document.getElementById('event-modal-backdrop');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -406,7 +405,6 @@ export class UIManager {
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
     }
 
-    // ★修正: イベントモーダルの表示処理
     showEventModal(eventData, context, callback) {
         this.soundManager.playWarningSound();
         this.hideAll();
@@ -640,7 +638,6 @@ export class UIManager {
     }
 
     hideAll() {
-        // ★修正: イベントモーダル表示中は地球儀タップ等で勝手に非表示にさせない
         if (this._isEventModalOpen) return;
 
         this.infoCard.classList.remove('show');
@@ -1176,30 +1173,17 @@ export class UIManager {
         });
     }
 
+    // ★修正: 「(勝ち!)」「(負け)」「(互角)」のテキスト判定を削除し、数値とバーのみのクリーンな表示に更新
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const total = Math.max(playerVal + rivalVal, 0.0001);
         const pPct = (playerVal / total) * 100;
         const rPct = (rivalVal / total) * 100;
-        
-        let resultText = '';
-        let resultColor = '';
-        
-        if (playerVal > rivalVal) {
-            resultText = '(勝ち!)';
-            resultColor = 'text-emerald-400';
-        } else if (playerVal < rivalVal) {
-            resultText = '(負け)';
-            resultColor = 'text-rose-400';
-        } else {
-            resultText = '(互角)';
-            resultColor = 'text-slate-400';
-        }
 
         return `
         <div>
             <div class="flex justify-between text-[10px] font-bold mb-1.5">
                 <span class="text-slate-300">${title}</span>
-                <span>自社 ${playerDisplay} <span class="text-slate-600 font-normal mx-0.5">/</span> 他社 ${rivalDisplay} <span class="${resultColor} ml-0.5">${resultText}</span></span>
+                <span class="font-mono text-slate-200">自社 ${playerDisplay} <span class="text-slate-600 font-normal mx-0.5">/</span> 他社 ${rivalDisplay}</span>
             </div>
             <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
