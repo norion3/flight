@@ -226,7 +226,7 @@
                 </div>
             </div>
 
-            <!-- ★修正: 3段目を左右分割にし、左に「年間客数（スコア指標）」、右に「累計客数」を配置 -->
+            <!-- 3段目: 左に「年間客数（今期スコア指標）」、右に「累計客数」 -->
             <div class="flex items-center justify-between pt-0.5 text-xs">
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs">👥</span>
@@ -267,7 +267,7 @@
 
         <div id="exit-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-rose-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-rose-900/20 absolute">
             <h3 class="text-sm font-bold tracking-wider mb-2 text-rose-400 text-center">ゲーム終了の確認</h3>
-            <p class="text-xs text-slate-300 text-center mb-4">現在のスコア（搭乗客数）を記録し、ゲームを終了しますか？</p>
+            <p class="text-xs text-slate-300 text-center mb-4">現在のスコア（年間客数）を記録し、ゲームを終了しますか？</p>
             <div class="flex space-x-3">
                 <button id="btn-cancel-exit" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold active:bg-slate-700 transition-colors">再開する</button>
                 <button id="btn-submit-exit" class="flex-1 py-3 rounded-xl bg-rose-600 text-white font-bold active:bg-rose-500 shadow-lg shadow-rose-900/50 transition-colors flex items-center justify-center gap-2">
@@ -304,54 +304,85 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
         </button>
 
+        <!-- ★修正: 遊び方ガイド（インデント統一、句読点削除、年間客数スコア・最新追加機能の説明） -->
         <div id="help-menu" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-cyan-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-cyan-900/40 z-30 w-full max-w-md h-auto">
-            <div class="flex justify-between items-center mb-4 px-1">
+            <div class="flex justify-between items-center mb-3 px-1">
                 <h2 class="text-base font-bold text-white tracking-widest">遊び方ガイド</h2>
                 <button id="btn-close-help" class="text-slate-400 active:text-white p-1 text-xl font-bold leading-none touch-manipulation">✕</button>
             </div>
             
-            <div class="overflow-y-auto max-h-[50vh] pr-2 pb-2 flex flex-col gap-5 text-sm">
+            <div class="overflow-y-auto max-h-[52vh] pr-2 pb-2 flex flex-col gap-4 text-xs">
                 <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ ゲームの目的</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        世界の空港を空路で繋ぎ、<br>
-                        <span class="pl-4 inline-block text-slate-300">シェア1位のトップ企業を目指しましょう。</span>
-                    </p>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ ゲームの目的</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>世界の空港を空路で結んで路線網を広げ</div>
+                        <div>世界シェア1位のメガキャリアを目指しましょう</div>
+                    </div>
                 </div>
+
                 <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 空路の開拓</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        光る空港をタップしてルートを開拓し、<br>
-                        <span class="pl-4 inline-block text-slate-300">毎秒の収益と搭乗客数を増やしましょう。</span>
-                    </p>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 年間客数とランキングスコア</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>4月期首から翌3月期末までの「年間客数」がスコアです</div>
+                        <div>メニューの終了ボタンから最高記録をランキングへ送信できます</div>
+                    </div>
                 </div>
+
                 <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 接続のルール</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        ルートを繋ぐには一定の資金が必要です。<br>
-                        <span class="pl-4 inline-block text-slate-300">遠すぎる空港へは繋ぐことができません。</span>
-                    </p>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 空路の開拓と撤退</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>光る空港をタップしてルートを開拓・廃止し</div>
+                        <div>毎秒の収益と搭乗客数を増やしましょう</div>
+                        <div>不要な空路を廃止すると開拓費用の50%が返金されます</div>
+                    </div>
                 </div>
+
                 <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 機体の購入と売却</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        右下の緑の飛行機ボタンから機体を購入し、<br>
-                        <span class="pl-4 inline-block text-slate-300">より長距離の大きな空港へ繋ぎましょう。</span>
-                    </p>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 接続のルールとコスト</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>距離と空港規模に応じた開拓費用が必要です</div>
+                        <div>遠すぎる空港へは航続距離制限のため繋げません</div>
+                    </div>
                 </div>
+
                 <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ 投資と成長</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        メニューの「投資・アップグレード」から、<br>
-                        <span class="pl-4 inline-block text-slate-300">資金を使って収益や満足度を高めましょう。</span>
-                    </p>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 機体の購入と売却</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>右下の緑のボタンから小型機〜超大型機を購入し</div>
+                        <div>路線数に合わせて効率よくフライトさせましょう</div>
+                    </div>
                 </div>
+
                 <div>
-                    <h3 class="font-bold text-cyan-400 mb-1.5">◆ ライバルとの競争</h3>
-                    <p class="text-slate-200 leading-relaxed whitespace-nowrap">
-                        メニューの「ライバル会社状況」を開き、<br>
-                        <span class="pl-4 inline-block text-slate-300">他社と能力を比較して戦略を練りましょう。</span>
-                    </p>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 投資とアップグレード</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>メニューの「投資・アップグレード」から資金を投じ</div>
+                        <div>機体保有枠や速度、顧客満足度を強化しましょう</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 実績とグラフ情報</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>メニューの「実績とグラフ情報」から推移グラフを確認し</div>
+                        <div>資金・収益・客数・シェアの成長動向を分析しましょう</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ ライバルとの競争</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>メニューの「ライバル会社状況」で他社と戦力を比較し</div>
+                        <div>空港のシェアを奪って他社を撤退へ追い込みましょう</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 突発イベントと決断</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>経営中に発生するニュースや要請に対し適切な決断を下し</div>
+                        <div>一時的な収益ボーナスや満足度アップを獲得しましょう</div>
+                    </div>
                 </div>
             </div>
         </div>
