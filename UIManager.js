@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【上部ステータス（Top HUD）年間客数 ＆ 累計客数の左右分割表示対応】
- * 1. `updateTopHUD` メソッドにおいて、「年間客数（hud-yearly-passengers）」への反映処理を追加。
- * 引数の後方互換性（7引数呼び出し・8引数呼び出しの両対応）を確保。
- * 2. 折れ線グラフの線幅（自社:2.5px / 他社:2.0px）、最新位置ドット（◯）、各画面の最適高さ（410px/450px/410px/540px）、
- * 空路廃止返金（50%）、航路開拓ボタンのリアルタイム連動等は100%完全保持。
+ * 【ライバル画面比較バーの100%終端レール視認性統一 ＆ 全機能完全保持】
+ * 1. `_createCompareBarHtml` において、バーの土台（レール）を `bg-slate-950/80 border border-slate-700/50` に設定し、
+ * 他社カード（bg-slate-800）上でも未充填のグレー枠が右端（100%）までクッキリと浮き出るよう改善。
+ * 2. `updateTopHUD` の年間客数＆累計客数対応、折れ線グラフの線幅（自社:2.5px / 他社:2.0px）、
+ * 最新位置ドット（◯）、各画面の最適高さ（410px/450px/410px/540px）、空路廃止返金（50%）、
+ * 航路開拓ボタンのリアルタイム連動等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -486,7 +487,6 @@ export class UIManager {
         }
     }
 
-    // ★修正: 年間客数（hud-yearly-passengers）と累計客数の反映（7引数・8引数両対応）
     updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, yearlyPassengersStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -508,7 +508,6 @@ export class UIManager {
             if (elPassengers) elPassengers.innerText = passengersStr;
             if (elShare) elShare.innerText = shareStr;
         } else {
-            // 7引数呼び出しフォールバック
             if (elPassengers) elPassengers.innerText = yearlyPassengersStr;
             if (elShare) elShare.innerText = passengersStr;
         }
@@ -1279,6 +1278,7 @@ export class UIManager {
         });
     }
 
+    // ★修正: 他社カード上でも未充填部分が右端(100%)までクッキリ見えるようレール背景色と境界線を調整
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const maxVal = Math.max(playerVal, rivalVal, 0.0001);
         const pPct = maxVal > 0.0001 ? Math.min(100, Math.max(0, (playerVal / maxVal) * 100)) : 0;
@@ -1293,13 +1293,13 @@ export class UIManager {
             <div class="flex flex-col gap-1.5">
                 <div class="flex items-center gap-1.5">
                     <span class="text-[9px] text-slate-500 w-6">自社</span>
-                    <div class="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden flex shadow-inner">
+                    <div class="flex-1 bg-slate-950/80 border border-slate-700/50 rounded-full h-1.5 overflow-hidden flex shadow-inner">
                         <div class="h-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.3)] transition-all duration-500" style="width: ${pPct}%"></div>
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5">
                     <span class="text-[9px] text-slate-500 w-6">他社</span>
-                    <div class="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden flex shadow-inner">
+                    <div class="flex-1 bg-slate-950/80 border border-slate-700/50 rounded-full h-1.5 overflow-hidden flex shadow-inner">
                         <div class="h-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.3)] transition-all duration-500" style="width: ${rPct}%"></div>
                     </div>
                 </div>
