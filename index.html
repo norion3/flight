@@ -196,7 +196,6 @@
             <div class="flex items-center justify-between border-b border-slate-700/40 pb-1.5">
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs">🗓️</span>
-                    <!-- ★修正: 4月スタートの初期HUD表示 -->
                     <span id="hud-calendar" class="text-xs font-bold text-white tracking-wider">1年目-4月</span>
                 </div>
                 <div class="flex items-center gap-4">
@@ -227,7 +226,14 @@
                 </div>
             </div>
 
+            <!-- ★修正: 3段目を左右分割にし、左に「年間客数（スコア指標）」、右に「累計客数」を配置 -->
             <div class="flex items-center justify-between pt-0.5 text-xs">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xs">👥</span>
+                    <span class="text-slate-400 font-bold">年間客数:</span>
+                    <span id="hud-yearly-passengers" class="font-bold text-amber-300 font-mono">0</span>
+                    <span class="text-[10px] font-sans font-normal text-slate-400 ml-0.5">人</span>
+                </div>
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs">👥</span>
                     <span class="text-slate-400 font-bold">累計客数:</span>

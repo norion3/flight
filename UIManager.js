@@ -1,12 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【折れ線グラフのライバル描画バグ修正 ＆ 最新位置ドット（◯）・線幅の視認性強化】
- * 1. `updateOverviewPanel` 内で、その他ライバル（graph-point-other-*）の最新位置ドットに
- * `point.setAttribute('cy', lastP[1])` が抜けていたバグを修正し、最新位置に正しく ◯ が表示されるよう改善。
- * 2. 全員の最新位置ドット（◯）をしっかり視認できるサイズ（自社: r=4, ライバル各社: r=3.5）に設定。
- * 3. 折れ線の太さをライバル全社 2.0px（不透明度 1.0）、自社 2.5px（不透明度 1.0）へ強化し、背景に埋もれずクッキリ発色。
- * 4. 各画面の個別最適高さ（410px/450px/410px/540px）、グラフ縦スクロール禁止、空路廃止返金（50%）、
- * 航路開拓ボタンのリアルタイム連動等は100%完全保持。
+ * 【上部ステータス（Top HUD）年間客数 ＆ 累計客数の左右分割表示対応】
+ * 1. `updateTopHUD` メソッドにおいて、「年間客数（hud-yearly-passengers）」への反映処理を追加。
+ * 引数の後方互換性（7引数呼び出し・8引数呼び出しの両対応）を確保。
+ * 2. 折れ線グラフの線幅（自社:2.5px / 他社:2.0px）、最新位置ドット（◯）、各画面の最適高さ（410px/450px/410px/540px）、
+ * 空路廃止返金（50%）、航路開拓ボタンのリアルタイム連動等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -488,12 +486,14 @@ export class UIManager {
         }
     }
 
-    updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, passengersStr, shareStr) {
+    // ★修正: 年間客数（hud-yearly-passengers）と累計客数の反映（7引数・8引数両対応）
+    updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, yearlyPassengersStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
         const elPlanesCount = document.getElementById('hud-planes-count');
         const elPlanesMax = document.getElementById('hud-planes-max');
         const elIncome = document.getElementById('hud-income');
+        const elYearlyPassengers = document.getElementById('hud-yearly-passengers');
         const elPassengers = document.getElementById('hud-passengers');
         const elShare = document.getElementById('hud-share');
 
@@ -502,8 +502,16 @@ export class UIManager {
         if (elPlanesCount) elPlanesCount.innerText = planesCount;
         if (elPlanesMax) elPlanesMax.innerText = planesMax;
         if (elIncome) elIncome.innerText = incomeStr;
-        if (elPassengers) elPassengers.innerText = passengersStr;
-        if (elShare) elShare.innerText = shareStr;
+
+        if (shareStr !== undefined) {
+            if (elYearlyPassengers) elYearlyPassengers.innerText = yearlyPassengersStr;
+            if (elPassengers) elPassengers.innerText = passengersStr;
+            if (elShare) elShare.innerText = shareStr;
+        } else {
+            // 7引数呼び出しフォールバック
+            if (elPassengers) elPassengers.innerText = yearlyPassengersStr;
+            if (elShare) elShare.innerText = passengersStr;
+        }
     }
 
     updateFleetPanel(counts) {
@@ -1078,14 +1086,12 @@ export class UIManager {
                 if (line) {
                     line.setAttribute('points', pts);
                     line.setAttribute('stroke', hexColor);
-                    // ★修正: ライバル線の太さを 2.0px、不透明度 1.0 に強化
                     line.setAttribute('stroke-width', '2.0');
                     line.setAttribute('opacity', '1.0');
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
                     point.setAttribute('cy', lastP[1]);
-                    // ★修正: 最新位置ドットの半径を 3.5px に拡大
                     point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
@@ -1096,15 +1102,12 @@ export class UIManager {
                 if (line) {
                     line.setAttribute('points', pts);
                     line.setAttribute('stroke', hexColor);
-                    // ★修正: ライバル全社の線の太さを 2.0px、不透明度 1.0 に統一
                     line.setAttribute('stroke-width', '2.0');
                     line.setAttribute('opacity', '1.0');
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
-                    // ★修正: 抜けていた Y座標(cy)を設定
                     point.setAttribute('cy', lastP[1]);
-                    // ★修正: 最新位置ドットの半径を 3.5px に拡大
                     point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
@@ -1122,14 +1125,12 @@ export class UIManager {
         if (playerLine) {
             playerLine.setAttribute('points', playerPts);
             playerLine.setAttribute('stroke', '#34d399');
-            // ★修正: 自社線の太さを 2.5px に強化
             playerLine.setAttribute('stroke-width', '2.5');
             playerLine.setAttribute('opacity', '1.0');
         }
         if (playerPoint) {
             playerPoint.setAttribute('cx', playerLastP[0]);
             playerPoint.setAttribute('cy', playerLastP[1]);
-            // ★修正: 自社最新位置ドットの半径を 4px に設定
             playerPoint.setAttribute('r', '4');
             playerPoint.classList.remove('opacity-0');
         }

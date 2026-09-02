@@ -29,7 +29,7 @@ export class EventManager {
             this.rivalManager.onWithdraw = (companyId, airportId) => {
                 if (originalOnWithdraw) originalOnWithdraw(companyId, airportId);
                 this.recentWithdrawalFlag = true;
-                setTimeout(() => { this.recentWithdrawalFlag = false; }, 60000);
+                setTimeout(() => { this.recentWithdrawalFlag = false; }, 60000); 
             };
         }
 
@@ -41,8 +41,6 @@ export class EventManager {
     }
 
     update(delta) {
-        if (this.isEventActive) return;
-
         if (this.activeBuffs.timer > 0) {
             this.activeBuffs.timer -= delta;
             if (this.activeBuffs.timer <= 0) {
@@ -51,65 +49,58 @@ export class EventManager {
             }
         }
 
+        if (this.isEventActive) return;
+
         if (this.cooldownTimer > 0) {
             this.cooldownTimer -= delta;
             return;
         }
 
         this.checkTimer += delta;
-        if (this.checkTimer >= 20.0) {
+        if (this.checkTimer >= 10.0) {
             this.checkTimer = 0;
-            this._tryTriggerRandomEvent();
+            this._checkAndTriggerEvent();
         }
     }
 
-    _determinePlayerStage(passengers, planeCount, share) {
-        if (passengers >= 1000000 || share >= 0.75) return 6;
-        if (passengers >= 400000 || share >= 0.60) return 5;
-        if (passengers >= 150000 || share >= 0.45) return 4;
-        if (passengers >= 50000 || share >= 0.30) return 3;
-        if (passengers >= 15000 || share >= 0.15) return 2;
-        return 1;
+    _getStage(year) {
+        if (year <= 1) return 1;
+        if (year <= 2) return 2;
+        if (year <= 4) return 3;
+        if (year <= 6) return 4;
+        if (year <= 8) return 5;
+        return 6;
     }
 
-    _tryTriggerRandomEvent() {
-        if (Math.random() > 0.12) return;
+    _checkAndTriggerEvent() {
+        if (Math.random() > 0.35) return; 
 
-        const currentFunds = this.economyManager.funds;
-        const totalPassengers = this.economyManager.totalPassengers;
-        const counts = this.planeManager.getPlaneCounts('player');
-        const planeCount = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
-        const playerShare = this.competitionManager.getGlobalShare('player');
+        const currentYear = this.economyManager.year;
+        const currentStage = this._getStage(currentYear);
 
-        const stage = this._determinePlayerStage(totalPassengers, planeCount, playerShare);
-
-        let topRivalShare = 0;
-        CONFIG.COMPANIES.forEach(comp => {
-            if (comp.id !== 'player') {
-                const s = this.competitionManager.getGlobalShare(comp.id);
-                if (s > topRivalShare) topRivalShare = s;
+        const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
+        let playerRoutes = 0;
+        const net = this.networkManager.network['player'];
+        if (net) {
+            for (const origin in net) {
+                playerRoutes += net[origin].length;
             }
-        });
-
-        const isDeadHeat = Math.abs(playerShare - topRivalShare) <= 0.05 && playerShare > 0.15;
-        const isRivalDominant = (topRivalShare - playerShare) >= 0.10;
-        const isSoloLeader = playerShare >= 0.65 && (playerShare - topRivalShare) >= 0.20;
+            playerRoutes = Math.floor(playerRoutes / 2);
+        }
 
         const context = {
-            funds: currentFunds,
-            passengers: totalPassengers,
-            planeCount: planeCount,
-            share: playerShare,
-            stage: stage,
-            isDeadHeat: isDeadHeat,
-            isRivalDominant: isRivalDominant,
-            isSoloLeader: isSoloLeader,
+            stage: currentStage,
+            year: currentYear,
+            funds: this.economyManager.funds,
+            planeCount: playerPlanes.length,
+            routeCount: playerRoutes,
+            globalShare: this.competitionManager.getGlobalShare('player'),
             recentWithdrawal: this.recentWithdrawalFlag
         };
 
-        const candidates = EVENT_DATA.filter(ev => {
-            if (stage < ev.stageMin || stage > ev.stageMax) return false;
-            return ev.condition(context);
+        const candidates = EVENT_DATA.filter(evt => {
+            if (currentStage < evt.stageMin || currentStage > evt.stageMax) return false;
+            return evt.condition(context);
         });
 
         if (candidates.length === 0) return;
@@ -119,18 +110,18 @@ export class EventManager {
     }
 
     _triggerEvent(eventData, context) {
+        this.isEventActive = true;
+        this.gameManager.isPaused = true; 
+
         try {
-            this.isEventActive = true;
-            this.gameManager.isPaused = true;
-
-            this.uiManager.showEventModal(eventData, context, (optionIndex) => {
+            this.uiManager.showEventModal(eventData, context, (chosenOptionIdx) => {
                 try {
-                    const selectedOption = eventData.options[optionIndex];
-                    if (selectedOption) {
-                        const cost = selectedOption.getCost(context);
-                        const result = selectedOption.apply(context, cost);
+                    const chosenOption = eventData.options[chosenOptionIdx];
+                    if (chosenOption) {
+                        const cost = chosenOption.getCost(context);
+                        const result = chosenOption.apply(context, cost);
 
-                        if (result.fundsDelta !== undefined && result.fundsDelta !== 0) {
+                        if (result.fundsDelta) {
                             this.economyManager.addFunds(result.fundsDelta);
                         }
 
