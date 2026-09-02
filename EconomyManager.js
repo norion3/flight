@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 6: 期末決算データ通知基盤の実装 ＆ 全機能完全保持】
- * 1. `onAnnualSettlement` コールバックプロパティを追加し、3月末満了時（_finalizeAnnualStats）に
- * 確定した決算データ（期数、年間客数、自己ベスト、資金、新記録フラグ）を通知。
- * 2. 4月期首〜翌3月期末の会計年度サイクル、満足度スナップショット、年間客数・累計客数のHUD連動、
- * 収益短縮表示（+$ 15K 等）、AI自立経済等は100%完全保持しています。
+ * 【グラフ描画用・ライバル機体数記録バグの修正 ＆ 全機能完全保持】
+ * 1. `_recordMonthlyHistory` において、`planes` 配列から各ライバル会社の実際の稼働機体数を
+ * 正確にカウントして記録するよう修正（固定値 0 の不具合を解消）。
+ * 2. 4月期首〜翌3月期末の会計年度サイクル、期末決算データ通知（onAnnualSettlement）、
+ * 年間客数・累計客数のHUD連動、収益短縮表示、AI自立経済等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,7 +32,7 @@ export class EconomyManager {
         this.bestYearlyPassengers = 0;    // 歴代最高の年間客数
         this.annualHistory = [];          // 過去の年度別決算ログ
 
-        this.onAnnualSettlement = null;   // ★Phase 6: 決算通知コールバック
+        this.onAnnualSettlement = null;   // Phase 6: 決算通知コールバック
 
         this.monthTimer = 0;
         this.year = 1;
@@ -81,7 +81,8 @@ export class EconomyManager {
                 this.year++;
                 this._finalizeAnnualStats();
             }
-            this._recordMonthlyHistory(competitionManager);
+            // ★修正: planes 配列を渡して正確な機体数を記録
+            this._recordMonthlyHistory(competitionManager, planes);
         }
 
         const playerPlanes = planes.filter(p => p.companyId === 'player');
@@ -208,25 +209,28 @@ export class EconomyManager {
             }
         });
 
-        // ★Phase 6: 決算通知コールバックの発火
+        // Phase 6: 決算通知コールバックの発火
         if (this.onAnnualSettlement) {
             this.onAnnualSettlement(settlementData);
         }
     }
 
-    _recordMonthlyHistory(competitionManager) {
+    // ★修正: planes を受け取り、自社およびライバルの実機体数を履歴に正しく記録
+    _recordMonthlyHistory(competitionManager, planes = null) {
         const monthLabel = `${this.year}-${this.month}`;
         
         const rawWorldShare = competitionManager ? competitionManager.getWorldShare('player') : 0;
         const rawSat = competitionManager && competitionManager.upgradeManager ? 
             (competitionManager.upgradeManager.getBonuses().satisfaction + (competitionManager.upgradeManager.eventSatisfactionBonus || 0)) : 100;
         
+        const playerPlaneCount = planes ? planes.filter(p => p.companyId === 'player').length : (this.uiManager ? parseInt(document.getElementById('hud-planes-count')?.innerText || '0') : 0);
+
         this.historyData['player'].push({
             monthLabel: monthLabel,
             funds: this.funds,
             income: this.lastSecondIncome,
             passengers: this.totalPassengers,
-            planes: this.uiManager ? parseInt(document.getElementById('hud-planes-count')?.innerText || '0') : 0,
+            planes: playerPlaneCount,
             satisfaction: rawSat,
             share: rawWorldShare
         });
@@ -239,13 +243,14 @@ export class EconomyManager {
             if (comp.id !== 'player') {
                 const rivalWorldShare = competitionManager ? competitionManager.getWorldShare(comp.id) : 0;
                 const rivalSat = competitionManager ? competitionManager.getAiSatisfaction(comp.id) : 150;
+                const rivalPlaneCount = planes ? planes.filter(p => p.companyId === comp.id).length : 0;
                 
                 this.historyData[comp.id].push({
                     monthLabel: monthLabel,
                     funds: this.aiFunds[comp.id],
                     income: this.aiLastIncome[comp.id],
                     passengers: this.aiTotalPassengers[comp.id],
-                    planes: 0,
+                    planes: rivalPlaneCount, // ★修正: 0固定から実際のライバル機体数を反映
                     satisfaction: rivalSat,
                     share: rivalWorldShare
                 });
