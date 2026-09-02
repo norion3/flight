@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【グラフ描画用・ライバル機体数記録バグの修正 ＆ 全機能完全保持】
- * 1. `_recordMonthlyHistory` において、`planes` 配列から各ライバル会社の実際の稼働機体数を
- * 正確にカウントして記録するよう修正（固定値 0 の不具合を解消）。
+ * 【AI維持費50%オフ特別優遇 ＆ グラフ用ライバル機体数記録完全保持】
+ * 1. `_updateAiEconomy` において、AIの機体維持費を機体構成ベースで算出しつつ「50%オフ」の特別優遇を適用。
  * 2. 4月期首〜翌3月期末の会計年度サイクル、期末決算データ通知（onAnnualSettlement）、
- * 年間客数・累計客数のHUD連動、収益短縮表示、AI自立経済等は100%完全保持しています。
+ * 年間客数・累計客数のHUD連動、収益短縮表示等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -81,7 +80,6 @@ export class EconomyManager {
                 this.year++;
                 this._finalizeAnnualStats();
             }
-            // ★修正: planes 配列を渡して正確な機体数を記録
             this._recordMonthlyHistory(competitionManager, planes);
         }
 
@@ -215,7 +213,6 @@ export class EconomyManager {
         }
     }
 
-    // ★修正: planes を受け取り、自社およびライバルの実機体数を履歴に正しく記録
     _recordMonthlyHistory(competitionManager, planes = null) {
         const monthLabel = `${this.year}-${this.month}`;
         
@@ -250,7 +247,7 @@ export class EconomyManager {
                     funds: this.aiFunds[comp.id],
                     income: this.aiLastIncome[comp.id],
                     passengers: this.aiTotalPassengers[comp.id],
-                    planes: rivalPlaneCount, // ★修正: 0固定から実際のライバル機体数を反映
+                    planes: rivalPlaneCount,
                     satisfaction: rivalSat,
                     share: rivalWorldShare
                 });
@@ -359,7 +356,14 @@ export class EconomyManager {
 
             let baseIncome = (routeCount * 1200) + (activeFlyingPlanes * 3500) + (planeCount * 600); 
             let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
-            let upkeep = planeCount * 250; 
+            
+            // ★AI維持費: 機体構成に応じた実費の50%（特別優遇ハンデ）
+            let totalAiUpkeep = 0;
+            compPlanes.forEach(p => {
+                const conf = CONFIG.ECONOMY.PLANES[p.sizeType];
+                if (conf) totalAiUpkeep += conf.upkeep;
+            });
+            let upkeep = totalAiUpkeep * 0.5; 
             
             let netIncome = grossIncome - upkeep;
 

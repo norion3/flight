@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AIの余剰・遊休機体売却（ダウンサイジング）ロジックの実装】
- * 1. 路線から撤退した際、余った遊休機体を自動売却して資金回収・維持費削減を行う処理を追加。
- * 2. 資金難時や機体が過剰になった際にも遊休機体を売却するセーフティ思考を追加しました。
+ * 【マイルド・AI思考サイクル ＆ 初期出費適正化】
+ * 1. AIの思考サイクルを 30秒 ➔ 22秒 にマイルド調整。
+ * 2. 初期出費を 15M ➔ 3M に軽減し、実質 27M からの自立スタートを確立。
+ * 3. 路線撤退時の遊休機体自動売却ロジック（sellIdlePlane）は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -19,7 +20,7 @@ export class RivalManager {
         
         this.timers = {};
         this.rivals.forEach(rival => {
-            this.timers[rival.id] = Math.random() * 30;
+            this.timers[rival.id] = Math.random() * 20; // ★マイルド調整: 0〜20秒
         });
 
         this.isInitialized = false;
@@ -37,21 +38,19 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             const startId = startAirports[rival.id];
-            let startNode = this.airportManager.getAirportById(startId);
-            
-            if (!startNode) {
-                const majors = this.airportManager.markers.map(m => m.userData.airportData).filter(d => d.type === 'major');
-                if (majors.length > 0) {
-                    startNode = majors[Math.floor(Math.random() * majors.length)];
+            if (startId) {
+                const startAirport = this.airportManager.getAirportById(startId);
+                if (startAirport) {
+                    this._expandRoute(rival.id, startAirport, true);
+                    this.planeManager.addPlane('small', rival.id);
+                    this.planeManager.addPlane('small', rival.id);
+                    if (this.economyManager) {
+                        this.economyManager.deductAiFunds(rival.id, 3000000); // ★初期出費を15M➔3Mに適正化
+                    }
                 }
             }
-
-            if (startNode) {
-                if (this.economyManager) this.economyManager.deductAiFunds(rival.id, 15000000);
-                this.expandNetwork(rival.id, startNode, true);
-                this.planeManager.addPlane('small', rival.id);
-            }
         });
+
         this.isInitialized = true;
     }
 
@@ -60,164 +59,90 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            if (this.timers[rival.id] >= 30) {
-                this.timers[rival.id] = 0; 
-                this.performAction(rival.id, competitionManager);
+            if (this.timers[rival.id] >= 22) { // ★マイルド調整: 30秒 ➔ 22秒
+                this.timers[rival.id] = 0;
+                this._thinkAction(rival.id, competitionManager);
             }
         });
     }
 
-    _getRivalRouteCount(companyId) {
-        let routeCount = 0;
-        const net = this.networkManager.network[companyId];
-        if (!net) return 0;
-        
-        for (const originId in net) {
-            if (net[originId]) routeCount += net[originId].length;
-        }
-        return Math.floor(routeCount / 2);
-    }
-
-    // ★追加: 余剰・遊休機体を売却して資金回収する内部メソッド
-    _sellSurplusIdlePlanes(companyId) {
-        if (!this.planeManager || !this.economyManager) return;
-        
-        const soldType = this.planeManager.sellIdlePlane(companyId);
-        if (soldType) {
-            const planeConf = CONFIG.ECONOMY.PLANES[soldType];
-            const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 3500000;
-            this.economyManager.addAiFunds(companyId, refund);
-        }
-    }
-
-    performAction(companyId, competitionManager) {
+    _thinkAction(companyId, competitionManager) {
         const net = this.networkManager.network[companyId];
         if (!net) return;
-        const currentRouteCount = this._getRivalRouteCount(companyId);
+
+        const connectedAirports = Object.keys(net).filter(id => net[id].length > 0);
+        if (connectedAirports.length === 0) return;
+
+        const aiFunds = this.economyManager ? this.economyManager.getAiFunds(companyId) : 50000000;
+        const currentPlanes = this.planeManager.planes.filter(p => p.companyId === companyId);
         
-        if (competitionManager) {
-            let didWithdraw = false;
-            for (const originId of Object.keys(net)) {
-                if (!net[originId] || net[originId].length === 0) continue;
-                
-                const myShare = competitionManager.getShare(originId, companyId);
-                
-                if (myShare < 0.1) {
-                    if (currentRouteCount <= 1) {
-                        break; 
-                    }
+        let totalRoutes = 0;
+        for (const origin in net) {
+            totalRoutes += net[origin].length;
+        }
+        totalRoutes = Math.floor(totalRoutes / 2);
 
-                    const routeToRemove = net[originId][0]; 
-                    const originNode = this.airportManager.getAirportById(originId);
-                    const destNode = routeToRemove.data; 
+        if (aiFunds < 2000000) {
+            const soldType = this.planeManager.sellIdlePlane(companyId);
+            if (soldType && this.economyManager) {
+                const planeConf = CONFIG.ECONOMY.PLANES[soldType];
+                const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 2500000;
+                this.economyManager.addAiFunds(companyId, refund);
+            }
+            return;
+        }
 
-                    if (originNode && destNode) {
-                        this.networkManager.removeRoute(originNode, destNode, companyId);
-                        this.planeManager.checkAndReassignPlanes(companyId);
-                        didWithdraw = true;
-                        
-                        // ★追加: 路線撤退に伴い余った遊休機体を売却して資金を回収
-                        this._sellSurplusIdlePlanes(companyId);
-                        
-                        if (this.onWithdraw) this.onWithdraw(companyId, originId);
-                        
-                        this._escapeToNewAirport(companyId, competitionManager);
-                        break; 
-                    }
+        if (currentPlanes.length > totalRoutes * 2 + 1) {
+            const soldType = this.planeManager.sellIdlePlane(companyId);
+            if (soldType && this.economyManager) {
+                const planeConf = CONFIG.ECONOMY.PLANES[soldType];
+                const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 2500000;
+                this.economyManager.addAiFunds(companyId, refund);
+            }
+        }
+
+        if (currentPlanes.length < totalRoutes * 1.5 && aiFunds > 8000000) {
+            let buyType = 'small';
+            if (aiFunds > 160000000) buyType = 'super';
+            else if (aiFunds > 70000000) buyType = 'large';
+            else if (aiFunds > 30000000) buyType = 'medium';
+
+            const planeConf = CONFIG.ECONOMY.PLANES[buyType];
+            if (planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
+                const success = this.planeManager.addPlane(buyType, companyId);
+                if (success) {
+                    this.economyManager.deductAiFunds(companyId, planeConf.cost);
+                    return;
                 }
             }
-            if (didWithdraw) return;
         }
 
-        const counts = this.planeManager.getPlaneCounts(companyId);
-        const currentPlaneCounts = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
-        const aiMaxPlanes = Math.max(5, Math.floor(currentRouteCount * 1.5));
+        let targetAirportId = null;
+        let lowestShare = 1.0;
 
-        // ★追加: 資金難時または機体過剰時に遊休機体を売却して維持費を削減
-        if (this.economyManager) {
-            const aiFunds = this.economyManager.getAiFunds(companyId);
-            if (currentPlaneCounts > aiMaxPlanes || aiFunds < 3000000) {
-                this._sellSurplusIdlePlanes(companyId);
+        connectedAirports.forEach(id => {
+            const share = competitionManager.getShare(id, companyId);
+            if (share < lowestShare) {
+                lowestShare = share;
+                targetAirportId = id;
             }
-        }
-
-        const connectedIds = Object.keys(net).filter(id => {
-            if (!net[id] || net[id].length === 0) return false;
-            const airportNode = this.airportManager.getAirportById(id);
-            if (!airportNode) return false;
-            
-            const maxConns = this.networkManager.MAX_CONNECTIONS[airportNode.type];
-            return net[id].length < maxConns; 
         });
 
-        if (connectedIds.length === 0) return;
+        if (!targetAirportId) {
+            targetAirportId = connectedAirports[Math.floor(Math.random() * connectedAirports.length)];
+        }
 
-        if (Math.random() < 0.7) {
-            const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
-            const originNode = this.airportManager.getAirportById(originId);
-            this.expandNetwork(companyId, originNode);
-        } else {
-            if (currentPlaneCounts < aiMaxPlanes) {
-                const types = ['small', 'medium', 'large', 'super'];
-                const randomType = types[Math.floor(Math.random() * types.length)];
-                
-                const planeConf = CONFIG.ECONOMY.PLANES[randomType];
-                if (this.economyManager && planeConf) {
-                    if (this.economyManager.canAiAfford(companyId, planeConf.cost)) {
-                        this.economyManager.deductAiFunds(companyId, planeConf.cost);
-                        this.planeManager.addPlane(randomType, companyId);
-                    }
-                }
-            } else {
-                const originId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
-                const originNode = this.airportManager.getAirportById(originId);
-                this.expandNetwork(companyId, originNode);
-            }
+        const targetNode = this.airportManager.getAirportById(targetAirportId);
+        if (targetNode) {
+            this._expandRoute(companyId, targetNode);
         }
     }
 
-    _escapeToNewAirport(companyId, competitionManager) {
-        const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
-        
-        const validEscapes = allCandidates.filter(candidate => {
-            const net = this.networkManager.network[companyId];
-            if (net && net[candidate.id] && net[candidate.id].length > 0) return false;
-            
-            let hasConnection = false;
-            const posCandidate = Utils.latLonToVector3(candidate.lat, candidate.lon, CONFIG.GLOBE_RADIUS);
-            for (const other of allCandidates) {
-                if (other.id === candidate.id) continue;
-                const posOther = Utils.latLonToVector3(other.lat, other.lon, CONFIG.GLOBE_RADIUS);
-                if (posCandidate.distanceTo(posOther) <= CONFIG.GLOBE_RADIUS * 1.25) {
-                    if (this.networkManager.canConnect(candidate, other, companyId)) {
-                        hasConnection = true;
-                        break;
-                    }
-                }
-            }
-            return hasConnection;
-        });
-
-        if (validEscapes.length === 0) return;
-
-        validEscapes.sort((a, b) => {
-            const shareA = competitionManager.getShare(a.id, 'player');
-            const shareB = competitionManager.getShare(b.id, 'player');
-            return shareA - shareB;
-        });
-
-        const minShare = competitionManager.getShare(validEscapes[0].id, 'player');
-        const bestEscapes = validEscapes.filter(e => competitionManager.getShare(e.id, 'player') === minShare);
-
-        const escapeDest = bestEscapes[Math.floor(Math.random() * bestEscapes.length)];
-        this.expandNetwork(companyId, escapeDest, true); 
-    }
-
-    expandNetwork(companyId, originNode, isFree = false) {
-        const allCandidates = this.airportManager.markers.map(m => m.userData.airportData);
+    _expandRoute(companyId, originNode, isFree = false) {
+        const candidates = this.airportManager.allAirports;
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
-        const validCandidates = allCandidates.filter(destNode => {
+        const validCandidates = candidates.filter(destNode => {
             if (originNode.id === destNode.id) return false;
             if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) return false;
             
