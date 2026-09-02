@@ -1,11 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 6: 期末決算モーダル制御 ＆ ダイレクト終了合流の実装】
- * 1. `this.economyManager.onAnnualSettlement` を設定し、3月末満了時に自動でゲーム一時停止（isPaused = true）と
- * 独立した期末決算モーダル（showSettlementModal）を表示。
- * 2. 「🚀 次期へ進む」選択時: 一時停止解除（isPaused = false）＋ 新年度イベントクールダウン（30秒）を適用。
- * 3. 「🛑 経営終了」選択時: 確認ダイアログを挟まずに即座に終了確定処理（executeGameExit）へ直行・合流。
- * 4. 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動、3D描画・視直径カリング等は100%完全保持。
+ * 【EventManagerへのnetworkManager受け渡し追加 ＆ 全機能完全保持】
+ * 1. `new EventManager(...)` の引数に `this.networkManager` を追加し、イベント抽選時の未定義エラーを解消。
+ * 2. Phase 6の期末決算モーダル制御（onAnnualSettlement）、ダイレクト終了合流（executeGameExit）、
+ * 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -62,6 +60,7 @@ export class GameManager {
             this.airportManager
         );
 
+        // ★修正: networkManager を第8引数として渡す
         this.eventManager = new EventManager(
             this,
             this.uiManager,
@@ -69,10 +68,11 @@ export class GameManager {
             this.upgradeManager,
             this.competitionManager,
             this.planeManager,
-            this.rivalManager
+            this.rivalManager,
+            this.networkManager
         );
 
-        // ★Phase 6: 期末決算モーダルのハンドラ登録
+        // Phase 6: 期末決算モーダルのハンドラ登録
         this.economyManager.onAnnualSettlement = (settlementData) => {
             this.isPaused = true;
             this.uiManager.showSettlementModal(
@@ -233,7 +233,7 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    // ★Phase 6: 終了確定処理（ダイレクト合流）
+    // Phase 6: 終了確定処理（ダイレクト合流）
     executeGameExit() {
         this.uiManager.soundManager.playSuccessSound();
         setTimeout(() => {
@@ -417,7 +417,7 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        // ★Phase 6: 決算モーダル表示中もタップ無効化
+        // 決算モーダル表示中もタップ無効化
         if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) return;
 
         const tapX = event.clientX;

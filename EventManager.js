@@ -1,16 +1,17 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 6: 期末決算モーダルとの完全排他制御の実装】
- * 1. `update` 内で、決算モーダル表示中（`this.uiManager.isSettlementModalOpen()`）はイベント抽選タイマーを完全にスキップ。
- * 2. 決算直後・新年度開始時の30秒クールダウン（`this.cooldownTimer`）との連携を保証。
- * 3. イベントモーダル表示時のフリーズ防止安全フォールバック（`try...catch / finally`）は100%完全保持。
+ * 【networkManagerの受け渡し修正 ＆ 安全な再開フォールバックの実装】
+ * 1. コンストラクタに `networkManager` を追加し、イベント抽選判定時の路線数取得で
+ * `TypeError: Cannot read properties of undefined` が発生する問題を解消。
+ * 2. `_triggerEvent` 内のフリーズ防止 `try...catch / finally` ガード、
+ * 期末決算モーダル表示中の排他制御（isSettlementModalOpen）は100%完全保持。
  */
 
 import { EVENT_DATA } from './Data_Events.js';
 import { CONFIG } from './Config.js';
 
 export class EventManager {
-    constructor(gameManager, uiManager, economyManager, upgradeManager, competitionManager, planeManager, rivalManager) {
+    constructor(gameManager, uiManager, economyManager, upgradeManager, competitionManager, planeManager, rivalManager, networkManager) {
         this.gameManager = gameManager;
         this.uiManager = uiManager;
         this.economyManager = economyManager;
@@ -18,6 +19,7 @@ export class EventManager {
         this.competitionManager = competitionManager;
         this.planeManager = planeManager;
         this.rivalManager = rivalManager;
+        this.networkManager = networkManager; // ★修正: networkManagerを保持
 
         this.isEventActive = false;
         this.checkTimer = 0;
@@ -49,7 +51,7 @@ export class EventManager {
             }
         }
 
-        // ★Phase 6: 突発イベント中、または期末決算モーダル表示中はイベント抽選をスキップ（排他制御）
+        // 突発イベント中、または期末決算モーダル表示中はイベント抽選をスキップ（排他制御）
         if (this.isEventActive || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) {
             return;
         }
