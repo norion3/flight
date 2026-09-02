@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【プレイヤー初期資金50M・AI初期資金30M ＆ 全機能完全保持】
- * 1. プレイヤー初期資金を 50M、AI初期資金を 30M に個別設定。
- * 2. 機体の収益・維持費マイルド設定、5段階の距離別ベース開拓コスト設定（ROUTE_TIERS）等は100%完全保持。
+ * 【ローグライク特化・爽快機体パラメータ ＆ プレイヤー初期資金50M】
+ * 1. 大型機・超大型機の収益（incomeBase）をステップアップの爽快感重視で高めに設定し、
+ * 維持費（upkeep）を軽めに設定して赤字ストレスを解消。
+ * 2. プレイヤー初期資金 50M、AI初期資金 30M、5段階距離別コスト設定（ROUTE_TIERS）等は100%完全保持。
  */
 
 export const CONFIG = {
@@ -24,15 +25,16 @@ export const CONFIG = {
     ],
 
     ECONOMY: {
-        INITIAL_FUNDS: 50000000,    // ★プレイヤー初期資金: 50M
-        AI_INITIAL_FUNDS: 30000000, // ★AI初期資金: 30M（維持）
+        INITIAL_FUNDS: 50000000,    // プレイヤー初期資金: 50M
+        AI_INITIAL_FUNDS: 30000000, // AI初期資金: 30M
         MAX_PLANES_INITIAL: 10,
         
+        // ★爽快感重視の機体パラメータ設定（大型・超大型でドカンと稼げる）
         PLANES: {
             small:  { cost: 5000000,   sellRate: 0.70, upkeep: 250,  baseDemand: 30,  incomeBase: 1200 },
-            medium: { cost: 25000000,  sellRate: 0.60, upkeep: 750,  baseDemand: 90,  incomeBase: 4200 },
-            large:  { cost: 60000000,  sellRate: 0.50, upkeep: 2200, baseDemand: 220, incomeBase: 12000 },
-            super:  { cost: 150000000, sellRate: 0.40, upkeep: 6000, baseDemand: 500, incomeBase: 30000 }
+            medium: { cost: 25000000,  sellRate: 0.60, upkeep: 600,  baseDemand: 90,  incomeBase: 4500 },
+            large:  { cost: 60000000,  sellRate: 0.50, upkeep: 1500, baseDemand: 220, incomeBase: 14000 },
+            super:  { cost: 150000000, sellRate: 0.40, upkeep: 3500, baseDemand: 500, incomeBase: 36000 }
         },
 
         ROUTE_TIERS: [

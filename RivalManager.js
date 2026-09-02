@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【マイルド・AI思考サイクル ＆ 初期出費適正化】
- * 1. AIの思考サイクルを 30秒 ➔ 22秒 にマイルド調整。
- * 2. 初期出費を 15M ➔ 3M に軽減し、実質 27M からの自立スタートを確立。
- * 3. 路線撤退時の遊休機体自動売却ロジック（sellIdlePlane）は100%完全保持。
+ * 【AIのシェア陥落による空港撤退（onWithdraw） ＆ 自律的機体増備の実装】
+ * 1. AI思考時にシェアが 25% 未満に落ち込んだ競合路線を検出し、正式に廃止（removeRoute）して
+ * 撤退通知（onWithdraw）を発火。プレイヤーによる市場制覇の爽快感を演出。
+ * 2. 路線拡大に応じて中型・大型機も購入し、機体数を最大8機まで自然に増備して対抗。
+ * 3. 路線撤退時の遊休機体自動売却ロジック（sellIdlePlane）、初期化（init）等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -20,7 +21,7 @@ export class RivalManager {
         
         this.timers = {};
         this.rivals.forEach(rival => {
-            this.timers[rival.id] = Math.random() * 20; // ★マイルド調整: 0〜20秒
+            this.timers[rival.id] = Math.random() * 20; // 0〜20秒の初期乱数
         });
 
         this.isInitialized = false;
@@ -45,7 +46,7 @@ export class RivalManager {
                     this.planeManager.addPlane('small', rival.id);
                     this.planeManager.addPlane('small', rival.id);
                     if (this.economyManager) {
-                        this.economyManager.deductAiFunds(rival.id, 3000000); // ★初期出費を15M➔3Mに適正化
+                        this.economyManager.deductAiFunds(rival.id, 3000000); 
                     }
                 }
             }
@@ -59,7 +60,7 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            if (this.timers[rival.id] >= 22) { // ★マイルド調整: 30秒 ➔ 22秒
+            if (this.timers[rival.id] >= 22) { // 22秒サイクル
                 this.timers[rival.id] = 0;
                 this._thinkAction(rival.id, competitionManager);
             }
@@ -82,6 +83,33 @@ export class RivalManager {
         }
         totalRoutes = Math.floor(totalRoutes / 2);
 
+        // ★新設: シェア25%未満の不採算路線からの撤退・逃亡判定（路線が2本以上ある場合）
+        if (totalRoutes >= 2 && competitionManager) {
+            for (const originId in net) {
+                const originRoutes = net[originId];
+                if (!originRoutes || originRoutes.length === 0) continue;
+                
+                const originShare = competitionManager.getShare(originId, companyId);
+                if (originShare < 0.25) {
+                    const destRoute = originRoutes[0];
+                    const originNode = this.airportManager.getAirportById(originId);
+                    const destNode = this.airportManager.getAirportById(destRoute.id);
+                    
+                    if (originNode && destNode) {
+                        this.networkManager.removeRoute(originNode, destNode, companyId);
+                        this.planeManager.checkAndReassignPlanes();
+                        
+                        // 撤退トーストの発火
+                        if (this.onWithdraw) {
+                            this.onWithdraw(companyId, originId);
+                        }
+                        return; // 1回の思考で1アクション
+                    }
+                }
+            }
+        }
+
+        // 資金難時の遊休機体売却
         if (aiFunds < 2000000) {
             const soldType = this.planeManager.sellIdlePlane(companyId);
             if (soldType && this.economyManager) {
@@ -92,6 +120,7 @@ export class RivalManager {
             return;
         }
 
+        // 余剰機体の売却整理
         if (currentPlanes.length > totalRoutes * 2 + 1) {
             const soldType = this.planeManager.sellIdlePlane(companyId);
             if (soldType && this.economyManager) {
@@ -101,11 +130,12 @@ export class RivalManager {
             }
         }
 
-        if (currentPlanes.length < totalRoutes * 1.5 && aiFunds > 8000000) {
+        // ★機体増備ロジック（路線拡大に応じて最大8機まで中型・大型機も購入）
+        if (currentPlanes.length < totalRoutes * 1.8 && currentPlanes.length < 8 && aiFunds > 6000000) {
             let buyType = 'small';
-            if (aiFunds > 160000000) buyType = 'super';
-            else if (aiFunds > 70000000) buyType = 'large';
-            else if (aiFunds > 30000000) buyType = 'medium';
+            if (aiFunds > 120000000) buyType = 'super';
+            else if (aiFunds > 50000000) buyType = 'large';
+            else if (aiFunds > 20000000) buyType = 'medium';
 
             const planeConf = CONFIG.ECONOMY.PLANES[buyType];
             if (planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
@@ -117,6 +147,7 @@ export class RivalManager {
             }
         }
 
+        // 路線開拓（シェアが低い空港またはランダム候補から拡張）
         let targetAirportId = null;
         let lowestShare = 1.0;
 
