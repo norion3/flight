@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路廃止時の返金処理（開拓費用の50%）連動 ＆ 全機能完全保持】
- * 1. `onRouteActionConfirmed` において、空路廃止（remove）確定時に開拓費用の50%を算出し、
- * `this.economyManager.addFunds(refund)` で所持金に正しく加算する処理を実装。
- * 2. 航路開拓ボタンの所持金連携（開いた瞬間の青色点灯）および毎フレームのリアルタイム連動は完全保持。
- * 3. 一時イベントバフ計算、CompetitionManager への airportManager 連携、トースト通知等は完全に保持しています。
+ * 【Phase 6: 期末決算モーダル制御 ＆ ダイレクト終了合流の実装】
+ * 1. `this.economyManager.onAnnualSettlement` を設定し、3月末満了時に自動でゲーム一時停止（isPaused = true）と
+ * 独立した期末決算モーダル（showSettlementModal）を表示。
+ * 2. 「🚀 次期へ進む」選択時: 一時停止解除（isPaused = false）＋ 新年度イベントクールダウン（30秒）を適用。
+ * 3. 「🛑 経営終了」選択時: 確認ダイアログを挟まずに即座に終了確定処理（executeGameExit）へ直行・合流。
+ * 4. 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動、3D描画・視直径カリング等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -71,6 +72,25 @@ export class GameManager {
             this.rivalManager
         );
 
+        // ★Phase 6: 期末決算モーダルのハンドラ登録
+        this.economyManager.onAnnualSettlement = (settlementData) => {
+            this.isPaused = true;
+            this.uiManager.showSettlementModal(
+                settlementData,
+                () => {
+                    // 「次期へ進む」選択時
+                    this.isPaused = false;
+                    if (this.eventManager) {
+                        this.eventManager.cooldownTimer = 30.0;
+                    }
+                },
+                () => {
+                    // 「経営終了・スコア送信」選択時（ダイレクト合流）
+                    this.executeGameExit();
+                }
+            );
+        };
+
         this.uiManager.onConnectRequested = () => {
             this.state = STATE_CONNECTING;
             this.selectedOrigin = this.selectedHitMesh; 
@@ -107,7 +127,7 @@ export class GameManager {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
                 } else if (actionType === 'remove') {
-                    // ★修正: 空路廃止時に開拓コストの50%を算出して所持金に正しく加算（返金）
+                    // 空路廃止時に開拓コストの50%を返金
                     const routeCost = this.economyManager.calculateRouteCost(originData, destData);
                     const refund = Math.floor(routeCost * 0.5);
                     this.economyManager.addFunds(refund);
@@ -211,6 +231,14 @@ export class GameManager {
         this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
         window.addEventListener('pointerup', this.onPointerUp.bind(this));
         window.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    // ★Phase 6: 終了確定処理（ダイレクト合流）
+    executeGameExit() {
+        this.uiManager.soundManager.playSuccessSound();
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
     }
 
     updateOverviewPanelData() {
@@ -389,7 +417,8 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        if (this.isPaused || (this.eventManager && this.eventManager.isEventActive)) return;
+        // ★Phase 6: 決算モーダル表示中もタップ無効化
+        if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) return;
 
         const tapX = event.clientX;
         const tapY = event.clientY;

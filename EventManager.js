@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【安全な再開フォールバックの実装】
- * 1. `_triggerEvent` 内でモーダル表示時にエラーが起きた場合でも、即座に一時停止を解除して
- * ゲームがフリーズするのを防ぐ `try...catch / finally` ガードを追加。
- * 2. 選択肢を選んだ後の結果反映と一時停止解除が100%確実に完了するよう保証しています。
+ * 【Phase 6: 期末決算モーダルとの完全排他制御の実装】
+ * 1. `update` 内で、決算モーダル表示中（`this.uiManager.isSettlementModalOpen()`）はイベント抽選タイマーを完全にスキップ。
+ * 2. 決算直後・新年度開始時の30秒クールダウン（`this.cooldownTimer`）との連携を保証。
+ * 3. イベントモーダル表示時のフリーズ防止安全フォールバック（`try...catch / finally`）は100%完全保持。
  */
 
 import { EVENT_DATA } from './Data_Events.js';
@@ -49,7 +49,10 @@ export class EventManager {
             }
         }
 
-        if (this.isEventActive) return;
+        // ★Phase 6: 突発イベント中、または期末決算モーダル表示中はイベント抽選をスキップ（排他制御）
+        if (this.isEventActive || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) {
+            return;
+        }
 
         if (this.cooldownTimer > 0) {
             this.cooldownTimer -= delta;

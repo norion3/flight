@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【年間客数のHUDリアルタイム連動 ＆ 収益・累計客数の単位短縮表示】
- * 1. `updateTopHUD` への引数受け渡しに `yearlyPassengersStr`（年間客数・カンマ区切り実数）を追加し、
- * 年間客数が毎秒リアルタイムにカウントアップするよう修正。
- * 2. 収益表示（incomeStr）を `_formatMoneyNumber` 経由の短縮表示（+$ 15K 等）へ復旧。
- * 3. 累計客数（passengersStr）を 100万人以上で M/B 短縮表示（1.25M 等）に最適化。
- * 4. 4月期首〜翌3月期末の会計年度サイクル、満足度スナップショット、AI自立経済等は100%完全保持しています。
+ * 【Phase 6: 期末決算データ通知基盤の実装 ＆ 全機能完全保持】
+ * 1. `onAnnualSettlement` コールバックプロパティを追加し、3月末満了時（_finalizeAnnualStats）に
+ * 確定した決算データ（期数、年間客数、自己ベスト、資金、新記録フラグ）を通知。
+ * 2. 4月期首〜翌3月期末の会計年度サイクル、満足度スナップショット、年間客数・累計客数のHUD連動、
+ * 収益短縮表示（+$ 15K 等）、AI自立経済等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,6 +31,8 @@ export class EconomyManager {
         this.lastYearPassengers = null;   // 前年の確定年間客数
         this.bestYearlyPassengers = 0;    // 歴代最高の年間客数
         this.annualHistory = [];          // 過去の年度別決算ログ
+
+        this.onAnnualSettlement = null;   // ★Phase 6: 決算通知コールバック
 
         this.monthTimer = 0;
         this.year = 1;
@@ -134,13 +135,13 @@ export class EconomyManager {
             const calendarStr = `${this.year}年目-${this.month}月`;
             const fundsStr = this._formatMoney(this.funds);
             
-            // ★修正: 収益を K / M などの短縮表示に復旧
+            // 収益短縮表示
             const incomeStr = (this.displayIncome >= 0 ? "+$" : "-$") + this._formatMoneyNumber(Math.abs(this.displayIncome));
             
-            // ★修正: 年間客数（完全実数・カンマ区切り）
+            // 年間客数（完全実数・カンマ区切り）
             const yearlyPassengersStr = this._formatNumber(this.yearlyPassengers);
             
-            // ★修正: 累計客数（100万人以上で M/B 短縮表示）
+            // 累計客数（100万人以上で M/B 短縮表示）
             let passengersStr = '';
             if (this.totalPassengers >= 1000000000) {
                 passengersStr = (this.totalPassengers / 1000000000).toFixed(2) + 'B';
@@ -153,7 +154,6 @@ export class EconomyManager {
             const rawWorldShare = competitionManager ? competitionManager.getWorldShare('player') : 0;
             const shareStr = (rawWorldShare * 100).toFixed(1);
 
-            // ★修正: yearlyPassengersStr を含む8引数で確実に連携
             this.uiManager.updateTopHUD(
                 calendarStr,
                 fundsStr,
@@ -185,6 +185,14 @@ export class EconomyManager {
             isNewRecord = true;
         }
 
+        const settlementData = {
+            year: completedYear,
+            yearlyPassengers: finalizedScore,
+            bestYearlyPassengers: this.bestYearlyPassengers,
+            funds: Math.floor(this.funds),
+            isNewRecord: isNewRecord
+        };
+
         this.annualHistory.push({
             year: completedYear,
             passengers: finalizedScore,
@@ -199,6 +207,11 @@ export class EconomyManager {
                 this.aiYearlyPassengers[comp.id] = 0;
             }
         });
+
+        // ★Phase 6: 決算通知コールバックの発火
+        if (this.onAnnualSettlement) {
+            this.onAnnualSettlement(settlementData);
+        }
     }
 
     _recordMonthlyHistory(competitionManager) {

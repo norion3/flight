@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバル画面比較バーの100%終端レール視認性統一 ＆ 全機能完全保持】
- * 1. `_createCompareBarHtml` において、バーの土台（レール）を `bg-slate-950/80 border border-slate-700/50` に設定し、
- * 他社カード（bg-slate-800）上でも未充填のグレー枠が右端（100%）までクッキリと浮き出るよう改善。
- * 2. `updateTopHUD` の年間客数＆累計客数対応、折れ線グラフの線幅（自社:2.5px / 他社:2.0px）、
- * 最新位置ドット（◯）、各画面の最適高さ（410px/450px/410px/540px）、空路廃止返金（50%）、
- * 航路開拓ボタンのリアルタイム連動等は100%完全保持。
+ * 【Phase 6 ステップ1: 独立期末決算モーダルの表示・操作制御基盤の実装】
+ * 1. `showSettlementModal` / `hideSettlementModal` メソッドを新設し、
+ * 専用の `#settlement-modal-backdrop` による期末決算の表示と「次期へ進む」「経営終了」の分岐制御を追加。
+ * 2. 突発イベントモーダル（#event-modal-backdrop）とは完全に独立した排他制御を構築。
+ * 3. 上部HUDの年間客数・累計客数連動、折れ線グラフ描画、各画面の個別最適高さ（410px/450px/410px/540px）、
+ * 空路廃止返金（50%）、比較バーの100%終端レール視認性等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -26,6 +26,7 @@ export class UIManager {
         this.exitCard = document.getElementById('exit-confirm-card');
         this.helpMenu = document.getElementById('help-menu');
         this.eventBackdrop = document.getElementById('event-modal-backdrop');
+        this.settlementBackdrop = document.getElementById('settlement-modal-backdrop'); // ★Phase 6: 独立決算モーダル
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -64,6 +65,7 @@ export class UIManager {
         this._isRivalsOpen = false; 
         this._isOverviewOpen = false;
         this._isEventModalOpen = false;
+        this._isSettlementModalOpen = false; // ★Phase 6: 決算モーダル状態フラグ
         
         this.currentGraphTab = 'funds';
         this._openedRivalId = null; 
@@ -487,6 +489,72 @@ export class UIManager {
         }
     }
 
+    // ★Phase 6: 独立期末決算モーダルの表示メソッド
+    showSettlementModal(data, onContinue, onExit) {
+        this.soundManager.playSuccessSound();
+        this.hideAll();
+
+        const elYear = document.getElementById('settlement-year');
+        const elYearlyPassengers = document.getElementById('settlement-yearly-passengers');
+        const elBestPassengers = document.getElementById('settlement-best-passengers');
+        const elBestBadge = document.getElementById('settlement-best-badge');
+        const elFunds = document.getElementById('settlement-funds');
+        const elNextBtnText = document.getElementById('settlement-next-btn-text');
+
+        if (elYear) elYear.innerText = data.year || 1;
+        if (elYearlyPassengers) elYearlyPassengers.innerText = this._formatNumber(data.yearlyPassengers || 0);
+        if (elBestPassengers) elBestPassengers.innerText = this._formatNumber(data.bestYearlyPassengers || 0);
+        if (elFunds) elFunds.innerText = this._formatMoneyShort(data.funds || 0);
+
+        if (elBestBadge) {
+            if (data.isNewRecord) {
+                elBestBadge.classList.remove('hidden');
+            } else {
+                elBestBadge.classList.add('hidden');
+            }
+        }
+
+        if (elNextBtnText) {
+            elNextBtnText.innerText = `次期（第${(data.year || 1) + 1}期）へ進む`;
+        }
+
+        const btnContinue = document.getElementById('btn-settlement-continue');
+        const btnExit = document.getElementById('btn-settlement-exit');
+
+        if (btnContinue) {
+            btnContinue.onclick = () => {
+                this.soundManager.playTapSound();
+                this.hideSettlementModal();
+                if (onContinue) onContinue();
+            };
+        }
+
+        if (btnExit) {
+            btnExit.onclick = () => {
+                this.soundManager.playSuccessSound();
+                this.hideSettlementModal();
+                if (onExit) onExit();
+            };
+        }
+
+        if (this.settlementBackdrop) {
+            this.settlementBackdrop.classList.add('show');
+            this._isSettlementModalOpen = true;
+            this._toggleMainButtons(false);
+        }
+    }
+
+    // ★Phase 6: 独立期末決算モーダルを閉じる
+    hideSettlementModal() {
+        if (this.settlementBackdrop) {
+            this.settlementBackdrop.classList.remove('show');
+            this._isSettlementModalOpen = false;
+            this._toggleMainButtons(true);
+        }
+    }
+
+    isSettlementModalOpen() { return this._isSettlementModalOpen; }
+
     updateTopHUD(calendarStr, fundsStr, planesCount, planesMax, incomeStr, yearlyPassengersStr, passengersStr, shareStr) {
         const elCalendar = document.getElementById('hud-calendar');
         const elFunds = document.getElementById('hud-funds');
@@ -695,7 +763,7 @@ export class UIManager {
     }
 
     hideAll() {
-        if (this._isEventModalOpen) return;
+        if (this._isEventModalOpen || this._isSettlementModalOpen) return;
 
         this.infoCard.classList.remove('show');
         this.routeCard.classList.remove('show');
@@ -1278,7 +1346,6 @@ export class UIManager {
         });
     }
 
-    // ★修正: 他社カード上でも未充填部分が右端(100%)までクッキリ見えるようレール背景色と境界線を調整
     _createCompareBarHtml(title, playerVal, rivalVal, playerDisplay, rivalDisplay) {
         const maxVal = Math.max(playerVal, rivalVal, 0.0001);
         const pPct = maxVal > 0.0001 ? Math.min(100, Math.max(0, (playerVal / maxVal) * 100)) : 0;
