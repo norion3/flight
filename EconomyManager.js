@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI維持費50%オフ特別優遇 ＆ グラフ用ライバル機体数記録完全保持】
- * 1. `_updateAiEconomy` において、AIの機体維持費を機体構成ベースで算出しつつ「50%オフ」の特別優遇を適用。
- * 2. 4月期首〜翌3月期末の会計年度サイクル、期末決算データ通知（onAnnualSettlement）、
- * 年間客数・累計客数のHUD連動、収益短縮表示等は100%完全保持しています。
+ * 【イベント出費時マイナス防止ガード追加 ＆ 全機能完全保持】
+ * 1. `addFunds` において下限ガード（`if (this.funds < 0) this.funds = 0;`）を追加し、
+ * イベントによる出費等で所持金がマイナス表示にならないよう修正。
+ * 2. AI維持費50%オフ特別優遇、4月期首〜翌3月期末の会計年度サイクル、期末決算データ通知（onAnnualSettlement）、
+ * 月次グラフ用の実機体数記録、HUD連動等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -292,8 +293,10 @@ export class EconomyManager {
         if (this.funds < 0) this.funds = 0;
     }
 
+    // ★修正: イベント出費等（負の加算）でも所持金がマイナスにならず0で止まるガードを追加
     addFunds(amount) {
         this.funds += amount;
+        if (this.funds < 0) this.funds = 0;
     }
 
     getAiFunds(companyId) {
@@ -314,6 +317,7 @@ export class EconomyManager {
     addAiFunds(companyId, amount) {
         if (this.aiFunds[companyId] !== undefined) {
             this.aiFunds[companyId] += amount;
+            if (this.aiFunds[companyId] < 0) this.aiFunds[companyId] = 0;
         }
     }
 
@@ -357,7 +361,6 @@ export class EconomyManager {
             let baseIncome = (routeCount * 1200) + (activeFlyingPlanes * 3500) + (planeCount * 600); 
             let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
             
-            // ★AI維持費: 機体構成に応じた実費の50%（特別優遇ハンデ）
             let totalAiUpkeep = 0;
             compPlanes.forEach(p => {
                 const conf = CONFIG.ECONOMY.PLANES[p.sizeType];
