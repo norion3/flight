@@ -76,7 +76,7 @@
             toastLimitPlanes: "駐機場の空きがありません",
             toastNoFunds: "資金が不足しています",
             toastOverDistance: "航続距離を超えています",
-            errMapLoad: "地図データの取得に失敗しました。",
+            errMapLoad: "地図データの取得に失敗しました！",
             hubMajor: "主要空港",
             hubLocal: "地方空港",
             hubFictional: "中継空港",
@@ -144,7 +144,7 @@
         #fab-buy-plane { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #zoom-controls { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 
-        /* イベントモーダル専用スタイル（ぼかしを撤廃し背後を鮮明に見せつつ操作ガード） */
+        /* イベントモーダル専用スタイル */
         #event-modal-backdrop {
             opacity: 0;
             pointer-events: none;
@@ -173,7 +173,7 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <!-- トースト通知（上部HUDから十分な余白を確保した top-48 ） -->
+    <!-- トースト通知 -->
     <div id="toast-notification" class="fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
         Message
     </div>
@@ -474,7 +474,6 @@
             </div>
         </div>
 
-        <!-- ★修正: メニューTOP基準の h-[410px] に設定 -->
         <div id="control-center-panel" class="interactive-ui bottom-sheet absolute bg-slate-900/95 border border-slate-600/50 rounded-2xl p-0 backdrop-blur-md shadow-2xl shadow-slate-900/50 z-30 w-full max-w-md overflow-hidden flex flex-col h-[410px] transition-all duration-300">
             
             <div class="relative flex justify-center items-center p-4 border-b border-slate-700/50 shrink-0 min-h-[56px]">
@@ -545,7 +544,6 @@
                         <div id="panel-upgrades" class="hidden py-4 flex flex-col gap-3">
                         </div>
 
-                        <!-- ★タイトルバーとの間に適度な隙間（mt-2）を確保し、グラフカード内部マージンを最適化してはみ出しを防止 -->
                         <div id="panel-overview" class="hidden py-2 flex flex-col gap-2">
                             <div class="grid grid-cols-3 gap-1 bg-slate-800/80 rounded-lg p-1 border border-slate-700/50 mt-2">
                                 <button class="graph-tab-btn text-[10px] font-bold py-1.5 bg-slate-700 text-white rounded-md shadow-sm transition-colors text-center" data-tab="funds">資金</button>
@@ -584,12 +582,12 @@
                                         <polyline id="graph-line-1st" points="" fill="none" />
                                         <polyline id="graph-line-player" points="" fill="none" />
                                         
-                                        <circle id="graph-point-other-0" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
-                                        <circle id="graph-point-other-1" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
-                                        <circle id="graph-point-other-2" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
-                                        <circle id="graph-point-other-3" cx="0" cy="0" r="1.5" class="transition-opacity duration-300 opacity-0" />
-                                        <circle id="graph-point-1st" cx="0" cy="0" r="2" class="transition-opacity duration-300 opacity-0" />
-                                        <circle id="graph-point-player" cx="0" cy="0" r="3" fill="#34d399" class="animate-pulse transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-0" cx="0" cy="0" r="3.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-1" cx="0" cy="0" r="3.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-2" cx="0" cy="0" r="3.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-other-3" cx="0" cy="0" r="3.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-1st" cx="0" cy="0" r="3.5" class="transition-opacity duration-300 opacity-0" />
+                                        <circle id="graph-point-player" cx="0" cy="0" r="4" fill="#34d399" class="animate-pulse transition-opacity duration-300 opacity-0" />
                                     </svg>
                                     
                                     <div id="graph-x-ticks" class="absolute inset-0 w-full h-full pointer-events-none overflow-visible"></div>

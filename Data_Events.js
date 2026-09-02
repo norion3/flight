@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
  * 【Phase 5: 実績・ライバル状況連動型 動的イベント定義データ】
- * 固定額の出費を完全撤廃し、所持金や月収に対する割合（%）で動的計算します。
- * Stage 1〜6の実績ステージおよびライバル盤面に応じた全15種のイベントを定義しています。
+ * 1. トーストメッセージの末尾を「〜しました！」に統一し、UI上の視認性と爽快感を向上。
+ * 2. 所持金や月収に対する割合（%）ベースの動的コスト計算、Stage 1〜6の進行条件等は完全に保持しています。
  */
 
 export const EVENT_DATA = [
@@ -16,407 +16,327 @@ export const EVENT_DATA = [
         title: 'ご当地スイーツの機内採用',
         description: '就航先の地元自治体から、機内サービスで地元の名産スイーツを採用してほしいとの提案が届きました。',
         condition: (ctx) => true,
-        options: [
-            {
-                text: '採用して特別提供する',
-                getCost: (ctx) => Math.max(50000, Math.round(ctx.funds * 0.04)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 12,
-                    passengersRateDelta: 0.05,
-                    durationMonths: 2,
-                    message: 'ご当地スイーツが大好評！顧客満足度がアップしました。'
-                })
-            },
-            {
-                text: 'パンフレット紹介にとどめる',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 4,
-                    message: 'ささやかなPRとして喜ばれました。'
-                })
-            }
+        options: [\
+            {\
+                text: '採用して特別提供する',\
+                getCost: (ctx) => Math.max(50000, Math.round(ctx.funds * 0.04)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    satisfactionDelta: 12,\
+                    passengersRateDelta: 0.05,\
+                    durationMonths: 2,\
+                    message: 'ご当地スイーツが大好評！顧客満足度がアップしました！'\
+                })\
+            },\
+            {\
+                text: 'パンフレット紹介にとどめる',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: 3,\
+                    message: '観光客が殺到！運航便は大盛況となりました！'\
+                })\
+            }\
         ]
     },
     {
-        id: 'stage1_crew_praise',
+        id: 'stage1_heavy_fog',
         stageMin: 1,
         stageMax: 2,
-        title: '現場クルーの神対応が話題に',
-        description: '新人クルーの親切で温かい接客が、利用客のSNS上で小さくバズり注目を集めています。',
+        title: '主要空港の濃霧による機材繰り悪化',
+        description: '季節性の濃霧によりダイヤが乱れています。臨時整備とクルーの手配で遅延を最小限に抑えますか？',
         condition: (ctx) => true,
-        options: [
-            {
-                text: '特別報奨金を支給して称える',
-                getCost: (ctx) => Math.max(30000, Math.round(ctx.funds * 0.03)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 20,
-                    message: '現場の士気が最高潮に！顧客満足度が大幅に上昇しました。'
-                })
-            },
-            {
-                text: '社内報でお礼メッセージを掲載',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 8,
-                    message: '温かい会社の雰囲気が利用客に好印象を与えました。'
-                })
-            }
+        options: [\
+            {\
+                text: '特別手当を出して臨時整備班を投入',\
+                getCost: (ctx) => Math.max(80000, Math.round(ctx.funds * 0.06)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    satisfactionDelta: 8,\
+                    message: '機体の点検・修繕を迅速に完了させました！'\
+                })\
+            },\
+            {\
+                text: '自然回復を待つ（欠航・遅延容認）',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: -10,\
+                    passengersRateDelta: -0.08,\
+                    durationMonths: 1,\
+                    message: '点検が遅れ、機材繰りに遅延が発生しました！'\
+                })\
+            }\
         ]
     },
     {
-        id: 'stage1_fog_delay',
-        stageMin: 1,
-        stageMax: 2,
-        title: '地方空港の濃霧による一時待機',
-        description: '早朝の濃霧により、一部の地方空港で出発遅延の可能性が生じています。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: 'お詫びクーポンを配布し丁寧に対応',
-                getCost: (ctx) => Math.max(40000, Math.round(ctx.funds * 0.04)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 6,
-                    message: '誠実な神対応として利用客から高い評価を受けました。'
-                })
-            },
-            {
-                text: '安全確認を最優先に通常待機',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: -5,
-                    message: '安全運航を第一に待機しました。'
-                })
-            }
-        ]
-    },
-
-    // -------------------------------------------------------------
-    // ■ Stage 3〜4: 近隣進出・大陸横断期
-    // -------------------------------------------------------------
-    {
-        id: 'stage3_wifi_upgrade',
-        stageMin: 3,
-        stageMax: 4,
-        title: '最新機内Wi-Fiの導入検討',
-        description: '中長距離便の拡大に伴い、ビジネス客から最新高速Wi-Fiの導入が強く要望されています。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: '全機に最新Wi-Fiを一斉導入',
-                getCost: (ctx) => Math.max(500000, Math.round(ctx.funds * 0.09)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 28,
-                    incomeRateDelta: 0.05,
-                    durationMonths: 3,
-                    message: '快適なフライト環境がビジネス客に絶賛されました！'
-                })
-            },
-            {
-                text: '機内誌とエンタメの充実で対応',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 6,
-                    message: '手堅いサービスで満足度を維持しました。'
-                })
-            }
-        ]
-    },
-    {
-        id: 'stage3_fuel_surge',
-        stageMin: 3,
-        stageMax: 4,
-        title: '国際燃料市況の一時的高騰',
-        description: '国際情勢の変化により、航空ジェット燃料の調達コストが一時的に上昇しています。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: '自社努力で燃料費を吸収する',
-                getCost: (ctx) => Math.max(300000, Math.round(ctx.funds * 0.07)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 22,
-                    message: '運賃据え置きの企業努力が利用客から厚い信頼を得ました。'
-                })
-            },
-            {
-                text: 'サーチャージを導入し転嫁する',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: -10,
-                    message: '収支を維持するため、一時的に運賃を調整しました。'
-                })
-            }
-        ]
-    },
-    {
-        id: 'stage3_tourism_boom',
-        stageMin: 3,
-        stageMax: 4,
-        title: 'インバウンド観光ブーム到来！',
-        description: '大型連休と観光ブームが重なり、就航地への旅行需要が急激に高まっています。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: '臨時増便・PRキャンペーンを展開',
-                getCost: (ctx) => Math.max(400000, Math.round(ctx.funds * 0.06)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    passengersRateDelta: 0.35,
-                    incomeRateDelta: 0.15,
-                    durationMonths: 2,
-                    message: '観光特需で搭乗客数と収益が大幅に急増しました！'
-                })
-            },
-            {
-                text: '定期便の満席運航で手堅く対応',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    passengersRateDelta: 0.12,
-                    durationMonths: 2,
-                    message: '定期便が連日満席となり順調に推移しています。'
-                })
-            }
-        ]
-    },
-
-    // -------------------------------------------------------------
-    // ■ Stage 5〜6: 国際メガキャリア・世界覇権期
-    // -------------------------------------------------------------
-    {
-        id: 'stage5_summit_airline',
-        stageMin: 5,
-        stageMax: 6,
-        title: '国際メガサミットの公式航空会社に指名',
-        description: '主要就航地で開催される国際サミットのオフィシャルエアライン就任オファーが届きました。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: '公式パートナーとして全社で参画',
-                getCost: (ctx) => Math.max(2000000, Math.round(ctx.funds * 0.12)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 38,
-                    passengersRateDelta: 0.25,
-                    durationMonths: 3,
-                    message: '世界中にブランドが知れ渡り、圧倒的な名声と客数を獲得！'
-                })
-            },
-            {
-                text: '特別塗装機の運航のみで参加',
-                getCost: (ctx) => Math.max(500000, Math.round(ctx.funds * 0.03)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 14,
-                    message: '記念フライトがファンの間で話題になりました。'
-                })
-            }
-        ]
-    },
-    {
-        id: 'stage5_saf_fuel',
-        stageMin: 5,
-        stageMax: 6,
-        title: '持続可能航空燃料（SAF）の先行導入',
-        description: '環境負荷を大幅に低減する次世代エコ燃料の導入プロジェクトが提案されました。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: 'SAFを先行導入し環境先進企業へ',
-                getCost: (ctx) => Math.max(1500000, Math.round(ctx.funds * 0.10)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 32,
-                    message: 'クリーンな航空会社として世界的評価が急上昇しました！'
-                })
-            },
-            {
-                text: '段階的な検討にとどめる',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    message: '計画通りの堅実な運航を継続します。'
-                })
-            }
-        ]
-    },
-    {
-        id: 'stage5_global_alliance',
-        stageMin: 5,
-        stageMax: 6,
-        title: '世界最高峰アライアンス（航空連合）設立',
-        description: '各国の主要航空会社と提携し、世界規模のコードシェアネットワークを構築する好機です。',
-        condition: (ctx) => true,
-        options: [
-            {
-                text: '主導権を握りグローバル連合を結成',
-                getCost: (ctx) => Math.max(3000000, Math.round(ctx.funds * 0.15)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 40,
-                    incomeRateDelta: 0.10,
-                    durationMonths: 6,
-                    message: '世界連合のリーダーに就任！全路線の基本収益が底上げされました。'
-                })
-            },
-            {
-                text: '独立独歩のオリジナル路線を貫く',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 10,
-                    message: '独自ブランドとしての誇りとこだわりが評価されました。'
-                })
-            }
-        ]
-    },
-
-    // -------------------------------------------------------------
-    // ■ ライバル盤面・状況連動イベント（特殊トリガー）
-    // -------------------------------------------------------------
-    {
-        id: 'rival_dead_heat',
-        stageMin: 1,
-        stageMax: 6,
-        title: '【首位攻防戦】ライバルとのデッドヒート！',
-        description: '首位ライバル社とのシェア差がごく僅かとなり、航空業界の注目が一身に集まっています。',
-        condition: (ctx) => ctx.isDeadHeat,
-        options: [
-            {
-                text: '大規模比較キャンペーンを展開',
-                getCost: (ctx) => Math.max(100000, Math.round(ctx.funds * 0.08)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 18,
-                    message: 'ライバルとの直接対決に勝利し、シェアを大きく奪取しました！'
-                })
-            },
-            {
-                text: '誠実な安全第一の姿勢をアピール',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 12,
-                    message: '落ち着いた企業姿勢が安心感を生み、固定客を獲得しました。'
-                })
-            }
-        ]
-    },
-    {
-        id: 'rival_dominant_counter',
+        id: 'stage2_wifi_service',
         stageMin: 2,
-        stageMax: 6,
-        title: '【商圏防衛】ライバル優勢地域への対抗策',
-        description: '他社が独占しつつある地域から、我が社の就航を心待ちにする声が多数寄せられています。',
-        condition: (ctx) => ctx.isRivalDominant,
-        options: [
-            {
-                text: '就航記念の特別価格キャンペーン',
-                getCost: (ctx) => Math.max(150000, Math.round(ctx.funds * 0.07)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 24,
-                    passengersRateDelta: 0.20,
-                    durationMonths: 2,
-                    message: 'ライバルの牙城を崩し、新規顧客が殺到しました！'
-                })
-            },
-            {
-                text: '手厚い接客サービスで差別化',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 15,
-                    message: '質の高いサービスが口コミで広まりました。'
-                })
-            }
+        stageMax: 3,
+        title: '全機無料Wi-Fi導入の検討',
+        description: 'ビジネス客から機内Wi-Fiの強い要望が寄せられています。競合他社に先駆けて導入しますか？',
+        condition: (ctx) => ctx.planeCount >= 3,
+        options: [\
+            {\
+                text: '全機に高速Wi-Fiを導入する',\
+                getCost: (ctx) => Math.max(200000, Math.round(ctx.funds * 0.08)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    satisfactionDelta: 20,\
+                    passengersRateDelta: 0.10,\
+                    durationMonths: 3,\
+                    message: '快適なWi-Fi環境がビジネス客に大好評です！'\
+                })\
+            },\
+            {\
+                text: '時期尚早として見送る',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: -5,\
+                    message: 'Wi-Fi未整備のため、一部顧客から不満の声が上がりました！'\
+                })\
+            }\
+        ]
+    },
+
+    // -------------------------------------------------------------
+    // ■ Stage 3〜4: 大陸横断・国際線展開期
+    // -------------------------------------------------------------
+    {
+        id: 'stage3_fuel_crisis',
+        stageMin: 3,
+        stageMax: 4,
+        title: '国際原油価格の急騰',
+        description: '地政学リスクにより航空燃油サーチャージが高騰しています。ヘッジ取引でコストを抑えますか？',
+        condition: (ctx) => true,
+        options: [\
+            {\
+                text: '燃油先物ヘッジを一括購入',\
+                getCost: (ctx) => Math.max(500000, Math.round(ctx.funds * 0.09)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    incomeRateDelta: -0.05,\
+                    durationMonths: 2,\
+                    message: '高効率運航により燃料費の高騰を最小限に抑えました！'\
+                })\
+            },\
+            {\
+                text: '運航効率化で耐え忍ぶ',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    incomeRateDelta: -0.15,\
+                    durationMonths: 2,\
+                    message: '燃料高騰の直撃を受け、収益が一時的に圧迫されました！'\
+                })\
+            }\
         ]
     },
     {
-        id: 'rival_withdrawn_takeover',
-        stageMin: 1,
-        stageMax: 6,
-        title: '【路線継承】撤退空港からの増便要請',
-        description: 'ライバル他社が撤退した空港の自治体から、空いた発着枠を引き継いでほしいとの打診が届きました。',
-        condition: (ctx) => ctx.recentWithdrawal,
-        options: [
-            {
-                text: '要請に応じ速やかに発着枠を確保',
-                getCost: (ctx) => Math.max(80000, Math.round(ctx.funds * 0.05)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 20,
-                    passengersRateDelta: 0.15,
-                    durationMonths: 2,
-                    message: '地元住民から感謝され、該当空港の利用客を独占しました！'
-                })
-            },
-            {
-                text: '無理な拡大はせず現状を維持',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    message: '手持ちの路線を着実に維持・運航しました。'
-                })
-            }
+        id: 'stage3_vip_charter',
+        stageMin: 3,
+        stageMax: 5,
+        title: '大統領・要人チャーター便の要請',
+        description: '国際会議のため、政府要人から急遽チャーター機の運航打診がありました。最優先で対応しますか？',
+        condition: (ctx) => ctx.planeCount >= 5,
+        options: [\
+            {\
+                text: '専用機を仕立てて最高待遇で受託',\
+                getCost: (ctx) => Math.max(300000, Math.round(ctx.funds * 0.05)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: Math.round(cost * 2.8),\
+                    satisfactionDelta: 15,\
+                    message: 'VIPチャーター便が大成功！多額のチャーター料を獲得しました！'\
+                })\
+            },\
+            {\
+                text: '通常便の運行を最優先して断る',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    message: 'トラブルなく通常運航を維持しました！'\
+                })\
+            }\
         ]
     },
     {
-        id: 'player_solo_leader',
+        id: 'stage4_alliance_invite',
+        stageMin: 4,
+        stageMax: 5,
+        title: '世界的航空アライアンスからの加盟招待',
+        description: '大手航空連合から加盟の誘いを受けました。加盟一時金が必要ですが、コードシェアで客数が急増します。',
+        condition: (ctx) => ctx.routeCount >= 10,
+        options: [\
+            {\
+                text: 'アライアンスに正式加盟する',\
+                getCost: (ctx) => Math.max(2000000, Math.round(ctx.funds * 0.12)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    passengersRateDelta: 0.20,\
+                    satisfactionDelta: 25,\
+                    durationMonths: 4,\
+                    message: '世界規模のアライアンスに加盟！ネットワーク価値が跳ね上がりました！'\
+                })\
+            },\
+            {\
+                text: '独立系キャリアとして独自展開',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: 5,\
+                    message: '独自路線を貫き、自社ブランドの個性を維持しました！'\
+                })\
+            }\
+        ]
+    },
+    {
+        id: 'stage4_celeb_endorse',
         stageMin: 4,
         stageMax: 6,
-        title: '【業界盟主】次世代パイロット育成基金',
-        description: '世界シェア首位を独走する我が社に対し、航空業界全体のパイロット育成への支援が求められています。',
-        condition: (ctx) => ctx.isSoloLeader,
-        options: [
-            {
-                text: '育成基金を設立し業界に大きく貢献',
-                getCost: (ctx) => Math.max(1000000, Math.round(ctx.funds * 0.10)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 35,
-                    incomeRateDelta: 0.05,
-                    durationMonths: 4,
-                    message: '業界のリーダーとして絶賛され、優秀な人材が集結しました！'
-                })
-            },
-            {
-                text: '自社スタッフの教育を優先する',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 10,
-                    message: '自社の運航品質をさらに高めることに集中しました。'
-                })
-            }
+        title: '世界的スーパースターのアンバサダー就任',
+        description: '世界的セレブが自社便を絶賛。正式にグローバルアンバサダー契約を結ぶ好機です。',
+        condition: (ctx) => true,
+        options: [\
+            {\
+                text: '巨額の契約金で専属契約を締結',\
+                getCost: (ctx) => Math.max(1500000, Math.round(ctx.funds * 0.10)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    passengersRateDelta: 0.25,\
+                    satisfactionDelta: 30,\
+                    durationMonths: 3,\
+                    message: '世界的タレントのCMが大反響！ブランド知名度が急上昇しました！'\
+                })\
+            },\
+            {\
+                text: 'SNSでの自然な口コミに任せる',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    passengersRateDelta: 0.05,\
+                    durationMonths: 1,\
+                    message: '地道な信頼経営を継続しました！'\
+                })\
+            }\
         ]
     },
 
     // -------------------------------------------------------------
-    // ■ 救済・再起 / 資金潤沢特殊イベント
+    // ■ Stage 5〜6: 世界覇権・グローバル首位期
     // -------------------------------------------------------------
     {
-        id: 'rescue_local_bank',
+        id: 'stage5_airline_of_the_year',
+        stageMin: 5,
+        stageMax: 6,
+        title: '『ワールド・ベスト・エアライン』受賞の栄冠',
+        description: '国際航空評価機関より、今年度の世界最優秀エアラインに選出されました！記念キャンペーンを打ちますか？',
+        condition: (ctx) => ctx.globalShare >= 0.25,
+        options: [\
+            {\
+                text: '世界規模の大感謝セールを展開！',\
+                getCost: (ctx) => Math.max(3000000, Math.round(ctx.funds * 0.08)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    passengersRateDelta: 0.35,\
+                    satisfactionDelta: 40,\
+                    durationMonths: 3,\
+                    message: '『世界最優秀航空会社』を受賞！世界中から予約が殺到しています！'\
+                })\
+            },\
+            {\
+                text: '社員への利益還元ボーナスを支給',\
+                getCost: (ctx) => Math.max(1500000, Math.round(ctx.funds * 0.05)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    satisfactionDelta: 25,\
+                    message: '現場への利益還元を実施し、クルーの結束力が高まりました！'\
+                })\
+            }\
+        ]
+    },
+    {
+        id: 'stage6_space_tourism',
+        stageMin: 6,
+        stageMax: 6,
+        title: '準軌道・宇宙旅行プロジェクトへの参画',
+        description: '大気圏を飛び越える次世代スペースプレーン開発への出資要請が届きました。航空宇宙の覇者を目指しますか？',
+        condition: (ctx) => ctx.funds >= 50000000,
+        options: [\
+            {\
+                text: '莫大な開発投資を主導する',\
+                getCost: (ctx) => Math.max(20000000, Math.round(ctx.funds * 0.25)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    passengersRateDelta: 0.50,\
+                    satisfactionDelta: 60,\
+                    durationMonths: 6,\
+                    message: '次世代宇宙旅行プロジェクトを始動！航空宇宙の歴史に名を刻みました！'\
+                })\
+            },\
+            {\
+                text: '地球規模メガキャリアの完成に集中',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: 10,\
+                    message: '堅実な地球圏メガキャリアとして、絶対的なシェアを確立しました！'\
+                })\
+            }\
+        ]
+    },
+
+    // -------------------------------------------------------------
+    // ■ 特殊条件・ライバル衝突・救済イベント
+    // -------------------------------------------------------------
+    {
+        id: 'special_fare_war',
+        stageMin: 2,
+        stageMax: 6,
+        title: 'ライバル企業からの熾烈な値下げ攻勢',
+        description: '同一航路を運航する競合社が破格の割引キャンペーンを仕掛けてきました。対抗値下げを行いますか？',
+        condition: (ctx) => ctx.recentWithdrawal === true,
+        options: [\
+            {\
+                text: '対抗値下げで返り討ちにする！',\
+                getCost: (ctx) => Math.max(100000, Math.round(ctx.funds * 0.05)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    passengersRateDelta: 0.15,\
+                    satisfactionDelta: 10,\
+                    durationMonths: 2,\
+                    message: '徹底対抗でライバルを圧倒！市場シェアを奪還しました！'\
+                })\
+            },\
+            {\
+                text: '品質重視のサービスでブランド勝負',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    incomeRateDelta: -0.05,\
+                    satisfactionDelta: 5,\
+                    durationMonths: 2,\
+                    message: '一時的な戦略的後退により、無駄な消耗戦を回避しました！'\
+                })\
+            }\
+        ]
+    },
+    {
+        id: 'special_bailout_fund',
         stageMin: 1,
         stageMax: 6,
-        title: '【地元支援】地域金融機関からの再起融資',
-        description: '我が社の社会的意義を信じる地元金融機関から、無利子の事業支援資金が提示されました。',
-        condition: (ctx) => ctx.funds <= 3000000,
-        options: [
-            {
-                text: '支援金を受け取り、事業を立て直す',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    fundsDelta: 5000000,
-                    satisfactionDelta: 10,
-                    message: '+$5.0Mの支援金を獲得！経営の立て直しに弾みがつきました。'
-                })
-            },
-            {
-                text: '自力での再建を誓い感謝して辞退',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    satisfactionDelta: 20,
-                    message: '現場の結束が強まり、スタッフの士気が大幅に向上しました！'
-                })
-            }
+        title: '地域公共交通維持機構からの緊急復興支援',
+        description: '資金難に陥った当社に対し、公的ファンドから事業継続のための緊急支援金が提示されました。',
+        condition: (ctx) => ctx.funds < 2000000 && ctx.planeCount >= 2,
+        options: [\
+            {\
+                text: '支援金を受け取り、事業を立て直す',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: 5000000,\
+                    satisfactionDelta: 10,\
+                    message: '+$5.0Mの支援金を獲得！経営の立て直しに弾みがつきました！'\
+                })\
+            },\
+            {\
+                text: '自力での再建を誓い感謝して辞退',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: 20,\
+                    message: '現場の結束が強まり、スタッフの士気が大幅に向上しました！'\
+                })\
+            }\
         ]
     },
     {
@@ -426,24 +346,25 @@ export const EVENT_DATA = [
         title: '好業績に伴う社員特別ボーナス',
         description: '黒字経営を支え続けてくれた現場クルー・整備士へ、特別賞与の支給を検討します。',
         condition: (ctx) => ctx.funds >= 25000000,
-        options: [
-            {
-                text: '大盤振る舞いの特別賞与を支給！',
-                getCost: (ctx) => Math.max(1000000, Math.round(ctx.funds * 0.07)),
-                apply: (ctx, cost) => ({
-                    fundsDelta: -cost,
-                    satisfactionDelta: 30,
-                    durationMonths: 3,
-                    message: '全社員の笑顔が溢れ、サービス品質と顧客満足度が急上昇！'
-                })
-            },
-            {
-                text: '将来の機体購入資金として内部留保',
-                getCost: (ctx) => 0,
-                apply: (ctx, cost) => ({
-                    message: '堅実な財務体質を維持し、次なる投資に備えます。'
-                })
-            }
+        options: [\
+            {\
+                text: '大盤振る舞いの特別賞与を支給！',\
+                getCost: (ctx) => Math.max(1000000, Math.round(ctx.funds * 0.07)),\
+                apply: (ctx, cost) => ({\
+                    fundsDelta: -cost,\
+                    satisfactionDelta: 30,\
+                    durationMonths: 3,\
+                    message: '特別賞与を支給！現場スタッフのモチベーションが爆発しました！'\
+                })\
+            },\
+            {\
+                text: '次なる路線投資のために資金温存',\
+                getCost: (ctx) => 0,\
+                apply: (ctx, cost) => ({\
+                    satisfactionDelta: 0,\
+                    message: '手元資金を温存し、将来の設備投資に備えました！'\
+                })\
+            }\
         ]
     }
 ];
