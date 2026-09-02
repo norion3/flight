@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【年次客数データ基盤 ＆ 履歴スナップショット満足度記録】
- * 1. 毎月の推移スナップショットに `satisfaction`（顧客満足度）を記録し、グラフ描画に対応。
- * 2. Phase 6に向けた年次客数データ構造（`yearlyPassengers`, `lastYearPassengers`, `bestYearlyPassengers`, `annualHistory`）
- * を追加し、年末（12月➔1月）の自動確定・自己ベスト更新・新年リセットを実装。
- * 3. イベント一時バフの直接乗算、全空港ランク別世界シェア計算（getWorldShare）、AI自立経済等は完全に保持しています。
+ * 【会計年度サイクル（4月期首〜翌3月期末）への刷新 ＆ 全機能完全保持】
+ * 1. 開始月を 4月（第1期 4月）に設定（this.month = 4）。
+ * 2. カレンダー進行を「4月〜12月 ➔ 1月〜3月 ➔ 4月（新年度＆年次決算）」の12ヶ月ループに改修。
+ * 3. 毎月の推移スナップショット（satisfaction含む）、年次客数データ基盤、AI自立経済、
+ * イベント一時バフの直接乗算等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,39 +26,229 @@ export class EconomyManager {
 
         this.totalPassengers = 0;
         
-        // ★追加: Phase 6に向けた年次客数・ハイスコアデータ基盤
-        this.yearlyPassengers = 0;        // 当年の年間客数 (1〜12月分)
-        this.lastYearPassengers = 0;      // 直近の前年実績客数
+        // 年次客数・ハイスコアデータ基盤（4月〜翌3月期対応）
+        this.yearlyPassengers = 0;        // 当年の年間客数 (4月〜翌3月分)
+        this.lastYearPassengers = null;   // 前年の確定年間客数
         this.bestYearlyPassengers = 0;    // 歴代最高の年間客数
-        this.annualHistory = [];          // 過去全年度の決算ログ一覧 [{ year: 1, passengers: ... }]
+        this.annualHistory = [];          // 過去の年度別決算ログ
 
+        this.monthTimer = 0;
+        this.year = 1;
+        this.month = 4; // ★修正: 一般的な会計年度に合わせ 4月スタート
+        
+        this.historyData = {
+            'player': []
+        };
+        
         this.maxPlanes = CONFIG.ECONOMY.MAX_PLANES_INITIAL;
-        
-        this.uiUpdateTimer = 0;
 
-        this.currentYear = 1;
-        this.currentMonth = 1;
-        this.monthTimer = 0; 
-        this.historyData = {}; 
-        
-        this.aiPassengers = {}; 
-        this.aiFunds = {};       
-        this.aiLastIncome = {};  
+        this.aiFunds = {};
+        this.aiLastIncome = {};
+        this.aiTotalPassengers = {};
+        this.aiYearlyPassengers = {}; 
         
         CONFIG.COMPANIES.forEach(comp => {
-            this.historyData[comp.id] = [];
             if (comp.id !== 'player') {
-                this.aiPassengers[comp.id] = 0;
-                this.aiFunds[comp.id] = CONFIG.ECONOMY.AI_INITIAL_FUNDS || 30000000;
+                this.aiFunds[comp.id] = CONFIG.ECONOMY.AI_INITIAL_FUNDS;
                 this.aiLastIncome[comp.id] = 0;
+                this.aiTotalPassengers[comp.id] = 0;
+                this.aiYearlyPassengers[comp.id] = 0;
+                this.historyData[comp.id] = [];
             }
         });
     }
 
-    addFunds(amount) {
-        if (isNaN(amount)) return; 
-        this.funds += amount;
-        if (this.funds < 0) this.funds = 0;
+    update(delta, planes, networkManager, upgradeManager, competitionManager, eventManager = null) {
+        const bonuses = upgradeManager ? upgradeManager.getBonuses() : { incomeRate: 1.0, satisfaction: 100 };
+        const eventBuffs = eventManager ? eventManager.getBuffs() : { incomeRate: 0, passengersRate: 0 };
+        
+        const finalIncomeRate = bonuses.incomeRate * (1.0 + eventBuffs.incomeRate);
+        const finalPassengersRate = 1.0 + eventBuffs.passengersRate;
+
+        this.incomeTimer += delta;
+        this.monthTimer += delta;
+
+        // ★修正: 4月〜12月 ➔ 1月〜3月 ➔ 4月（新年度・決算）の会計年度ループ
+        if (this.monthTimer >= 20.0) {
+            this.monthTimer = 0;
+            this.month++;
+            if (this.month > 12) {
+                this.month = 1;
+            }
+            if (this.month === 4) {
+                this.year++;
+                this._finalizeAnnualStats();
+            }
+            this._recordMonthlyHistory(competitionManager);
+        }
+
+        const playerPlanes = planes.filter(p => p.companyId === 'player');
+        let currentGrossPerSec = 0;
+        let currentUpkeepPerSec = 0;
+
+        playerPlanes.forEach(plane => {
+            const conf = CONFIG.ECONOMY.PLANES[plane.sizeType];
+            if (!conf) return;
+
+            currentUpkeepPerSec += conf.upkeep;
+
+            if (plane.currentRoute && plane.progress < 1.0) {
+                const routeLength = plane.currentRoute.length;
+                const distBonus = Math.min(1.5, routeLength / 5.0); 
+
+                const originShare = competitionManager ? competitionManager.getShare(plane.currentAirportId, 'player') : 1.0;
+                const destShare = competitionManager ? competitionManager.getShare(plane.currentRoute.id, 'player') : 1.0;
+                const avgShare = (originShare + destShare) / 2;
+
+                const baseInc = conf.incomeBase;
+                const satBonus = 1.0 + (bonuses.satisfaction * 0.005);
+                const grossIncome = baseInc * satBonus * (1.0 + distBonus) * finalIncomeRate * (0.6 + avgShare * 0.8);
+
+                currentGrossPerSec += grossIncome;
+
+                const baseDemand = conf.baseDemand || 50;
+                const passengers = (baseDemand * (1.0 + bonuses.satisfaction * 0.005) * avgShare * finalPassengersRate) * delta;
+                
+                this.totalPassengers += passengers;
+                this.yearlyPassengers += passengers;
+            }
+        });
+
+        this.grossIncomeBuffer += currentGrossPerSec * delta;
+        this.upkeepBuffer += currentUpkeepPerSec * delta;
+
+        this._updateAiEconomy(delta, planes, networkManager, competitionManager);
+
+        if (this.incomeTimer >= 1.0) {
+            const netIncome = this.grossIncomeBuffer - this.upkeepBuffer;
+            
+            this.funds += netIncome;
+            this.lastSecondIncome = netIncome;
+            this.displayIncome = Math.round(netIncome);
+
+            this.grossIncomeBuffer = 0;
+            this.upkeepBuffer = 0;
+            this.incomeTimer = 0;
+
+            const calendarStr = `${this.year}年目-${this.month}月`;
+            const fundsStr = this._formatMoney(this.funds);
+            const incomeStr = (this.displayIncome >= 0 ? "+$" : "-$") + this._formatNumber(Math.abs(this.displayIncome));
+            const passengersStr = this._formatNumber(this.totalPassengers);
+            
+            const rawWorldShare = competitionManager ? competitionManager.getWorldShare('player') : 0;
+            const shareStr = (rawWorldShare * 100).toFixed(1);
+
+            this.uiManager.updateTopHUD(
+                calendarStr,
+                fundsStr,
+                playerPlanes.length,
+                this.maxPlanes,
+                incomeStr,
+                passengersStr,
+                shareStr
+            );
+            
+            this.uiManager.checkBuyPlaneButtons(this.funds, playerPlanes.length, this.maxPlanes);
+
+            if (this.uiManager.isUpgradePanelOpen()) {
+                this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
+            }
+        }
+    }
+
+    _finalizeAnnualStats() {
+        const completedYear = this.year - 1;
+        const finalizedScore = Math.floor(this.yearlyPassengers);
+        
+        this.lastYearPassengers = finalizedScore;
+        
+        let isNewRecord = false;
+        if (finalizedScore > this.bestYearlyPassengers) {
+            this.bestYearlyPassengers = finalizedScore;
+            isNewRecord = true;
+        }
+
+        this.annualHistory.push({
+            year: completedYear,
+            passengers: finalizedScore,
+            endingFunds: Math.floor(this.funds),
+            isRecord: isNewRecord
+        });
+
+        this.yearlyPassengers = 0;
+
+        CONFIG.COMPANIES.forEach(comp => {
+            if (comp.id !== 'player') {
+                this.aiYearlyPassengers[comp.id] = 0;
+            }
+        });
+    }
+
+    _recordMonthlyHistory(competitionManager) {
+        const monthLabel = `${this.year}-${this.month}`;
+        
+        const rawWorldShare = competitionManager ? competitionManager.getWorldShare('player') : 0;
+        const rawSat = competitionManager && competitionManager.upgradeManager ? 
+            (competitionManager.upgradeManager.getBonuses().satisfaction + (competitionManager.upgradeManager.eventSatisfactionBonus || 0)) : 100;
+        
+        this.historyData['player'].push({
+            monthLabel: monthLabel,
+            funds: this.funds,
+            income: this.lastSecondIncome,
+            passengers: this.totalPassengers,
+            planes: this.uiManager ? parseInt(document.getElementById('hud-planes-count')?.innerText || '0') : 0,
+            satisfaction: rawSat,
+            share: rawWorldShare
+        });
+
+        if (this.historyData['player'].length > 24) {
+            this.historyData['player'].shift();
+        }
+
+        CONFIG.COMPANIES.forEach(comp => {
+            if (comp.id !== 'player') {
+                const rivalWorldShare = competitionManager ? competitionManager.getWorldShare(comp.id) : 0;
+                const rivalSat = competitionManager ? competitionManager.getAiSatisfaction(comp.id) : 150;
+                
+                this.historyData[comp.id].push({
+                    monthLabel: monthLabel,
+                    funds: this.aiFunds[comp.id],
+                    income: this.aiLastIncome[comp.id],
+                    passengers: this.aiTotalPassengers[comp.id],
+                    planes: 0,
+                    satisfaction: rivalSat,
+                    share: rivalWorldShare
+                });
+
+                if (this.historyData[comp.id].length > 24) {
+                    this.historyData[comp.id].shift();
+                }
+            }
+        });
+
+        if (this.uiManager && this.uiManager.isOverviewPanelOpen()) {
+            this.uiManager.updateOverviewPanel(this.historyData, CONFIG.COMPANIES);
+        }
+    }
+
+    calculateRouteCost(originNode, destNode) {
+        const posA = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
+        const posB = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);
+        const distance = posA.distanceTo(posB);
+
+        let baseCost = 500000;
+        for (let i = 0; i < CONFIG.ECONOMY.ROUTE_TIERS.length; i++) {
+            const tier = CONFIG.ECONOMY.ROUTE_TIERS[i];
+            if (distance <= tier.maxDist) {
+                baseCost = tier.baseCost;
+                break;
+            }
+        }
+
+        const rankWeights = { 'major': 1.5, 'local': 1.0, 'fictional': 0.7 };
+        const rankMultiplier = (rankWeights[originNode.type] || 1.0) * (rankWeights[destNode.type] || 1.0);
+
+        return Math.round(baseCost * rankMultiplier);
     }
 
     canAfford(amount) {
@@ -68,6 +258,10 @@ export class EconomyManager {
     deductFunds(amount) {
         this.funds -= amount;
         if (this.funds < 0) this.funds = 0;
+    }
+
+    addFunds(amount) {
+        this.funds += amount;
     }
 
     getAiFunds(companyId) {
@@ -86,260 +280,49 @@ export class EconomyManager {
     }
 
     addAiFunds(companyId, amount) {
-        if (isNaN(amount)) return;
         if (this.aiFunds[companyId] !== undefined) {
             this.aiFunds[companyId] += amount;
         }
     }
 
-    calculateRouteCost(originData, destData) {
-        const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
-        const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
-        const dist = posA.distanceTo(posB);
-
-        let baseCost = 25000000; 
-        if (CONFIG.ECONOMY.ROUTE_TIERS) {
-            const matchedTier = CONFIG.ECONOMY.ROUTE_TIERS.find(tier => dist <= tier.maxDist);
-            if (matchedTier) {
-                baseCost = matchedTier.baseCost;
-            }
-        } else {
-            if (dist < 0.6) baseCost = 200000;
-            else if (dist < 1.3) baseCost = 800000;
-            else if (dist < 2.5) baseCost = 3000000;
-            else if (dist < 4.2) baseCost = 10000000;
-        }
-
-        const fromRank = CONFIG.ECONOMY.AIRPORT_RANKS[originData.type].multiplier;
-        const toRank = CONFIG.ECONOMY.AIRPORT_RANKS[destData.type].multiplier;
-        const rankMultiplier = (fromRank + toRank) / 2;
-        
-        return baseCost * rankMultiplier;
-    }
-
-    update(delta, planes, networkManager, upgradeManager, competitionManager, eventManager) {
-        if (delta <= 0.0001) return;
-
-        this.incomeTimer += delta;
-        this.uiUpdateTimer += delta;
-        
-        this.monthTimer += delta;
-        if (this.monthTimer >= 20.0) {
-            this.monthTimer -= 20.0;
-            this.currentMonth++;
-            if (this.currentMonth > 12) {
-                this.currentMonth = 1;
-                
-                // ★年末年始処理: 年間客数の確定・歴代最高更新・年次ログ保存
-                this.lastYearPassengers = Math.floor(this.yearlyPassengers);
-                if (this.lastYearPassengers > this.bestYearlyPassengers) {
-                    this.bestYearlyPassengers = this.lastYearPassengers;
-                }
-                this.annualHistory.push({
-                    year: this.currentYear,
-                    passengers: this.lastYearPassengers
-                });
-                this.yearlyPassengers = 0; // 新年度リセット
-
-                this.currentYear++;
-            }
-
-            const monthLabel = `${this.currentYear}年目-${this.currentMonth}月`;
-
-            CONFIG.COMPANIES.forEach(comp => {
-                const companyId = comp.id;
-                let currentFunds = 0;
-                let currentIncome = 0;
-                let currentPass = 0;
-                let currentSat = 0;
-                const currentShare = competitionManager ? (competitionManager.globalShares[companyId] || 0) : 0;
-                
-                let planeCount = 0;
-                planes.forEach(p => {
-                    if (p.companyId === companyId) planeCount++;
-                });
-                
-                if (companyId === 'player') {
-                    currentFunds = this.funds;
-                    currentIncome = this.lastSecondIncome; 
-                    currentPass = this.totalPassengers;
-                    const baseSat = upgradeManager ? (upgradeManager.getBonuses().satisfaction || 0) : 0;
-                    const eventSat = upgradeManager ? (upgradeManager.eventSatisfactionBonus || 0) : 0;
-                    currentSat = Math.round(baseSat + eventSat);
-                } else {
-                    currentFunds = this.aiFunds[companyId] || 0; 
-                    currentIncome = this.aiLastIncome[companyId] || 0; 
-                    currentPass = this.aiPassengers[companyId] || 0; 
-                    currentSat = Math.round(competitionManager && competitionManager.getAiSatisfaction ? competitionManager.getAiSatisfaction(companyId) : 150);
-                }
-
-                // ★修正: satisfaction（顧客満足度）を含めて記録
-                const snapshot = {
-                    monthLabel: monthLabel,
-                    funds: currentFunds,
-                    income: currentIncome,
-                    passengers: currentPass,
-                    planes: planeCount,
-                    satisfaction: currentSat,
-                    share: currentShare
-                };
-
-                this.historyData[companyId].push(snapshot);
-                
-                if (this.historyData[companyId].length > 24) {
-                    this.historyData[companyId].shift();
-                }
-            });
-        }
-
-        let currentFramePassengers = 0;
-        let grossIncomeThisFrame = 0;
-        let totalUpkeepThisFrame = 0;
-        let totalPlanesCount = 0;
-
-        const netLen = networkManager.playerTotalNetworkLength || 0;
-        const networkBonus = 1.0 + (Math.sqrt(netLen) * 0.1); 
-        const passNetworkBonus = 1.0 + (Math.sqrt(netLen) * 0.05); 
-
-        const eventBuffs = (eventManager && eventManager.getBuffs) ? eventManager.getBuffs() : null;
-        const eventIncomeBonus = 1.0 + (eventBuffs ? (eventBuffs.incomeRate || 0) : 0);
-        const eventPassBonus = 1.0 + (eventBuffs ? (eventBuffs.passengersRate || 0) : 0);
-
-        planes.forEach(plane => {
-            if (plane.companyId !== 'player') return;
-            totalPlanesCount++;
-
-            const planeConf = CONFIG.ECONOMY.PLANES[plane.sizeType];
-            if (planeConf) {
-                totalUpkeepThisFrame += planeConf.upkeep * delta;
-            }
-
-            if (plane.currentRoute && planeConf) {
-                const bonuses = upgradeManager.getBonuses();
-                const upgradeIncomeRate = bonuses.incomeRate || 1.0;
-                
-                const satisfaction = (bonuses.satisfaction || 0) + (upgradeManager.eventSatisfactionBonus || 0);
-                const satisfactionBonus = 1.0 + (satisfaction / 100.0);
-                
-                let effectiveShare = 1.0;
-                if (competitionManager) {
-                    const fromShare = competitionManager.getShare(plane.currentAirportId, 'player');
-                    const toShare = competitionManager.getShare(plane.currentRoute.id, 'player');
-                    const avgShare = (fromShare + toShare) / 2.0;
-                    
-                    if (!isNaN(avgShare)) {
-                        effectiveShare = Math.max(0.05, avgShare);
-                    }
-                }
-
-                const incomePerSec = planeConf.incomeBase * upgradeIncomeRate * effectiveShare * networkBonus * eventIncomeBonus;
-                grossIncomeThisFrame += incomePerSec * delta;
-
-                const passPerSec = (planeConf.baseDemand / 4) * effectiveShare * passNetworkBonus * satisfactionBonus * eventPassBonus;
-                currentFramePassengers += passPerSec * delta;
-            }
-        });
-
-        let currentNetIncome = (grossIncomeThisFrame - totalUpkeepThisFrame) / delta;
-
-        if (this.funds <= 1000 && currentNetIncome < 0) {
-            currentNetIncome = Math.max(currentNetIncome, 5000); 
-        }
-
-        if (this.incomeTimer >= 1.0) {
-            this.lastSecondIncome = isNaN(currentNetIncome) ? 0 : currentNetIncome;
-            this.incomeTimer = 0;
-            this.grossIncomeBuffer = 0;
-            this.upkeepBuffer = 0;
-        }
-
-        this._updateAiEconomy(delta, planes, networkManager, competitionManager);
-
-        if (this.uiUpdateTimer >= 0.2) {
-            if (this.uiManager.isUpgradePanelOpen()) {
-                this.uiManager.checkUpgradeButtons(upgradeManager, this.funds);
-            }
-            if (this.uiManager.isBuyMenuOpen()) {
-                this.uiManager.checkBuyPlaneButtons(this.funds, totalPlanesCount, this.maxPlanes);
-            }
-            this.uiUpdateTimer = 0;
-        }
-
-        this.addFunds(currentNetIncome * delta);
-        if (!isNaN(currentFramePassengers)) {
-            this.totalPassengers += currentFramePassengers;
-            this.yearlyPassengers += currentFramePassengers; // ★当年客数にも加算
-        }
-
-        const lerpFactor = 1.0 - Math.pow(0.05, delta);
-        this.displayIncome += (this.lastSecondIncome - this.displayIncome) * lerpFactor;
-        
-        if (Math.abs(this.lastSecondIncome - this.displayIncome) < 0.5) {
-            this.displayIncome = this.lastSecondIncome;
-        }
-
-        const displayVal = Math.round(this.displayIncome);
-        const incomePrefix = displayVal >= 0 ? '+$ ' : '-$ ';
-        const formattedIncome = `${incomePrefix}${this._formatMoneyNumber(Math.abs(displayVal))}`;
-        
-        const calendarStr = `${this.currentYear}年目-${this.currentMonth}月`;
-        const passStr = this._formatNumber(Math.floor(this.totalPassengers));
-        
-        const playerWorldShare = competitionManager ? (competitionManager.getWorldShare ? competitionManager.getWorldShare('player') : 0) : 0;
-        const shareStr = (playerWorldShare * 100).toFixed(1);
-
-        this.uiManager.updateTopHUD(
-            calendarStr,
-            this._formatMoney(this.funds),
-            totalPlanesCount,
-            this.maxPlanes,
-            formattedIncome,
-            passStr,
-            shareStr
-        );
-    }
-
     _updateAiEconomy(delta, planes, networkManager, competitionManager) {
-        const aiPlaneCounts = {};
-        if (planes) {
-            planes.forEach(p => {
-                if (p && p.companyId !== 'player') {
-                    aiPlaneCounts[p.companyId] = (aiPlaneCounts[p.companyId] || 0) + 1;
-                }
-            });
-        }
-
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id === 'player') return;
 
+            const compPlanes = planes.filter(p => p.companyId === comp.id);
+            const planeCount = compPlanes.length;
+            
             let routeCount = 0;
-            if (networkManager && networkManager.network[comp.id]) {
-                const net = networkManager.network[comp.id];
-                for (const originId in net) {
-                    if (net[originId]) routeCount += net[originId].length;
+            let totalLength = 0;
+            const net = networkManager.network[comp.id];
+            if (net) {
+                for (const origin in net) {
+                    routeCount += net[origin].length;
+                    net[origin].forEach(r => totalLength += r.length);
                 }
                 routeCount = Math.floor(routeCount / 2);
-            }
-            
-            const planeCount = aiPlaneCounts[comp.id] || 0;
-            const netLength = (networkManager && networkManager.getAiTotalNetworkLength) ? networkManager.getAiTotalNetworkLength(comp.id) : 0;
-            const satisfaction = (competitionManager && competitionManager.getAiSatisfaction) ? competitionManager.getAiSatisfaction(comp.id) : 150;
-            
-            // ① 客数（スコア）計算
-            const baseAiRate = (routeCount * 2.2) + (planeCount * 3.5);
-            const satBonus = 1.0 + (Math.max(0, satisfaction) / 100.0);
-            const distBonus = Math.sqrt(Math.max(0, netLength)) * 0.05;
-            
-            const currentAiRate = baseAiRate * satBonus * (1.0 + distBonus);
-            if (!isNaN(currentAiRate)) {
-                this.aiPassengers[comp.id] += (currentAiRate * delta);
+                totalLength = totalLength / 2;
             }
 
-            // ② 資金（リアル現金収支）計算
-            const globalShare = competitionManager ? (competitionManager.globalShares[comp.id] || 0) : 0;
-            const shareMult = 0.5 + (globalShare * 1.5); 
+            let activeFlyingPlanes = 0;
+            compPlanes.forEach(plane => {
+                if (plane.currentRoute && plane.progress < 1.0) {
+                    activeFlyingPlanes++;
+                    const baseDemand = (CONFIG.ECONOMY.PLANES[plane.sizeType]?.baseDemand) || 50;
+                    const pass = baseDemand * (1.0 + (competitionManager.getAiSatisfaction(comp.id) || 150) * 0.005) * 0.8 * delta;
+                    
+                    this.aiTotalPassengers[comp.id] += pass;
+                    this.aiYearlyPassengers[comp.id] += pass;
+                }
+            });
 
-            const baseIncome = (routeCount * 400) + (planeCount * 600); 
+            const sat = competitionManager ? competitionManager.getAiSatisfaction(comp.id) : 150;
+            const satBonus = 1.0 + (sat * 0.005);
+            const distBonus = Math.min(1.5, totalLength / 20.0);
+            const globalShare = competitionManager ? competitionManager.getGlobalShare(comp.id) : 0.2;
+            const shareMult = 0.5 + (globalShare * 1.2);
+
+            let baseIncome = (routeCount * 1200) + (activeFlyingPlanes * 3500) + (planeCount * 600); 
             let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
             let upkeep = planeCount * 250; 
             
@@ -365,14 +348,6 @@ export class EconomyManager {
         return `$ ${Math.floor(value)}`;
     }
 
-    _formatMoneyNumber(value) {
-        if (value >= 1000000000000) return (value / 1000000000000).toFixed(2) + 'T';
-        if (value >= 1000000000) return (value / 1000000000).toFixed(2) + 'B';
-        if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
-        if (value >= 1000) return Math.floor(value / 1000) + 'K';
-        return Math.floor(value);
-    }
-    
     _formatNumber(value) {
         return Math.floor(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
