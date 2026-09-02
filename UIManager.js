@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 6 ステップ1: 独立期末決算モーダルの表示・操作制御基盤の実装】
- * 1. `showSettlementModal` / `hideSettlementModal` メソッドを新設し、
- * 専用の `#settlement-modal-backdrop` による期末決算の表示と「次期へ進む」「経営終了」の分岐制御を追加。
- * 2. 突発イベントモーダル（#event-modal-backdrop）とは完全に独立した排他制御を構築。
- * 3. 上部HUDの年間客数・累計客数連動、折れ線グラフ描画、各画面の個別最適高さ（410px/450px/410px/540px）、
- * 空路廃止返金（50%）、比較バーの100%終端レール視認性等は100%完全保持。
+ * 【ライバル画面・4〜6位の洗練された縦型順位バッジレイアウト ＆ 全機能完全保持】
+ * 1. `updateRivalsPanel` において、4位〜6位の表示を数字（モノスペース太字）と「位」ラベルによる
+ * 専用の縦型デザインバッジ（flex-col）へ整形し、1〜3位のメダル絵文字と美しく調和。
+ * 2. 期末決算モーダル（showSettlementModal）、突発イベントモーダル、上部HUD（年間客数・累計客数）、
+ * 折れ線グラフ描画、各画面の個別最適高さ（410px/450px/410px/540px）、空路廃止返金（50%）、
+ * 比較バーの100%終端レール視認性等は100%完全保持しています。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -26,7 +26,7 @@ export class UIManager {
         this.exitCard = document.getElementById('exit-confirm-card');
         this.helpMenu = document.getElementById('help-menu');
         this.eventBackdrop = document.getElementById('event-modal-backdrop');
-        this.settlementBackdrop = document.getElementById('settlement-modal-backdrop'); // ★Phase 6: 独立決算モーダル
+        this.settlementBackdrop = document.getElementById('settlement-modal-backdrop');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -65,7 +65,7 @@ export class UIManager {
         this._isRivalsOpen = false; 
         this._isOverviewOpen = false;
         this._isEventModalOpen = false;
-        this._isSettlementModalOpen = false; // ★Phase 6: 決算モーダル状態フラグ
+        this._isSettlementModalOpen = false;
         
         this.currentGraphTab = 'funds';
         this._openedRivalId = null; 
@@ -273,7 +273,6 @@ export class UIManager {
             }, 300);
         });
 
-        // 各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）へ伸縮＆グラフ画面のスクロールバー禁止
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -489,7 +488,6 @@ export class UIManager {
         }
     }
 
-    // ★Phase 6: 独立期末決算モーダルの表示メソッド
     showSettlementModal(data, onContinue, onExit) {
         this.soundManager.playSuccessSound();
         this.hideAll();
@@ -544,7 +542,6 @@ export class UIManager {
         }
     }
 
-    // ★Phase 6: 独立期末決算モーダルを閉じる
     hideSettlementModal() {
         if (this.settlementBackdrop) {
             this.settlementBackdrop.classList.remove('show');
@@ -1268,7 +1265,12 @@ export class UIManager {
 
         stats.forEach((stat, index) => {
             const rank = index + 1;
-            const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `<span class="text-slate-500 ml-1">${rank}位</span>`;
+            // ★修正: 4位〜6位を美しく整えた専用の縦型順位バッジレイアウト
+            const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `
+                <div class="flex flex-col items-center justify-center leading-none">
+                    <span class="text-xs font-bold font-mono text-slate-300">${rank}</span>
+                    <span class="text-[9px] text-slate-500 font-bold leading-none mt-0.5">位</span>
+                </div>`;
             
             const isPlayer = stat.isPlayer;
             const shareStr = (stat.globalShare * 100).toFixed(1) + '%';
@@ -1297,7 +1299,7 @@ export class UIManager {
             <div class="rounded-xl border ${bgColor} shadow-inner overflow-hidden transition-all mb-1.5" data-rival-id="${stat.id}">
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
                     <div class="flex items-center gap-2">
-                        <div class="w-6 text-center text-sm">${rankIcon}</div>
+                        <div class="w-6 text-center text-sm flex items-center justify-center">${rankIcon}</div>
                         <div class="w-7 h-7 rounded-full ${iconBg} flex items-center justify-center font-bold text-white text-[10px] shadow">${shortName}</div>
                         <div class="text-left ml-1">
                             <div class="text-sm font-bold ${titleColor} leading-tight">${stat.name} ${isPlayer ? '★' : ''}</div>
