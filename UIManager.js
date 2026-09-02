@@ -1,10 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路廃止ボタンの動的返金額表示（+50%） ＆ 全機能100%完全保持】
- * 1. `showRouteConfirm` の空路廃止（remove）時、対象航路の開拓コストの半額（50%）を動的に算出して
- * ボタン上に `+${formattedRefund}` として正しく表示。
- * 2. 航路開拓（add）時の所持金初期判定 ＆ 待機中のリアルタイム青色点灯ロジックは完全保持。
- * 3. 各画面の個別最適高さ（410px/450px/410px/540px）、グラフ縦スクロール禁止、相対比較バー、HUD稼働機体数は100%完全保持。
+ * 【折れ線グラフのライバル描画バグ修正 ＆ 最新位置ドット（◯）・線幅の視認性強化】
+ * 1. `updateOverviewPanel` 内で、その他ライバル（graph-point-other-*）の最新位置ドットに
+ * `point.setAttribute('cy', lastP[1])` が抜けていたバグを修正し、最新位置に正しく ◯ が表示されるよう改善。
+ * 2. 全員の最新位置ドット（◯）をしっかり視認できるサイズ（自社: r=4, ライバル各社: r=3.5）に設定。
+ * 3. 折れ線の太さをライバル全社 2.0px（不透明度 1.0）、自社 2.5px（不透明度 1.0）へ強化し、背景に埋もれずクッキリ発色。
+ * 4. 各画面の個別最適高さ（410px/450px/410px/540px）、グラフ縦スクロール禁止、空路廃止返金（50%）、
+ * 航路開拓ボタンのリアルタイム連動等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -620,7 +622,6 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    // ★修正: 空路廃止（remove）時、開拓費用の50%を算出してボタン上に動的表示
     showRouteConfirm(fromData, toData, isConnected, routeCost = 50000, currentFunds = null) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
@@ -1077,12 +1078,15 @@ export class UIManager {
                 if (line) {
                     line.setAttribute('points', pts);
                     line.setAttribute('stroke', hexColor);
-                    line.setAttribute('stroke-width', '1.5');
-                    line.setAttribute('opacity', '0.8');
+                    // ★修正: ライバル線の太さを 2.0px、不透明度 1.0 に強化
+                    line.setAttribute('stroke-width', '2.0');
+                    line.setAttribute('opacity', '1.0');
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
                     point.setAttribute('cy', lastP[1]);
+                    // ★修正: 最新位置ドットの半径を 3.5px に拡大
+                    point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
                 }
@@ -1092,11 +1096,16 @@ export class UIManager {
                 if (line) {
                     line.setAttribute('points', pts);
                     line.setAttribute('stroke', hexColor);
-                    line.setAttribute('stroke-width', '1.5');
-                    line.setAttribute('opacity', '0.8');
+                    // ★修正: ライバル全社の線の太さを 2.0px、不透明度 1.0 に統一
+                    line.setAttribute('stroke-width', '2.0');
+                    line.setAttribute('opacity', '1.0');
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
+                    // ★修正: 抜けていた Y座標(cy)を設定
+                    point.setAttribute('cy', lastP[1]);
+                    // ★修正: 最新位置ドットの半径を 3.5px に拡大
+                    point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
                 }
@@ -1113,12 +1122,15 @@ export class UIManager {
         if (playerLine) {
             playerLine.setAttribute('points', playerPts);
             playerLine.setAttribute('stroke', '#34d399');
-            playerLine.setAttribute('stroke-width', '2.0');
+            // ★修正: 自社線の太さを 2.5px に強化
+            playerLine.setAttribute('stroke-width', '2.5');
             playerLine.setAttribute('opacity', '1.0');
         }
         if (playerPoint) {
             playerPoint.setAttribute('cx', playerLastP[0]);
             playerPoint.setAttribute('cy', playerLastP[1]);
+            // ★修正: 自社最新位置ドットの半径を 4px に設定
+            playerPoint.setAttribute('r', '4');
             playerPoint.classList.remove('opacity-0');
         }
 
