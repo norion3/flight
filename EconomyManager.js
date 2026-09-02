@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【会計年度サイクル（4月期首〜翌3月期末）への刷新 ＆ 全機能完全保持】
- * 1. 開始月を 4月（第1期 4月）に設定（this.month = 4）。
- * 2. カレンダー進行を「4月〜12月 ➔ 1月〜3月 ➔ 4月（新年度＆年次決算）」の12ヶ月ループに改修。
- * 3. 毎月の推移スナップショット（satisfaction含む）、年次客数データ基盤、AI自立経済、
- * イベント一時バフの直接乗算等は100%完全保持しています。
+ * 【年間客数のHUDリアルタイム連動 ＆ 収益・累計客数の単位短縮表示】
+ * 1. `updateTopHUD` への引数受け渡しに `yearlyPassengersStr`（年間客数・カンマ区切り実数）を追加し、
+ * 年間客数が毎秒リアルタイムにカウントアップするよう修正。
+ * 2. 収益表示（incomeStr）を `_formatMoneyNumber` 経由の短縮表示（+$ 15K 等）へ復旧。
+ * 3. 累計客数（passengersStr）を 100万人以上で M/B 短縮表示（1.25M 等）に最適化。
+ * 4. 4月期首〜翌3月期末の会計年度サイクル、満足度スナップショット、AI自立経済等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -34,7 +35,7 @@ export class EconomyManager {
 
         this.monthTimer = 0;
         this.year = 1;
-        this.month = 4; // ★修正: 一般的な会計年度に合わせ 4月スタート
+        this.month = 4; // 会計年度に合わせ 4月スタート
         
         this.historyData = {
             'player': []
@@ -68,7 +69,7 @@ export class EconomyManager {
         this.incomeTimer += delta;
         this.monthTimer += delta;
 
-        // ★修正: 4月〜12月 ➔ 1月〜3月 ➔ 4月（新年度・決算）の会計年度ループ
+        // 4月〜12月 ➔ 1月〜3月 ➔ 4月（新年度・決算）の会計年度ループ
         if (this.monthTimer >= 20.0) {
             this.monthTimer = 0;
             this.month++;
@@ -132,18 +133,34 @@ export class EconomyManager {
 
             const calendarStr = `${this.year}年目-${this.month}月`;
             const fundsStr = this._formatMoney(this.funds);
-            const incomeStr = (this.displayIncome >= 0 ? "+$" : "-$") + this._formatNumber(Math.abs(this.displayIncome));
-            const passengersStr = this._formatNumber(this.totalPassengers);
+            
+            // ★修正: 収益を K / M などの短縮表示に復旧
+            const incomeStr = (this.displayIncome >= 0 ? "+$" : "-$") + this._formatMoneyNumber(Math.abs(this.displayIncome));
+            
+            // ★修正: 年間客数（完全実数・カンマ区切り）
+            const yearlyPassengersStr = this._formatNumber(this.yearlyPassengers);
+            
+            // ★修正: 累計客数（100万人以上で M/B 短縮表示）
+            let passengersStr = '';
+            if (this.totalPassengers >= 1000000000) {
+                passengersStr = (this.totalPassengers / 1000000000).toFixed(2) + 'B';
+            } else if (this.totalPassengers >= 1000000) {
+                passengersStr = (this.totalPassengers / 1000000).toFixed(2) + 'M';
+            } else {
+                passengersStr = this._formatNumber(this.totalPassengers);
+            }
             
             const rawWorldShare = competitionManager ? competitionManager.getWorldShare('player') : 0;
             const shareStr = (rawWorldShare * 100).toFixed(1);
 
+            // ★修正: yearlyPassengersStr を含む8引数で確実に連携
             this.uiManager.updateTopHUD(
                 calendarStr,
                 fundsStr,
                 playerPlanes.length,
                 this.maxPlanes,
                 incomeStr,
+                yearlyPassengersStr,
                 passengersStr,
                 shareStr
             );
@@ -346,6 +363,14 @@ export class EconomyManager {
         if (value >= 1000000) return `$ ${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$ ${Math.floor(value / 1000)}K`;
         return `$ ${Math.floor(value)}`;
+    }
+
+    _formatMoneyNumber(value) {
+        if (value >= 1000000000000) return (value / 1000000000000).toFixed(2) + 'T';
+        if (value >= 1000000000) return (value / 1000000000).toFixed(2) + 'B';
+        if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+        if (value >= 1000) return Math.floor(value / 1000) + 'K';
+        return Math.floor(value);
     }
 
     _formatNumber(value) {

@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【創業時の基礎顧客満足度（初期値: 100）の反映】
- * 1. `getBonuses` メソッドにおいて、自社の創業時標準サービス水準として
- * `satisfaction` の基本初期値を 0 ➔ 100 に設定。
- * 2. 5回目の投資による昇格レベルアップ判定（p.step >= 5）およびその他のアップグレード計算は100%完全保持。
+ * 【創業時の基礎顧客満足度（初期値: 100）＆ レベルアップ判定完全保持】
+ * 1. 創業時の標準サービス水準として `satisfaction` の基本初期値 100 を維持。
+ * 2. 5回目の投資による昇格レベルアップ判定（p.step >= 5）およびその他のアップグレード計算は100%完全保持しています。
  */
 
 import { UPGRADE_DATA } from './Data_Upgrades.js';
@@ -71,7 +70,7 @@ export class UpgradeManager {
             maxPlanes: 5,             
             speedMultiplier: 1.0,     
             incomeRate: 1.0,          
-            satisfaction: 100, // ★修正: 創業時の標準サービス水準として初期値を 100 に設定         
+            satisfaction: 100, // 創業時の標準サービス水準として初期値を 100 に設定         
         };
 
         for (const key in UPGRADE_DATA) {
