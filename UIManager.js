@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【航路開拓ボタンの初期表示判定 ＆ リアルタイム資金連動の完全修正】
- * 1. `showRouteConfirm` において、画面を開いた瞬間の所持金（currentFunds）を受け取り、
- * 資金が十分にあれば即座に有効（青色）、不足していればグレーアウト（無効）で描画するよう修正。
- * 2. `checkRouteConfirmButton` により、画面を開いたまま資金が目標額に達した瞬間に自動で青色点灯。
- * 3. 各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）、
- * グラフ縦スクロール禁止、相対比較バー（パターンA）、HUD稼働機体数更新等は100%完全保持。
+ * 【空路廃止ボタンの動的返金額表示（+50%） ＆ 全機能100%完全保持】
+ * 1. `showRouteConfirm` の空路廃止（remove）時、対象航路の開拓コストの半額（50%）を動的に算出して
+ * ボタン上に `+${formattedRefund}` として正しく表示。
+ * 2. 航路開拓（add）時の所持金初期判定 ＆ 待機中のリアルタイム青色点灯ロジックは完全保持。
+ * 3. 各画面の個別最適高さ（410px/450px/410px/540px）、グラフ縦スクロール禁止、相対比較バー、HUD稼働機体数は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -271,7 +270,7 @@ export class UIManager {
             }, 300);
         });
 
-        // ★各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）へ伸縮＆グラフ画面のスクロールバー禁止
+        // 各画面の個別最適高さ（メニュー: 410px / 投資: 450px / グラフ: 410px / ライバル: 540px）へ伸縮＆グラフ画面のスクロールバー禁止
         document.querySelectorAll('.cc-link-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.soundManager.playTapSound();
@@ -621,7 +620,7 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    // ★修正: 開いた瞬間の所持金判定を行い、十分にあれば青色(有効)、不足ならグレー(無効)で即座に描画
+    // ★修正: 空路廃止（remove）時、開拓費用の50%を算出してボタン上に動的表示
     showRouteConfirm(fromData, toData, isConnected, routeCost = 50000, currentFunds = null) {
         this.soundManager.playEventSound();
         this.connectingCard.classList.remove('show');
@@ -638,6 +637,8 @@ export class UIManager {
         const formattedCost = this._formatMoneyShort(routeCost);
 
         if (isConnected) {
+            const refund = Math.floor(routeCost * 0.5);
+            const formattedRefund = this._formatMoneyShort(refund);
             titleEl.innerText = window.APP_LANG.routeRemoveTitle || "空路廃止";
             titleEl.className = "text-xs text-red-400 font-bold tracking-wider mb-2";
             this.routeCard.className = "interactive-ui bottom-sheet bg-slate-900/95 border border-red-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-red-900/20 absolute show";
@@ -646,7 +647,7 @@ export class UIManager {
             btnAction.innerHTML = `
                 <div class="flex items-center justify-center gap-3">
                     <span>${window.APP_LANG.btnRemoveRoute || "廃止する"}</span>
-                    <span class="text-[11px] text-emerald-300 font-mono tracking-wider">+$25K</span>
+                    <span class="text-[11px] text-emerald-300 font-mono tracking-wider">+${formattedRefund}</span>
                 </div>
             `;
             btnAction.className = "flex-1 py-3 rounded-xl bg-red-600 text-white font-bold active:bg-red-500 shadow-lg shadow-red-900/50 transition-colors";
@@ -722,7 +723,6 @@ export class UIManager {
     isOverviewPanelOpen() { return this._isOverviewOpen; } 
     isEventModalOpen() { return this._isEventModalOpen; }
 
-    // ★航路開拓ボタンのリアルタイム資金連動（毎フレーム監視し、画面を開いたまま資金到達で青色に点灯）
     checkRouteConfirmButton(currentFunds) {
         if (!this._isRouteConfirmOpen) return;
         if (this.currentRouteAction !== 'add') return;

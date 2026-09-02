@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 2.8: MAX判定バグの修正】
- * 1. `upgrade` メソッドにて、5回目の投資（step: 4の次の昇格コスト支払い）が
- * 完了した瞬間に即座にレベルアップする（p.step >= 5）ように判定を修正しました。
- * 2. これにより、存在しない「6回目の投資」を探して $0K になるバグを完全に排除し、
- * UIManager の MAX 判定と完全に同期するようになりました。
+ * 【創業時の基礎顧客満足度（初期値: 100）の反映】
+ * 1. `getBonuses` メソッドにおいて、自社の創業時標準サービス水準として
+ * `satisfaction` の基本初期値を 0 ➔ 100 に設定。
+ * 2. 5回目の投資による昇格レベルアップ判定（p.step >= 5）およびその他のアップグレード計算は100%完全保持。
  */
 
 import { UPGRADE_DATA } from './Data_Upgrades.js';
@@ -15,6 +14,7 @@ export class UpgradeManager {
         for (const key in UPGRADE_DATA) {
             this.progress[key] = { level: 0, step: 0 };
         }
+        this.eventSatisfactionBonus = 0;
     }
 
     getCurrentLevel(upgradeId) {
@@ -37,29 +37,26 @@ export class UpgradeManager {
         const data = UPGRADE_DATA[upgradeId];
         if (!data) return null;
 
-        // すでに最大レベルに達している場合はコスト無し
         if (p.level >= data.maxLevel) return null;
-
-        const nextStep = p.step + 1;
 
         const levelData = data.levels.find(l => l.level === p.level);
         if (!levelData || !levelData.steps) return null;
 
-        const stepData = levelData.steps.find(s => s.step === nextStep);
-        return stepData ? stepData.cost : null;
+        const nextStepData = levelData.steps.find(s => s.step === p.step + 1);
+        return nextStepData ? nextStepData.cost : null;
     }
 
     upgrade(upgradeId, economyManager) {
         const cost = this.getNextCost(upgradeId);
         if (cost === null) return false; 
-        
+
         if (economyManager.funds >= cost) {
             economyManager.funds -= cost;
             
             const p = this.progress[upgradeId];
             p.step++;
             
-            // ★バグ修正: 5回目の投資（昇格コストの支払い）が完了した瞬間にレベルアップする
+            // 5回目の投資（昇格コストの支払い）が完了した瞬間にレベルアップする
             if (p.step >= 5) {
                 p.step = 0;
                 p.level++;
@@ -74,7 +71,7 @@ export class UpgradeManager {
             maxPlanes: 5,             
             speedMultiplier: 1.0,     
             incomeRate: 1.0,          
-            satisfaction: 0,          
+            satisfaction: 100, // ★修正: 創業時の標準サービス水準として初期値を 100 に設定         
         };
 
         for (const key in UPGRADE_DATA) {

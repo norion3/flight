@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【航路開拓ボタンへの所持金連携 ＆ リアルタイム更新の確実な実行】
- * 1. `handleTap` および `onRouteActionConfirmed` で `showRouteConfirm` を呼ぶ際、
- * 第5引数として `this.economyManager.funds` を渡し、開いた瞬間に正しい資金判定（青色点灯）を実行。
- * 2. `animate` ループ内で毎フレーム `this.uiManager.checkRouteConfirmButton(this.economyManager.funds)` を呼び、
- * 開拓画面を開いたままでも資金到達時に即座に有効化されるリアルタイム連動を完全保証。
- * 3. 一時イベントバフ計算、CompetitionManager への airportManager 連携、トースト通知等は完全に保持。
+ * 【空路廃止時の返金処理（開拓費用の50%）連動 ＆ 全機能完全保持】
+ * 1. `onRouteActionConfirmed` において、空路廃止（remove）確定時に開拓費用の50%を算出し、
+ * `this.economyManager.addFunds(refund)` で所持金に正しく加算する処理を実装。
+ * 2. 航路開拓ボタンの所持金連携（開いた瞬間の青色点灯）および毎フレームのリアルタイム連動は完全保持。
+ * 3. 一時イベントバフ計算、CompetitionManager への airportManager 連携、トースト通知等は完全に保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -108,11 +107,15 @@ export class GameManager {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
                 } else if (actionType === 'remove') {
+                    // ★修正: 空路廃止時に開拓コストの50%を算出して所持金に正しく加算（返金）
+                    const routeCost = this.economyManager.calculateRouteCost(originData, destData);
+                    const refund = Math.floor(routeCost * 0.5);
+                    this.economyManager.addFunds(refund);
+
                     this.networkManager.removeRoute(originData, destData);
                     this.planeManager.checkAndReassignPlanes();
                     
                     if (this.networkManager.canConnect(originData, destData)) {
-                        const routeCost = this.economyManager.calculateRouteCost(originData, destData);
                         this.uiManager.showRouteConfirm(originData, destData, false, routeCost, this.economyManager.funds);
                     } else {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
@@ -528,7 +531,7 @@ export class GameManager {
             this.eventManager.update(delta);
         }
 
-        // ★追加: 航路開拓確認ボタンのリアルタイム資金連動チェック
+        // 航路開拓確認ボタンのリアルタイム資金連動チェック
         this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
 
         this.rivalUiTimer += delta;
