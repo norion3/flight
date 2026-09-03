@@ -1,7 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI近代化経済連動 ＆ イベント出費時マイナス防止ガード完全保持】
- * 1. `_updateAiEconomy` において、AIの機体サイズ構成に応じた実態収益を反映し、AIが大型機・中型機を運用・維持可能に。
+ * 【AI機体構成連動 ＆ イベント出費時マイナス防止ガード完全保持】
+ * 1. `_updateAiEconomy` において、AIの機体サイズ構成に応じた実態収益を反映し、AIが中型・大型機を維持・対抗可能に。
  * 2. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
  */
 
@@ -356,6 +356,7 @@ export class EconomyManager {
             const globalShare = competitionManager ? competitionManager.getGlobalShare(comp.id) : 0.2;
             const shareMult = 0.5 + (globalShare * 1.2);
 
+            // ★AI機体構成に応じた基礎収入の反映
             let basePlaneIncome = 0;
             compPlanes.forEach(p => {
                 const conf = CONFIG.ECONOMY.PLANES[p.sizeType];

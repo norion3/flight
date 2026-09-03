@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI経営進化システム（年度連動の機体キャップ拡大 ＆ 小型機から大型機への近代化乗り換え）の完全実装】
- * 1. AIが保有できる最大機体数の上限を、ゲーム内の年度（year）の経過に伴い段階的に拡大（1-2年目: 10機 ➔ 3-4年目: 20機 ➔ 5年目以降: 35機）。
- * 2. 資金が潤沢（$40M超）で保有している古い小型機が過剰な場合、小型機を1機売却して中型・大型機に「近代化乗り換え」する思考ルーチンを追加。
- * 3. 路線撤退時の遊休機体自動売却、シェア25%未満時の撤退（onWithdraw）等の全機能は100%完全保持。
+ * 【AIのシェア陥落による空港撤退（onWithdraw） ＆ 自律的機体増備の実装】
+ * 1. AI思考時にシェアが 25% 未満に落ち込んだ競合路線を検出し、正式に廃止（removeRoute）して
+ * 撤退通知（onWithdraw）を発火。プレイヤーによる市場制覇の爽快感を演出。
+ * 2. 路線拡大に応じて中型・大型機も購入し、機体数を最大8機まで自然に増備して対抗。
+ * 3. 路線撤退時の遊休機体自動売却ロジック（sellIdlePlane）、初期化（init）等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -20,7 +21,7 @@ export class RivalManager {
         
         this.timers = {};
         this.rivals.forEach(rival => {
-            this.timers[rival.id] = Math.random() * 20; 
+            this.timers[rival.id] = Math.random() * 20; // 0〜20秒の初期乱数
         });
 
         this.isInitialized = false;
@@ -59,7 +60,7 @@ export class RivalManager {
 
         this.rivals.forEach(rival => {
             this.timers[rival.id] += delta;
-            if (this.timers[rival.id] >= 22) { 
+            if (this.timers[rival.id] >= 22) { // 22秒サイクル
                 this.timers[rival.id] = 0;
                 this._thinkAction(rival.id, competitionManager);
             }
@@ -82,13 +83,7 @@ export class RivalManager {
         }
         totalRoutes = Math.floor(totalRoutes / 2);
 
-        // ★追加: 年度（year）に応じたAIの最大機体数キャップの動的拡大
-        const currentYear = this.economyManager ? this.economyManager.year : 1;
-        let maxAllowedPlanes = 10;
-        if (currentYear >= 5) maxAllowedPlanes = 35;
-        else if (currentYear >= 3) maxAllowedPlanes = 20;
-
-        // シェア25%未満の不採算路線からの撤退・逃亡判定
+        // ★新設: シェア25%未満の不採算路線からの撤退・逃亡判定（路線が2本以上ある場合）
         if (totalRoutes >= 2 && competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -104,10 +99,11 @@ export class RivalManager {
                         this.networkManager.removeRoute(originNode, destNode, companyId);
                         this.planeManager.checkAndReassignPlanes();
                         
+                        // 撤退トーストの発火
                         if (this.onWithdraw) {
                             this.onWithdraw(companyId, originId);
                         }
-                        return; 
+                        return; // 1回の思考で1アクション
                     }
                 }
             }
@@ -125,7 +121,7 @@ export class RivalManager {
         }
 
         // 余剰機体の売却整理
-        if (currentPlanes.length > totalRoutes * 2 + 1 || currentPlanes.length > maxAllowedPlanes) {
+        if (currentPlanes.length > totalRoutes * 2 + 1) {
             const soldType = this.planeManager.sellIdlePlane(companyId);
             if (soldType && this.economyManager) {
                 const planeConf = CONFIG.ECONOMY.PLANES[soldType];
@@ -134,27 +130,8 @@ export class RivalManager {
             }
         }
 
-        // ★新設: 資金が潤沢かつ小型機が過剰な場合の「近代化乗り換え（小型機売却 ➔ 中型・大型機購入）」
-        const smallPlanes = currentPlanes.filter(p => p.sizeType === 'small');
-        if (aiFunds > 40000000 && smallPlanes.length >= 3 && currentPlanes.length < maxAllowedPlanes) {
-            const soldType = this.planeManager.sellIdlePlane(companyId);
-            if (soldType === 'small' && this.economyManager) {
-                this.economyManager.addAiFunds(companyId, CONFIG.ECONOMY.PLANES.small.cost * CONFIG.ECONOMY.PLANES.small.sellRate);
-                
-                // 浮いた資金を足して中型・大型機に乗り換え購入
-                let upgradeBuyType = aiFunds > 80000000 ? 'large' : 'medium';
-                const upgradeConf = CONFIG.ECONOMY.PLANES[upgradeBuyType];
-                if (upgradeConf && this.economyManager.canAiAfford(companyId, upgradeConf.cost)) {
-                    if (this.planeManager.addPlane(upgradeBuyType, companyId)) {
-                        this.economyManager.deductAiFunds(companyId, upgradeConf.cost);
-                        return;
-                    }
-                }
-            }
-        }
-
-        // 機体増備ロジック（年度キャップと路線数に応じて中型・大型機も購入）
-        if (currentPlanes.length < totalRoutes * 1.8 && currentPlanes.length < maxAllowedPlanes && aiFunds > 6000000) {
+        // ★機体増備ロジック（路線拡大に応じて最大8機まで中型・大型機も購入）
+        if (currentPlanes.length < totalRoutes * 1.8 && currentPlanes.length < 8 && aiFunds > 6000000) {
             let buyType = 'small';
             if (aiFunds > 120000000) buyType = 'super';
             else if (aiFunds > 50000000) buyType = 'large';
@@ -170,7 +147,7 @@ export class RivalManager {
             }
         }
 
-        // 路線開拓
+        // 路線開拓（シェアが低い空港またはランダム候補から拡張）
         let targetAirportId = null;
         let lowestShare = 1.0;
 
