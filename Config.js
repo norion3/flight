@@ -25,7 +25,7 @@ export const CONFIG = {
     ],
 
     ECONOMY: {
-        INITIAL_FUNDS: 50000000,    // プレイヤー初期資金: 50M
+        INITIAL_FUNDS: 100000000,    // プレイヤー初期資金: 100M
         AI_INITIAL_FUNDS: 30000000, // AI初期資金: 30M
         MAX_PLANES_INITIAL: 10,
         
