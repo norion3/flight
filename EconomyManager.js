@@ -1,7 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI機体構成連動 ＆ イベント出費時マイナス防止ガード完全保持】
- * 1. `_updateAiEconomy` において、AIの機体サイズ構成に応じた実態収益を反映し、AIが中型・大型機を維持・対抗可能に。
+ * 【AI客数の実シェア連動 ＆ AI機体構成連動 ＆ イベント出費時マイナス防止ガード完全保持】
+ * 1. `_updateAiEconomy` において、AI客数に該当路線の両端空港シェア（avgShare）を掛け合わせ、プレイヤーがシェアを奪った際にAIの客数がリアルに激減するよう修正。
  * 2. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
  */
 
@@ -343,7 +343,13 @@ export class EconomyManager {
                 if (plane.currentRoute && plane.progress < 1.0) {
                     activeFlyingPlanes++;
                     const baseDemand = (CONFIG.ECONOMY.PLANES[plane.sizeType]?.baseDemand) || 50;
-                    const pass = baseDemand * (1.0 + (competitionManager.getAiSatisfaction(comp.id) || 150) * 0.005) * 0.8 * delta;
+                    
+                    // ★修正: 固定値0.8ではなく、該当路線の両端空港におけるAIの実シェア（avgShare）を乗客数に連動
+                    const originShare = competitionManager ? competitionManager.getShare(plane.currentAirportId, comp.id) : 0.2;
+                    const destShare = competitionManager ? competitionManager.getShare(plane.currentRoute.id, comp.id) : 0.2;
+                    const avgShare = (originShare + destShare) / 2;
+
+                    const pass = baseDemand * (1.0 + (competitionManager.getAiSatisfaction(comp.id) || 150) * 0.005) * Math.max(0.05, avgShare) * delta;
                     
                     this.aiTotalPassengers[comp.id] += pass;
                     this.aiYearlyPassengers[comp.id] += pass;
@@ -356,7 +362,6 @@ export class EconomyManager {
             const globalShare = competitionManager ? competitionManager.getGlobalShare(comp.id) : 0.2;
             const shareMult = 0.5 + (globalShare * 1.2);
 
-            // ★AI機体構成に応じた基礎収入の反映
             let basePlaneIncome = 0;
             compPlanes.forEach(p => {
                 const conf = CONFIG.ECONOMY.PLANES[p.sizeType];

@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AIのシェア陥落による空港撤退（onWithdraw） ＆ 自律的機体増備の実装】
- * 1. AI思考時にシェアが 25% 未満に落ち込んだ競合路線を検出し、正式に廃止（removeRoute）して
- * 撤退通知（onWithdraw）を発火。プレイヤーによる市場制覇の爽快感を演出。
- * 2. 路線拡大に応じて中型・大型機も購入し、機体数を最大8機まで自然に増備して対抗。
- * 3. 路線撤退時の遊休機体自動売却ロジック（sellIdlePlane）、初期化（init）等は100%完全保持。
+ * 【AI改善・ゲームバランス設計（動的機体キャップ・安全な配列撤退・時代アンロック＆安全リプレース・手詰まり防止）】
+ * 1. 機体保有数の動的解放: 初期6機から毎年+4機拡張、モバイル負荷防止のため最大60機でキャップ。
+ * 2. 資金条件の矛盾バグ解消と時代アンロック（2年目中型、3年目大型、5年目超大型）、sellIdlePlaneに一本化した安全なリプレース。
+ * 3. 撤退時（シェア25%未満）の配列クローンによる安全な全路線削除（インデックスずれ・配列破壊の防止）。
+ * 4. 路線開拓時、接続上限（MAX_CONNECTIONS）に達していない空きスロットのある空港のみをフィルタリングして手詰まりを解消。
  */
 
 import { CONFIG } from './Config.js';
@@ -83,7 +83,11 @@ export class RivalManager {
         }
         totalRoutes = Math.floor(totalRoutes / 2);
 
-        // ★新設: シェア25%未満の不採算路線からの撤退・逃亡判定（路線が2本以上ある場合）
+        // ★改善2: 機体保有数の動的解放（初期6機、毎年+4機、最大60機キャップ）
+        const currentYear = this.economyManager ? this.economyManager.year : 1;
+        const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
+
+        // ★改善4: シェア25%未満の不採算路線からの撤退（配列クローンによる安全な全路線削除）
         if (totalRoutes >= 2 && competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -91,19 +95,23 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
                 if (originShare < 0.25) {
-                    const destRoute = originRoutes[0];
                     const originNode = this.airportManager.getAirportById(originId);
-                    const destNode = this.airportManager.getAirportById(destRoute.id);
-                    
-                    if (originNode && destNode) {
-                        this.networkManager.removeRoute(originNode, destNode, companyId);
+                    if (originNode) {
+                        // 配列破壊・インデックスずれを防ぐためクローンを作成して全路線を安全に削除
+                        const routesCopy = [...originRoutes];
+                        routesCopy.forEach(destRoute => {
+                            const destNode = this.airportManager.getAirportById(destRoute.id);
+                            if (destNode) {
+                                this.networkManager.removeRoute(originNode, destNode, companyId);
+                            }
+                        });
                         this.planeManager.checkAndReassignPlanes();
                         
                         // 撤退トーストの発火
                         if (this.onWithdraw) {
                             this.onWithdraw(companyId, originId);
                         }
-                        return; // 1回の思考で1アクション
+                        return; // 1回の思考で1空港から完全撤退
                     }
                 }
             }
@@ -120,8 +128,8 @@ export class RivalManager {
             return;
         }
 
-        // 余剰機体の売却整理
-        if (currentPlanes.length > totalRoutes * 2 + 1) {
+        // 余剰機体の売却整理（動的上限超過時または路線過剰時）
+        if (currentPlanes.length > maxAllowedPlanes || currentPlanes.length > totalRoutes * 2 + 1) {
             const soldType = this.planeManager.sellIdlePlane(companyId);
             if (soldType && this.economyManager) {
                 const planeConf = CONFIG.ECONOMY.PLANES[soldType];
@@ -130,42 +138,78 @@ export class RivalManager {
             }
         }
 
-        // ★機体増備ロジック（路線拡大に応じて最大8機まで中型・大型機も購入）
-        if (currentPlanes.length < totalRoutes * 1.8 && currentPlanes.length < 8 && aiFunds > 6000000) {
-            let buyType = 'small';
-            if (aiFunds > 120000000) buyType = 'super';
-            else if (aiFunds > 50000000) buyType = 'large';
-            else if (aiFunds > 20000000) buyType = 'medium';
+        // ★改善3: 機体購入条件の適正化（価格の1.5〜2倍基準）、時代アンロック、安全な小型機売却リプレース
+        let desiredType = null;
+        if (currentYear >= 5 && aiFunds >= 250000000) desiredType = 'super';
+        else if (currentYear >= 3 && aiFunds >= 100000000) desiredType = 'large';
+        else if (currentYear >= 2 && aiFunds >= 40000000) desiredType = 'medium';
+        else if (aiFunds >= 8000000) desiredType = 'small';
 
-            const planeConf = CONFIG.ECONOMY.PLANES[buyType];
-            if (planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
-                const success = this.planeManager.addPlane(buyType, companyId);
-                if (success) {
-                    this.economyManager.deductAiFunds(companyId, planeConf.cost);
-                    return;
+        if (desiredType) {
+            const planeConf = CONFIG.ECONOMY.PLANES[desiredType];
+            
+            // 通常購入（枠に空きがある場合）
+            if (currentPlanes.length < maxAllowedPlanes && currentPlanes.length < totalRoutes * 1.8) {
+                if (planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
+                    const success = this.planeManager.addPlane(desiredType, companyId);
+                    if (success) {
+                        this.economyManager.deductAiFunds(companyId, planeConf.cost);
+                        return;
+                    }
+                }
+            } 
+            // ★上限到達時の小型機売却リプレース（sellIdlePlane(companyId)に一本化してプレイヤー機体の誤売却を完全に防止）
+            else if (desiredType !== 'small') {
+                const hasSmallPlane = currentPlanes.some(p => p.sizeType === 'small');
+                if (hasSmallPlane && planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
+                    let soldType = null;
+                    if (typeof this.planeManager.sellIdlePlane === 'function') {
+                        soldType = this.planeManager.sellIdlePlane(companyId);
+                    }
+                    if (soldType) {
+                        const soldConf = CONFIG.ECONOMY.PLANES[soldType];
+                        const refund = soldConf ? (soldConf.cost * soldConf.sellRate) : 3500000;
+                        this.economyManager.addAiFunds(companyId, refund);
+
+                        const success = this.planeManager.addPlane(desiredType, companyId);
+                        if (success) {
+                            this.economyManager.deductAiFunds(companyId, planeConf.cost);
+                            return;
+                        }
+                    }
                 }
             }
         }
 
-        // 路線開拓（シェアが低い空港またはランダム候補から拡張）
-        let targetAirportId = null;
-        let lowestShare = 1.0;
-
-        connectedAirports.forEach(id => {
-            const share = competitionManager.getShare(id, companyId);
-            if (share < lowestShare) {
-                lowestShare = share;
-                targetAirportId = id;
-            }
+        // ★改善5: 路線開拓手詰まりの防止（接続上限に達していない空きスロットのある空港のみをフィルタリング）
+        const availableAirports = connectedAirports.filter(id => {
+            const node = this.airportManager.getAirportById(id);
+            if (!node) return false;
+            const maxConn = this.networkManager.MAX_CONNECTIONS[node.type] || 5;
+            const currentConn = this.networkManager.getConnectionCount(id);
+            return currentConn < maxConn;
         });
 
-        if (!targetAirportId) {
-            targetAirportId = connectedAirports[Math.floor(Math.random() * connectedAirports.length)];
-        }
+        if (availableAirports.length > 0) {
+            let targetAirportId = null;
+            let lowestShare = 1.0;
 
-        const targetNode = this.airportManager.getAirportById(targetAirportId);
-        if (targetNode) {
-            this._expandRoute(companyId, targetNode);
+            availableAirports.forEach(id => {
+                const share = competitionManager ? competitionManager.getShare(id, companyId) : 1.0;
+                if (share < lowestShare) {
+                    lowestShare = share;
+                    targetAirportId = id;
+                }
+            });
+
+            if (!targetAirportId) {
+                targetAirportId = availableAirports[Math.floor(Math.random() * availableAirports.length)];
+            }
+
+            const targetNode = this.airportManager.getAirportById(targetAirportId);
+            if (targetNode) {
+                this._expandRoute(companyId, targetNode);
+            }
         }
     }
 

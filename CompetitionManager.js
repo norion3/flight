@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI顧客満足度の年度成長式（初期値70、毎年+35、上限2500キャップ） ＆ 世界シェア計算完全保持】
- * 1. AIの顧客満足度を初期値 70（±5）からスタートさせ、経過年数（year）ごとに +35 ずつ緩やかに上昇させ、
- * 上限 2500 で成長を停止（キャップ）させるゲームバランス設計を実装。
- * 2. 地球儀上の全空港ランク別総ポイント（分母: 約350点）に基づくリアルな世界シェア計算（getWorldShare）は100%完全保持。
+ * 【プレイヤー満足度400キャップ撤廃 ＆ AI満足度年度成長式 ＆ 世界シェア計算完全保持】
+ * 1. プレイヤー満足度の Math.min(400, ...) キャップを撤廃し、アップグレードやイベントによる満足度（最大6000超）がフルにシェア計算へ反映されるよう修正。
+ * 2. AIの顧客満足度は初期値 70（±5）から経過年数（year）ごとに +35 上昇（上限2500キャップ）を完全維持。
+ * 3. 地球儀上の全空港ランク別総ポイント（分母: 約350点）に基づくリアルな世界シェア計算（getWorldShare）は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -46,7 +46,8 @@ export class CompetitionManager {
             if (companyId === 'player') {
                 const baseSat = this.upgradeManager ? this.upgradeManager.getBonuses().satisfaction : 100;
                 const eventSat = this.upgradeManager ? (this.upgradeManager.eventSatisfactionBonus || 0) : 0;
-                satisfaction = Math.min(400, Math.max(0, baseSat + eventSat));
+                // ★修正: 400キャップを撤廃し、プレイヤーの満足度投資をフルに反映
+                satisfaction = Math.max(0, baseSat + eventSat);
             } else {
                 satisfaction = this.getAiSatisfaction(companyId);
             }
