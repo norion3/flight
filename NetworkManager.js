@@ -1,12 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路のリボン（帯メッシュ）方式実装 ＆ 最適幅調整（halfWidth = 0.002） ＆ 機体データ完全保持】
- * 1. WebGLのハードウェア1px制限を突破するため、THREE.Lineから帯状のメッシュ（THREE.Mesh / BufferGeometry）へ描画方式を刷新。
- * 2. halfWidthを 0.002 に設定し、ズーム時にも帯や板に見えない「シャープで上質な光線」として、
- * 線の時よりほんのり見やすい最適な太さを実現。
- * 3. 機体飛行に不可欠な `{ id, curve, length, data }` 構造を100%完全維持し、機体非表示バグを防止。
+ * 【空路のハイブリッド方式（芯ライン＋リボンメッシュ） ＆ 縮小時点線化の完全根絶 ＆ 全機能完全保持】
+ * 1. 拡大時の見やすさを担う「リボンメッシュ（halfWidth = 0.002）」と、
+ * 縮小時に1pxの実線描画をGPUレベルで保証する「芯のライン（THREE.Line）」を同心上に一体生成。
+ * これにより、ズームイン時は上品な太さで見え、ズームアウト時にも点線化・モアレ・かすれが一切起きず滑らかに繋がります。
+ * 2. 路線削除時（removeRoute）にリボンと芯ラインの両方が確実にdispose & removeされるようクリーンアップを統一。
+ * 3. 機体飛行に不可欠な `{ id, curve, length, data }` 構造は100%完全維持し、機体非表示バグを防止。
  * 4. 大円の真中点を厳密に通過するベジェ曲線の制御点計算（midPoint = 2 * peakPoint - chordMid）は完全保持。
- * 5. 路線削除時（removeRoute）のリソース解放（geometry / material の dispose）およびキャッシュ管理も完全対応。
+ * 5. プレイヤー用キャッシュ・AI用キャッシュの独立管理およびUI互換ゲッターは100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -102,7 +103,6 @@ export class NetworkManager {
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
-        // ★帯（リボン）メッシュの生成：halfWidth = 0.002 で線の時より少し見やすい上品な幅を実現
         const points = curve.getPoints(50);
         const halfWidth = 0.002; 
         const vertices = [];
@@ -141,10 +141,10 @@ export class NetworkManager {
             }
         }
 
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        geometry.setIndex(indices);
-        geometry.computeVertexNormals();
+        const ribbonGeometry = new THREE.BufferGeometry();
+        ribbonGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        ribbonGeometry.setIndex(indices);
+        ribbonGeometry.computeVertexNormals();
         
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
@@ -155,16 +155,28 @@ export class NetworkManager {
             neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
         }
         
-        const material = new THREE.MeshBasicMaterial({ 
+        // ① 拡大時の見やすさを担当するリボンメッシュ
+        const ribbonMaterial = new THREE.MeshBasicMaterial({ 
             color: neonColor, 
             side: THREE.DoubleSide,
             transparent: true, 
-            opacity: 0.95 
+            opacity: 0.85 
         });
         
-        const ribbonMesh = new THREE.Mesh(geometry, material);
+        const ribbonMesh = new THREE.Mesh(ribbonGeometry, ribbonMaterial);
         ribbonMesh.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(ribbonMesh);
+
+        // ② ★ハイブリッド方式：縮小時の点線化を防ぎ、1px実線描画を保証する芯のライン
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const lineMaterial = new THREE.LineBasicMaterial({
+            color: neonColor,
+            transparent: true,
+            opacity: 0.95
+        });
+        const coreLine = new THREE.Line(lineGeometry, lineMaterial);
+        coreLine.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
+        this.routeGroup.add(coreLine);
 
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
@@ -196,20 +208,21 @@ export class NetworkManager {
             this.network[companyId][toId] = this.network[companyId][toId].filter(r => r.id !== fromId);
         }
 
-        const meshesToRemove = [];
+        // リボンメッシュと芯ラインの両方を一括で回収・破棄
+        const objectsToRemove = [];
         this.routeGroup.children.forEach(child => {
             if (child.userData && child.userData.companyId === companyId) {
                 const u = child.userData;
                 if ((u.fromId === fromId && u.toId === toId) || (u.fromId === toId && u.toId === fromId)) {
-                    meshesToRemove.push(child);
+                    objectsToRemove.push(child);
                 }
             }
         });
 
-        meshesToRemove.forEach(mesh => {
-            this.routeGroup.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) mesh.material.dispose();
+        objectsToRemove.forEach(obj => {
+            this.routeGroup.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) obj.material.dispose();
         });
 
         // キャッシュ更新の切り分け
