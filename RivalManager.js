@@ -1,14 +1,15 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI改善・ゲームバランス設計（AI不死鳥リベンジ・動的機体キャップ・安全な配列撤退・時代アンロック＆完全リプレース・手詰まり防止）】
- * 1. AI不死鳥リベンジ（別所復活機能）:
- * プレイヤーに全拠点を奪われて撤退したAIが、未開拓の遠隔空港から再起する機構を新設。
- * ※路線開拓（_expandRoute）が100%成功した時のみ機体を追加する厳格な成否判定ガードを実装し、
- * 路線がないのに機体だけが増殖するゾンビ化ループバグを完全に根絶。
- * 2. 機体保有数の動的解放: 初期6機から毎年+4機拡張、モバイル負荷防止のため最大60機でキャップ。
- * 3. 資金条件の矛盾バグ解消と時代アンロック（2年目中型、3年目大型、5年目超大型）、sellPlane('small', companyId) による確実な小型機リプレース。
- * 4. 撤退時（シェア25%未満）の配列クローンによる全路線削除、および撤退会社の機体再割り当て（checkAndReassignPlanes(companyId)）。
- * 5. 路線開拓時、自社の接続数（getConnectionCount(id, companyId)）を参照して空きスロットのある空港のみを正確にフィルタリング。
+ * 【AI改善・ゲームバランス設計（資金枯渇フリーズ解消・粘り強い撤退判定・不死鳥復活連携・機体過密防止）】
+ * 1. 資金枯渇硬直の完全解消:
+ *    遊休機体がない場合でも、稼働中機体の緊急売却（自律リストラ）を行い、機体僅少かつ資金1M未満の極限時はセーフティネット再生資金を注入。
+ * 2. 粘り強い撤退判定（即時撤退の防止）:
+ *    撤退基準をシェア12%未満に引き下げ、さらに2サイクル連続（約44秒）で下回った場合のみ撤退する「猶予カウンター」を導入。
+ * 3. 不死鳥リベンジ（別所復活機能）の完全開花:
+ *    最後の1路線でもシェア低下時に撤退可能とし、全滅状態（路線数0）からの別所再起を正常発動。
+ * 4. 復活時の機体過密（団子状態）防止:
+ *    全滅時に余剰待機機体をリセットし、新天地で新規小型機2機から再スタート。
+ * 5. 機体保有数の動的解放（最大60機）、時代アンロック、空きスロット正確判定は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -24,13 +25,16 @@ export class RivalManager {
         this.rivals = CONFIG.COMPANIES.filter(c => c.id !== 'player');
         
         this.timers = {};
+        this.withdrawCounters = {}; // 空港ごとの撤退猶予カウンター { companyId: { airportId: count } }
+
         this.rivals.forEach(rival => {
             this.timers[rival.id] = Math.random() * 20; // 0〜20秒の初期乱数
+            this.withdrawCounters[rival.id] = {};
         });
 
         this.isInitialized = false;
         this.onWithdraw = null; 
-        this.onRevive = null; // ★追加: 復活時のコールバック
+        this.onRevive = null;
     }
 
     init() {
@@ -97,44 +101,76 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // シェア25%未満の不採算路線からの撤退（配列クローンによる安全な全路線削除）
-        if (totalRoutes >= 2 && competitionManager) {
+        // ★改善2: 粘り強い撤退判定（シェア12%未満が2サイクル継続した場合のみ安全に撤退）
+        if (competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
                 if (!originRoutes || originRoutes.length === 0) continue;
                 
                 const originShare = competitionManager.getShare(originId, companyId);
-                if (originShare < 0.25) {
-                    const originNode = this.airportManager.getAirportById(originId);
-                    if (originNode) {
-                        const routesCopy = [...originRoutes];
-                        routesCopy.forEach(destRoute => {
-                            const destNode = this.airportManager.getAirportById(destRoute.id);
-                            if (destNode) {
-                                this.networkManager.removeRoute(originNode, destNode, companyId);
+
+                // シェア12%未満の場合、カウンターを加算
+                if (originShare < 0.12) {
+                    this.withdrawCounters[companyId][originId] = (this.withdrawCounters[companyId][originId] || 0) + 1;
+                    
+                    // 2サイクル（約44秒）連続で下回った場合に初めて撤退を実行
+                    if (this.withdrawCounters[companyId][originId] >= 2) {
+                        const originNode = this.airportManager.getAirportById(originId);
+                        if (originNode) {
+                            const routesCopy = [...originRoutes];
+                            routesCopy.forEach(destRoute => {
+                                const destNode = this.airportManager.getAirportById(destRoute.id);
+                                if (destNode) {
+                                    this.networkManager.removeRoute(originNode, destNode, companyId);
+                                }
+                            });
+
+                            delete this.withdrawCounters[companyId][originId];
+                            this.planeManager.checkAndReassignPlanes(companyId);
+                            
+                            // 撤退トーストの発火
+                            if (this.onWithdraw) {
+                                this.onWithdraw(companyId, originId);
                             }
-                        });
-                        this.planeManager.checkAndReassignPlanes(companyId);
-                        
-                        // 撤退トーストの発火
-                        if (this.onWithdraw) {
-                            this.onWithdraw(companyId, originId);
+                            return; // 1回の思考で1空港から撤退
                         }
-                        return; // 1回の思考で1空港から完全撤退
+                    }
+                } else {
+                    // シェアを持ち直した場合はカウンターをリセット
+                    if (this.withdrawCounters[companyId][originId]) {
+                        delete this.withdrawCounters[companyId][originId];
                     }
                 }
             }
         }
 
-        // 資金難時の遊休機体売却
+        // ★改善3: 資金難時の自律リストラ＆セーフティネット（思考停止の完全防止）
         if (aiFunds < 2000000) {
-            const soldType = this.planeManager.sellIdlePlane(companyId);
+            let soldType = this.planeManager.sellIdlePlane(companyId);
+
+            // 待機機体がない場合でも、複数機保有していれば稼働中機体を売却してキャッシュ化
+            if (!soldType && currentPlanes.length > 1) {
+                if (typeof this.planeManager.sellPlane === 'function') {
+                    const hasSmall = currentPlanes.some(p => p.sizeType === 'small');
+                    const targetType = hasSmall ? 'small' : currentPlanes[0].sizeType;
+                    if (this.planeManager.sellPlane(targetType, companyId)) {
+                        soldType = targetType;
+                    }
+                }
+            }
+
             if (soldType && this.economyManager) {
                 const planeConf = CONFIG.ECONOMY.PLANES[soldType];
                 const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 2500000;
                 this.economyManager.addAiFunds(companyId, refund);
+                return;
             }
-            return;
+
+            // 機体数が残りわずかで資金1M未満に陥った極限時はセーフティネット再生資金を注入
+            if (currentPlanes.length <= 2 && aiFunds < 1000000 && this.economyManager) {
+                this.economyManager.rescueAiFunds(companyId, 15000000);
+                return;
+            }
         }
 
         // 余剰機体の売却整理（動的上限超過時または路線過剰時）
@@ -219,16 +255,15 @@ export class RivalManager {
         }
     }
 
-    // ★新設: 安全な不死鳥リベンジ（別所再起）処理
+    // ★安全な不死鳥リベンジ（別所再起）処理
     _attemptRevival(companyId) {
-        // 全滅直後に毎秒復活してゲームバランスを壊さないよう、約60%の確率で再起を試行
         if (Math.random() > 0.60) return;
 
         // 再起用シード資金の確保
         if (this.economyManager) {
             const currentFunds = this.economyManager.getAiFunds(companyId);
             if (currentFunds < 20000000) {
-                this.economyManager.addAiFunds(companyId, 30000000);
+                this.economyManager.rescueAiFunds(companyId, 30000000);
             }
         }
 
@@ -242,14 +277,16 @@ export class RivalManager {
 
         if (availableHubs.length === 0) return;
 
-        // ランダムに並び替えて未開拓の拠点を選定
         const shuffledHubs = [...availableHubs].sort(() => Math.random() - 0.5);
 
         for (const candidateHub of shuffledHubs) {
-            // ★最重要安全ガード: 路線開拓（_expandRoute）が100%成功した時のみ復活を確定
             const success = this._expandRoute(companyId, candidateHub, true);
             if (success) {
-                // 再起のための初期機体を2機配備
+                // ★改善4: 全滅していた旧機体をリセットし、新天地で2機から再スタート（団子化防止）
+                if (this.planeManager && Array.isArray(this.planeManager.planes)) {
+                    this.planeManager.planes = this.planeManager.planes.filter(p => p.companyId !== companyId);
+                }
+
                 this.planeManager.addPlane('small', companyId);
                 this.planeManager.addPlane('small', companyId);
                 this.planeManager.wakeUpPlanes(companyId);
@@ -258,7 +295,6 @@ export class RivalManager {
                 const compName = comp ? comp.name : companyId;
                 const message = `${compName} が新たな拠点で復活しました！`;
 
-                // コールバック経由またはUIManager直接呼び出しによるトースト通知
                 if (this.onRevive) {
                     this.onRevive(companyId, candidateHub.id);
                 } else if (typeof window !== 'undefined' && window.gameManager && window.gameManager.uiManager) {
@@ -269,7 +305,7 @@ export class RivalManager {
                         ui.showToast(message, 'info');
                     }
                 }
-                break; // 1回のサイクルで1拠点の復活のみ実行
+                break;
             }
         }
     }

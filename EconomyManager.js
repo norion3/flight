@@ -1,8 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI客数の実シェア連動 ＆ AI機体構成連動 ＆ イベント出費時マイナス防止ガード完全保持】
- * 1. `_updateAiEconomy` において、AI客数に該当路線の両端空港シェア（avgShare）を掛け合わせ、プレイヤーがシェアを奪った際にAIの客数がリアルに激減するよう修正。
- * 2. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
+ * 【AI客数の実シェア連動 ＆ AIセーフティネット支援 ＆ イベント出費時マイナス防止ガード完全保持】
+ * 1. `_updateAiEconomy` において、AI客数に該当路線の両端空港シェア（avgShare）を掛け合わせ、プレイヤーがシェアを奪った際にAIの客数がリアルに激減する仕様を保持。
+ * 2. AI極限時のセーフティネット支援メソッド `rescueAiFunds` を新設し、思考硬直を防止。
+ * 3. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
  */
 
 import { CONFIG } from './Config.js';
@@ -16,6 +17,7 @@ export class EconomyManager {
         this.displayIncome = 0;   
         
         this.incomeTimer = 0;
+        this.monthTimer = 0;
         this.grossIncomeBuffer = 0;
         this.upkeepBuffer = 0;
         
@@ -32,7 +34,6 @@ export class EconomyManager {
 
         this.onAnnualSettlement = null;   // Phase 6: 決算通知コールバック
 
-        this.monthTimer = 0;
         this.year = 1;
         this.month = 4; // 会計年度に合わせ 4月スタート
         
@@ -319,6 +320,13 @@ export class EconomyManager {
         }
     }
 
+    // ★追加: AI思考停止防止用の公的セーフティネット支援
+    rescueAiFunds(companyId, amount = 15000000) {
+        if (this.aiFunds[companyId] !== undefined) {
+            this.aiFunds[companyId] = Math.max(this.aiFunds[companyId], amount);
+        }
+    }
+
     _updateAiEconomy(delta, planes, networkManager, competitionManager) {
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id === 'player') return;
@@ -344,7 +352,6 @@ export class EconomyManager {
                     activeFlyingPlanes++;
                     const baseDemand = (CONFIG.ECONOMY.PLANES[plane.sizeType]?.baseDemand) || 50;
                     
-                    // ★修正: 固定値0.8ではなく、該当路線の両端空港におけるAIの実シェア（avgShare）を乗客数に連動
                     const originShare = competitionManager ? competitionManager.getShare(plane.currentAirportId, comp.id) : 0.2;
                     const destShare = competitionManager ? competitionManager.getShare(plane.currentRoute.id, comp.id) : 0.2;
                     const avgShare = (originShare + destShare) / 2;
