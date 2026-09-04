@@ -1,12 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【トースト表示の1行維持 ＆ 文字数に応じた動的フォントサイズ微調整（下げすぎ防止） ＆ 全機能完全保持】
- * 1. showToast / showWithdrawToast において、不自然な場所で2段に分断される現象を `whitespace-nowrap` で完全遮断。
- * 2. 文字数（半角・全角換算）を自動判定し、ライバル撤退などの通常メッセージ（〜23文字）は標準サイズ（14px / text-sm）のまま1行表示。
+ * 【トースト表示の1行維持 ＆ 文字数に応じた動的フォントサイズ微調整（下げすぎ防止） ＆ 復活トースト対応 ＆ 全機能完全保持】
+ * 1. showToast / showWithdrawToast / showReviveToast において、不自然な場所で2段に分断される現象を `whitespace-nowrap` で完全遮断。
+ * 2. 文字数（全角換算）を自動判定し、通常メッセージ（〜23文字）は標準サイズ（14px / text-sm）のまま1行表示。
  * 3. 長文イベント通知（24〜27文字）は 12px (text-xs)、超長文（28文字〜）は 11px (text-[11px]・下限リミット) に控えめに落とし、
  * 可読性を維持したまま画面端に美しく収まるスマートな1行表示を実現。
- * 4. 4〜6位の洗練された縦型順位バッジ、期末決算モーダル、イベントモーダル、上部HUD、折れ線グラフ描画、
- * 各画面の個別最適高さ等は100%完全保持。
+ * 4. AI復活専用の `showReviveToast` を新設し、陣営色で鮮やかに光る復活通知をサポート。
+ * 5. 4〜6位の洗練された縦型順位バッジ、期末決算モーダル、イベントモーダル、上部HUD、折れ線グラフ描画等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -652,7 +652,6 @@ export class UIManager {
     showWithdrawToast(message, rivalId) {
         this.soundManager.playEventSound();
         
-        // ★同様に文字数を判定（ライバル撤退通知は全角換算約19〜20文字のため、確実に標準text-sm 14pxが適用される）
         let charLen = 0;
         for (let i = 0; i < message.length; i++) {
             charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
@@ -673,6 +672,45 @@ export class UIManager {
         this.toast.className = `${baseClasses} bg-slate-900/95 text-white border-2 shadow-xl`;
         this.toast.style.borderColor = hexColor;
         this.toast.style.boxShadow = `0 10px 25px -5px ${hexColor}40`;
+        
+        this.toast.style.maxWidth = '';
+        this.toast.style.width = '';
+        
+        this.toast.innerText = message;
+        void this.toast.offsetWidth;
+        this.toast.classList.add('toast-show');
+        
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        
+        this.toastTimeout = setTimeout(() => {
+            this.toast.classList.remove('toast-show');
+        }, 3500); 
+    }
+
+    // ★AI不死鳥リベンジ（復活）時の専用トースト表示
+    showReviveToast(message, rivalId) {
+        this.soundManager.playSuccessSound();
+        
+        let charLen = 0;
+        for (let i = 0; i < message.length; i++) {
+            charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
+        }
+
+        let sizeClasses = "text-sm px-4 py-2";
+        if (charLen > 27) {
+            sizeClasses = "text-[11px] px-3 py-1.5";
+        } else if (charLen > 23) {
+            sizeClasses = "text-xs px-3.5 py-1.5";
+        }
+
+        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        
+        const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
+        const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#10b981';
+
+        this.toast.className = `${baseClasses} bg-slate-900/95 text-emerald-300 border-2 shadow-xl`;
+        this.toast.style.borderColor = hexColor;
+        this.toast.style.boxShadow = `0 10px 25px -5px ${hexColor}60`;
         
         this.toast.style.maxWidth = '';
         this.toast.style.width = '';

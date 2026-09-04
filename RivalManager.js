@@ -1,10 +1,14 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI改善・ゲームバランス設計（動的機体キャップ・安全な配列撤退・時代アンロック＆完全リプレース・手詰まり防止）】
- * 1. 機体保有数の動的解放: 初期6機から毎年+4機拡張、モバイル負荷防止のため最大60機でキャップ。
- * 2. 資金条件の矛盾バグ解消と時代アンロック（2年目中型、3年目大型、5年目超大型）、sellPlane('small', companyId) による確実な小型機リプレース。
- * 3. 撤退時（シェア25%未満）の配列クローンによる全路線削除、および撤退会社の機体再割り当て（checkAndReassignPlanes(companyId)）。
- * 4. 路線開拓時、自社の接続数（getConnectionCount(id, companyId)）を参照して空きスロットのある空港のみを正確にフィルタリング。
+ * 【AI改善・ゲームバランス設計（AI不死鳥リベンジ・動的機体キャップ・安全な配列撤退・時代アンロック＆完全リプレース・手詰まり防止）】
+ * 1. AI不死鳥リベンジ（別所復活機能）:
+ * プレイヤーに全拠点を奪われて撤退したAIが、未開拓の遠隔空港から再起する機構を新設。
+ * ※路線開拓（_expandRoute）が100%成功した時のみ機体を追加する厳格な成否判定ガードを実装し、
+ * 路線がないのに機体だけが増殖するゾンビ化ループバグを完全に根絶。
+ * 2. 機体保有数の動的解放: 初期6機から毎年+4機拡張、モバイル負荷防止のため最大60機でキャップ。
+ * 3. 資金条件の矛盾バグ解消と時代アンロック（2年目中型、3年目大型、5年目超大型）、sellPlane('small', companyId) による確実な小型機リプレース。
+ * 4. 撤退時（シェア25%未満）の配列クローンによる全路線削除、および撤退会社の機体再割り当て（checkAndReassignPlanes(companyId)）。
+ * 5. 路線開拓時、自社の接続数（getConnectionCount(id, companyId)）を参照して空きスロットのある空港のみを正確にフィルタリング。
  */
 
 import { CONFIG } from './Config.js';
@@ -26,6 +30,7 @@ export class RivalManager {
 
         this.isInitialized = false;
         this.onWithdraw = null; 
+        this.onRevive = null; // ★追加: 復活時のコールバック
     }
 
     init() {
@@ -72,7 +77,12 @@ export class RivalManager {
         if (!net) return;
 
         const connectedAirports = Object.keys(net).filter(id => net[id].length > 0);
-        if (connectedAirports.length === 0) return;
+        
+        // ★改善1: AI不死鳥リベンジ（全路線喪失時の別所再起・復活処理）
+        if (connectedAirports.length === 0) {
+            this._attemptRevival(companyId);
+            return;
+        }
 
         const aiFunds = this.economyManager ? this.economyManager.getAiFunds(companyId) : 50000000;
         const currentPlanes = this.planeManager.planes.filter(p => p.companyId === companyId);
@@ -83,11 +93,11 @@ export class RivalManager {
         }
         totalRoutes = Math.floor(totalRoutes / 2);
 
-        // ★改善2: 機体保有数の動的解放（初期6機、毎年+4機、最大60機キャップ）
+        // 機体保有数の動的解放（初期6機、毎年+4機、最大60機キャップ）
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // ★改善4: シェア25%未満の不採算路線からの撤退（配列クローンによる安全な全路線削除）
+        // シェア25%未満の不採算路線からの撤退（配列クローンによる安全な全路線削除）
         if (totalRoutes >= 2 && competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -97,7 +107,6 @@ export class RivalManager {
                 if (originShare < 0.25) {
                     const originNode = this.airportManager.getAirportById(originId);
                     if (originNode) {
-                        // 配列破壊・インデックスずれを防ぐためクローンを作成して全路線を安全に削除
                         const routesCopy = [...originRoutes];
                         routesCopy.forEach(destRoute => {
                             const destNode = this.airportManager.getAirportById(destRoute.id);
@@ -105,7 +114,6 @@ export class RivalManager {
                                 this.networkManager.removeRoute(originNode, destNode, companyId);
                             }
                         });
-                        // ★修正点②: 撤退したAI会社の機体を正しく再割り当て
                         this.planeManager.checkAndReassignPlanes(companyId);
                         
                         // 撤退トーストの発火
@@ -139,7 +147,7 @@ export class RivalManager {
             }
         }
 
-        // ★改善3: 機体購入条件の適正化（価格の1.5〜2倍基準）、時代アンロック、安全な小型機売却リプレース
+        // 機体購入条件の適正化、時代アンロック、安全な小型機売却リプレース
         let desiredType = null;
         if (currentYear >= 5 && aiFunds >= 250000000) desiredType = 'super';
         else if (currentYear >= 3 && aiFunds >= 100000000) desiredType = 'large';
@@ -149,7 +157,6 @@ export class RivalManager {
         if (desiredType) {
             const planeConf = CONFIG.ECONOMY.PLANES[desiredType];
             
-            // 通常購入（枠に空きがある場合）
             if (currentPlanes.length < maxAllowedPlanes && currentPlanes.length < totalRoutes * 1.8) {
                 if (planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
                     const success = this.planeManager.addPlane(desiredType, companyId);
@@ -158,9 +165,7 @@ export class RivalManager {
                         return;
                     }
                 }
-            } 
-            // ★修正点③: 上限到達時に sellPlane('small', companyId) で稼働中の小型機も確実に売却して上位機へリプレース
-            else if (desiredType !== 'small') {
+            } else if (desiredType !== 'small') {
                 const hasSmallPlane = currentPlanes.some(p => p.sizeType === 'small');
                 if (hasSmallPlane && planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
                     let sold = false;
@@ -182,8 +187,7 @@ export class RivalManager {
             }
         }
 
-        // ★改善5: 路線開拓手詰まりの防止（接続上限に達していない空きスロットのある空港のみをフィルタリング）
-        // ★修正点①: 自社（companyId）の接続数を正確に取得
+        // 路線開拓手詰まりの防止（自社の空きスロットのある空港のみをフィルタリング）
         const availableAirports = connectedAirports.filter(id => {
             const node = this.airportManager.getAirportById(id);
             if (!node) return false;
@@ -211,6 +215,61 @@ export class RivalManager {
             const targetNode = this.airportManager.getAirportById(targetAirportId);
             if (targetNode) {
                 this._expandRoute(companyId, targetNode);
+            }
+        }
+    }
+
+    // ★新設: 安全な不死鳥リベンジ（別所再起）処理
+    _attemptRevival(companyId) {
+        // 全滅直後に毎秒復活してゲームバランスを壊さないよう、約60%の確率で再起を試行
+        if (Math.random() > 0.60) return;
+
+        // 再起用シード資金の確保
+        if (this.economyManager) {
+            const currentFunds = this.economyManager.getAiFunds(companyId);
+            if (currentFunds < 20000000) {
+                this.economyManager.addAiFunds(companyId, 30000000);
+            }
+        }
+
+        // 自社が未進出で、かつ接続スロットに空きのある空港を候補として抽出
+        const allAirports = this.airportManager.allAirports;
+        const availableHubs = allAirports.filter(node => {
+            const maxConn = this.networkManager.MAX_CONNECTIONS[node.type] || 5;
+            const currentConn = this.networkManager.getConnectionCount(node.id, companyId);
+            return currentConn === 0 && this.networkManager.getConnectionCount(node.id, 'player') < maxConn;
+        });
+
+        if (availableHubs.length === 0) return;
+
+        // ランダムに並び替えて未開拓の拠点を選定
+        const shuffledHubs = [...availableHubs].sort(() => Math.random() - 0.5);
+
+        for (const candidateHub of shuffledHubs) {
+            // ★最重要安全ガード: 路線開拓（_expandRoute）が100%成功した時のみ復活を確定
+            const success = this._expandRoute(companyId, candidateHub, true);
+            if (success) {
+                // 再起のための初期機体を2機配備
+                this.planeManager.addPlane('small', companyId);
+                this.planeManager.addPlane('small', companyId);
+                this.planeManager.wakeUpPlanes(companyId);
+
+                const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
+                const compName = comp ? comp.name : companyId;
+                const message = `${compName} が新たな拠点で復活しました！`;
+
+                // コールバック経由またはUIManager直接呼び出しによるトースト通知
+                if (this.onRevive) {
+                    this.onRevive(companyId, candidateHub.id);
+                } else if (typeof window !== 'undefined' && window.gameManager && window.gameManager.uiManager) {
+                    const ui = window.gameManager.uiManager;
+                    if (typeof ui.showReviveToast === 'function') {
+                        ui.showReviveToast(message, companyId);
+                    } else if (typeof ui.showToast === 'function') {
+                        ui.showToast(message, 'info');
+                    }
+                }
+                break; // 1回のサイクルで1拠点の復活のみ実行
             }
         }
     }
