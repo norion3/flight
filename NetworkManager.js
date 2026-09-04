@@ -1,13 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路のハイブリッド方式（芯ライン＋リボンメッシュ） ＆ 縮小時点線化の完全根絶 ＆ 全機能完全保持】
- * 1. 拡大時の見やすさを担う「リボンメッシュ（halfWidth = 0.002）」と、
- * 縮小時に1pxの実線描画をGPUレベルで保証する「芯のライン（THREE.Line）」を同心上に一体生成。
- * これにより、ズームイン時は上品な太さで見え、ズームアウト時にも点線化・モアレ・かすれが一切起きず滑らかに繋がります。
- * 2. 路線削除時（removeRoute）にリボンと芯ラインの両方が確実にdispose & removeされるようクリーンアップを統一。
- * 3. 機体飛行に不可欠な `{ id, curve, length, data }` 構造は100%完全維持し、機体非表示バグを防止。
- * 4. 大円の真中点を厳密に通過するベジェ曲線の制御点計算（midPoint = 2 * peakPoint - chordMid）は完全保持。
- * 5. プレイヤー用キャッシュ・AI用キャッシュの独立管理およびUI互換ゲッターは100%完全保持。
+ * 【空路ハイブリッド描画の最適化 ＆ Zファイティング完全防止 ＆ 安全ガード強化】
+ * 1. 【Zファイティング解消】リボンメッシュおよび芯ラインに `depthWrite: false` を適用し、
+ *    `renderOrder`（リボン: 1, 芯ライン: 2）で描画順を固定。航路交差時や同心配置時のチラつき・黒ずみを完全根絶。
+ * 2. 【リボン幅の最適化】拡大時に上品な発光帯として視認できるよう `halfWidth = 0.005` に微調整。
+ * 3. 【堅牢なガード】引数がオブジェクトまたはID文字列のどちらで渡されてもクラッシュしない安全フォールバックを実装。
+ * 4. 【リソース破棄メソッド】撤退時やリセット時にメモリリークを防ぐ `removeAllRoutesForAirport` / `clearAllRoutes` を新設。
+ * 5. 機体飛行用 `{ id, curve, length, data }` 構造、ベジェ制御点計算、距離キャッシュ等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -33,7 +32,7 @@ export class NetworkManager {
             'fictional': 3
         };
         
-        // プレイヤー専用のキャッシュ（既存UIが依存しているため絶対に消さない）
+        // プレイヤー専用のキャッシュ（既存UIが依存しているため保持）
         this.cachedTotalLength = 0;
         
         // AI専用のキャッシュ辞書
@@ -46,21 +45,24 @@ export class NetworkManager {
     }
 
     getConnectionCount(airportId, companyId = 'player') {
+        if (!this.network[companyId]) return 0;
         return this.network[companyId][airportId] ? this.network[companyId][airportId].length : 0;
     }
 
     isConnected(fromId, toId, companyId = 'player') {
-        if (!this.network[companyId][fromId]) return false;
+        if (!this.network[companyId] || !this.network[companyId][fromId]) return false;
         return this.network[companyId][fromId].some(dest => dest.id === toId);
     }
 
     canConnect(fromData, toData, companyId = 'player') {
+        if (!fromData || !toData) return false;
         if (fromData.id === toData.id) return false;
 
         const fromCount = this.getConnectionCount(fromData.id, companyId);
         const toCount = this.getConnectionCount(toData.id, companyId);
-        const fromMax = this.MAX_CONNECTIONS[fromData.type];
-        const toMax = this.MAX_CONNECTIONS[toData.type];
+        
+        const fromMax = this.MAX_CONNECTIONS[fromData.type] || 5;
+        const toMax = this.MAX_CONNECTIONS[toData.type] || 5;
 
         if (fromCount >= fromMax || toCount >= toMax) return false;
 
@@ -73,11 +75,11 @@ export class NetworkManager {
         if (!this.canConnect(fromData, toData, companyId)) return false;
 
         const compIndex = CONFIG.COMPANIES.findIndex(c => c.id === companyId);
-        const comp = CONFIG.COMPANIES[compIndex];
+        const comp = compIndex >= 0 ? CONFIG.COMPANIES[compIndex] : null;
         const routeColor = comp ? comp.routeColor : 0x0ea5e9;
         
-        // Zファイティング防止の微小オフセット
-        const offset = Math.max(0, compIndex) * 0.0002;
+        // 陣営ごとのZファイティング防止オフセット
+        const offset = Math.max(0, compIndex) * 0.0003;
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
         const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
@@ -93,18 +95,20 @@ export class NetworkManager {
             midDir.copy(posA).normalize();
         }
 
-        // アーチの最高点（ピーク）の目標高度
+        // アーチ最高点（ピーク）の高度
         const peakAltitude = CONFIG.GLOBE_RADIUS + 0.02 + offset + (distance * 0.20) + 0.03;
         const peakPoint = midDir.multiplyScalar(peakAltitude);
 
-        // 2次ベジェ曲線が t=0.5 で peakPoint を寸分違わず通過するための制御点を逆算
+        // 2次ベジェ曲線が t=0.5 で peakPoint を通過する制御点を逆算
         const midPoint = peakPoint.clone().multiplyScalar(2).sub(chordMid);
 
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
         const points = curve.getPoints(50);
-        const halfWidth = 0.002; 
+        
+        // ★拡大時にネオン帯として美しく視認できる最適な幅（0.005）
+        const halfWidth = 0.005; 
         const vertices = [];
         const indices = [];
 
@@ -127,7 +131,6 @@ export class NetworkManager {
                 binormal.set(0, 1, 0);
             }
 
-            // 左右の頂点を展開して帯を形成
             const pLeft = pt.clone().addScaledVector(binormal, -halfWidth);
             const pRight = pt.clone().addScaledVector(binormal, halfWidth);
 
@@ -149,45 +152,49 @@ export class NetworkManager {
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
         
-        // 暗い色のみに純白をブレンドして白ボケを防ぐ
+        // 暗い色味の場合は純白をブレンドして発色を確保
         const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
         if (luminance < 0.5) {
-            neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
+            neonColor.lerp(new THREE.Color(0xffffff), 0.25); 
         }
         
-        // ① 拡大時の見やすさを担当するリボンメッシュ
+        // ① 拡大時の存在感を担当するリボンメッシュ（depthWrite: false でZファイティング防止）
         const ribbonMaterial = new THREE.MeshBasicMaterial({ 
             color: neonColor, 
             side: THREE.DoubleSide,
             transparent: true, 
-            opacity: 0.85 
+            opacity: 0.75,
+            depthWrite: false
         });
         
         const ribbonMesh = new THREE.Mesh(ribbonGeometry, ribbonMaterial);
+        ribbonMesh.renderOrder = 1;
         ribbonMesh.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(ribbonMesh);
 
-        // ② ★ハイブリッド方式：縮小時の点線化を防ぎ、1px実線描画を保証する芯のライン
+        // ② 縮小時の1px実線描画を保証する芯ライン（depthWrite: false & 最前面描画）
         const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
         const lineMaterial = new THREE.LineBasicMaterial({
             color: neonColor,
             transparent: true,
-            opacity: 0.95
+            opacity: 0.95,
+            depthWrite: false
         });
         const coreLine = new THREE.Line(lineGeometry, lineMaterial);
+        coreLine.renderOrder = 2;
         coreLine.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(coreLine);
 
+        if (!this.network[companyId]) this.network[companyId] = {};
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
 
-        // 機体移動に必要な curve, length, data を100%維持して格納
+        // 飛行移動に必要な curve, length, data を格納
         this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData });
         
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
         this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
 
-        // キャッシュ更新の切り分け
         if (companyId === 'player') {
             this._updateCachedTotalLength();
         } else {
@@ -198,9 +205,12 @@ export class NetworkManager {
     }
 
     removeRoute(fromData, toData, companyId = 'player') {
+        if (!fromData || !toData) return false;
         const fromId = typeof fromData === 'object' ? fromData.id : fromData;
         const toId = typeof toData === 'object' ? toData.id : toData;
         
+        if (!this.network[companyId]) return false;
+
         if (this.network[companyId][fromId]) {
             this.network[companyId][fromId] = this.network[companyId][fromId].filter(r => r.id !== toId);
         }
@@ -208,7 +218,7 @@ export class NetworkManager {
             this.network[companyId][toId] = this.network[companyId][toId].filter(r => r.id !== fromId);
         }
 
-        // リボンメッシュと芯ラインの両方を一括で回収・破棄
+        // リボンメッシュと芯ラインの両方を一括回収・破棄
         const objectsToRemove = [];
         this.routeGroup.children.forEach(child => {
             if (child.userData && child.userData.companyId === companyId) {
@@ -225,7 +235,6 @@ export class NetworkManager {
             if (obj.material) obj.material.dispose();
         });
 
-        // キャッシュ更新の切り分け
         if (companyId === 'player') {
             this._updateCachedTotalLength();
         } else {
@@ -235,7 +244,48 @@ export class NetworkManager {
         return true;
     }
 
+    /**
+     * 指定された空港に接続する全路線を一括削除（撤退処理用）
+     */
+    removeAllRoutesForAirport(airportId, companyId = 'player') {
+        if (!this.network[companyId] || !this.network[companyId][airportId]) return;
+
+        const connectedRoutes = [...this.network[companyId][airportId]];
+        connectedRoutes.forEach(route => {
+            this.removeRoute(airportId, route.id, companyId);
+        });
+    }
+
+    /**
+     * 指定会社の全路線を破棄（リセット・全滅時用）
+     */
+    clearAllRoutes(companyId = 'player') {
+        if (!this.network[companyId]) return;
+
+        const objectsToRemove = [];
+        this.routeGroup.children.forEach(child => {
+            if (child.userData && child.userData.companyId === companyId) {
+                objectsToRemove.push(child);
+            }
+        });
+
+        objectsToRemove.forEach(obj => {
+            this.routeGroup.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) obj.material.dispose();
+        });
+
+        this.network[companyId] = {};
+
+        if (companyId === 'player') {
+            this._updateCachedTotalLength();
+        } else {
+            this._updateAiCachedTotalLength(companyId);
+        }
+    }
+
     getRandomRouteFrom(airportId, companyId = 'player') {
+        if (!this.network[companyId]) return null;
         const routes = this.network[companyId][airportId];
         if (!routes || routes.length === 0) return null;
         
@@ -244,6 +294,7 @@ export class NetworkManager {
     }
 
     getRandomConnectedAirport(companyId = 'player') {
+        if (!this.network[companyId]) return null;
         const connectedIds = Object.keys(this.network[companyId]).filter(id => this.network[companyId][id].length > 0);
         if (connectedIds.length === 0) return null;
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
@@ -261,7 +312,7 @@ export class NetworkManager {
         }
     }
 
-    // 実際の計算メソッド（毎フレームではなく、必要な時だけ呼ばれる）
+    // 距離集計
     _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
@@ -284,12 +335,10 @@ export class NetworkManager {
         return totalLength;
     }
 
-    // プレイヤー用の軽量なゲッター（既存UIが依存。絶対に消さない）
     get playerTotalNetworkLength() {
         return this.cachedTotalLength;
     }
 
-    // AI用の軽量なゲッター
     getAiTotalNetworkLength(companyId) {
         return this.aiCachedTotalLengths[companyId] || 0;
     }
