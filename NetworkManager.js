@@ -1,12 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路の線1.5倍化（デュアルパス重合方式） ＆ 機体データ完全保護 ＆ 大円真中央アーチ】
- * 1. WebGL規格の1px制限を回避するため、主線（不透明度0.80）に加えて進行方向直交ベクトルへ
- * わずかにシフト（0.0012）させた半透明ライン（不透明度0.45）を重ねるデュアルパス重合方式を採用。
- * 色合いやシャープさを保ったまま、自然で上品な「1.5倍の太さ」を実現。
- * 2. 機体飛行に不可欠な `{ id, curve, length, data }` 構造を100%完全維持し、機体非表示を防止。
- * 3. 路線削除時（removeRoute）に重合ラインも含めて安全に一括破棄（メモリリーク防止）。
- * 4. 既存のキャッシュ管理、UI依存プロパティ、大円真中央中点計算はすべて完全保持。
+ * 【空路の2本見え完全撤廃（単一ライン化） ＆ 不透明度0.95によるくっきり視認化 ＆ 全機能完全保持】
+ * 1. 拡大時に2本に割れて見えていた重合補助線（glowLine）を完全撤廃し、完全な「1本線」に戻しました。
+ * 2. 線の不透明度（opacity）を 0.95 に引き上げ、暗い宇宙背景に対するかすれを無くして1本のままで明瞭に視認できるよう調整。
+ * 3. 機体飛行に不可欠な `{ id, curve, length, data }` 構造を100%完全維持し、機体非表示バグを防止。
+ * 4. 大円の真中点を厳密に通過するベジェ曲線の制御点計算（midPoint = 2 * peakPoint - chordMid）は完全保持。
+ * 5. プレイヤー用キャッシュ・AI用キャッシュの独立管理およびUI互換ゲッターは100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -114,47 +113,16 @@ export class NetworkManager {
             neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
         }
         
-        // ① メインライン（くっきりとした主軸・不透明度0.80）
+        // ★完全な単一ライン（不透明度0.95でかすれを解消し、くっきりと視認化）
         const material = new THREE.LineBasicMaterial({ 
             color: neonColor, 
             transparent: true, 
-            opacity: 0.80 
+            opacity: 0.95 
         });
         
         const line = new THREE.Line(geometry, material);
         line.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(line);
-
-        // ② ★推奨案: 線の幅を1.5倍にするデュアルパス重合ライン
-        // 進行方向と法線の外積から横方向ベクトルを算出し、わずか 0.0012 シフトさせた重合線を配置
-        const sidePoints = [];
-        for (let i = 0; i < points.length; i++) {
-            const pt = points[i];
-            const normal = pt.clone().normalize();
-            let tangent;
-            if (i === 0) {
-                tangent = points[1].clone().sub(points[0]).normalize();
-            } else if (i === points.length - 1) {
-                tangent = points[i].clone().sub(points[i - 1]).normalize();
-            } else {
-                tangent = points[i + 1].clone().sub(points[i - 1]).normalize();
-            }
-            const side = new THREE.Vector3().crossVectors(tangent, normal).normalize();
-            // 物理的に約1.5倍〜2px幅に見せる微小シフト（0.0012）とZファイティング防止の微小浮上
-            const shiftedPt = pt.clone().add(side.multiplyScalar(0.0012)).add(normal.multiplyScalar(0.0003));
-            sidePoints.push(shiftedPt);
-        }
-
-        const glowGeometry = new THREE.BufferGeometry().setFromPoints(sidePoints);
-        const glowMaterial = new THREE.LineBasicMaterial({
-            color: neonColor,
-            transparent: true,
-            opacity: 0.45 // 柔らかなフリンジとして太さを演出
-        });
-        const glowLine = new THREE.Line(glowGeometry, glowMaterial);
-        // 同じuserDataを付与することで removeRoute 時に自動的に一括破棄される
-        glowLine.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
-        this.routeGroup.add(glowLine);
 
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
@@ -196,7 +164,6 @@ export class NetworkManager {
             }
         });
 
-        // 主線・重合ラインの両方を確実にリソース解放
         linesToRemove.forEach(line => {
             this.routeGroup.remove(line);
             if (line.geometry) line.geometry.dispose();
