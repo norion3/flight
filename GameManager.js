@@ -2,8 +2,8 @@
  * AI可読性・先祖返り防止コメント:
  * 【EventManagerへのnetworkManager受け渡し追加 ＆ CompetitionManagerへの経過年数連携 ＆ 全機能完全保持】
  * 1. update ループ内で `this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1)` を実行し、経過年数を確実に連携。
- * 2. Phase 6の期末決算モーダル制御（onAnnualSettlement）、ダイレクト終了合流（executeGameExit）、
- * 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動等は100%完全保持。
+ * 2. ズームイン時のスワイプ過剰回転を防ぐため、現在のカメラ距離に応じて `controls.rotateSpeed` を動的にスケーリング。
+ * 3. RivalManager の onRespawn コールバックを新設し、AI復活時に専用トーストが確実に出るよう UIManager と完璧に連動。
  */
 
 import { CONFIG } from './Config.js';
@@ -50,6 +50,14 @@ export class GameManager {
             const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
             if (comp) {
                 this.uiManager.showWithdrawToast(`${comp.name} が撤退・逃亡しました！`, companyId);
+            }
+        };
+
+        // ★追加: AI復活時のトースト通知ハンドラ連動
+        this.rivalManager.onRespawn = (companyId, respawnAirportId) => {
+            const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
+            if (comp) {
+                this.uiManager.showWithdrawToast(`${comp.name} が新たな拠点で復活しました！`, companyId);
             }
         };
 
@@ -536,6 +544,13 @@ export class GameManager {
                 this.controls.update(); 
             }
         }
+
+        // ★ズーム倍率に応じた地球儀回転量（rotateSpeed）の動的スケーリング補正
+        const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
+        const minDesc = this.controls.minDistance; 
+        const maxDesc = this.controls.maxDistance; 
+        const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / (maxDesc - minDesc)));
+        this.controls.rotateSpeed = 0.15 + (distanceRatio * 0.35);
 
         const currentBonuses = this.upgradeManager.getBonuses();
         this.economyManager.maxPlanes = currentBonuses.maxPlanes;
