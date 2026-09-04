@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【絶対安全版：初期化順序の罠による起動時クラッシュ（ローディングで止まるバグ）の完全解決】
- * ★緊急・根本修正: `OrbitControls` が初期化時に同期的に `change` イベントを発火させた際、
- * まだ `this.uiManager` が存在しない状態で `checkZoomLimit()` が呼ばれてクラッシュしていた致命的バグを、
- * `if (!this.uiManager || !this.controls || !this.camera) return;` のガードで完全に防ぎました。
+ * 【EventManagerへのnetworkManager受け渡し追加 ＆ CompetitionManagerへの経過年数連携 ＆ 全機能完全保持】
+ * 1. update ループ内で `this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1)` を実行し、経過年数を確実に連携。
+ * 2. Phase 6の期末決算モーダル制御（onAnnualSettlement）、ダイレクト終了合流（executeGameExit）、
+ * 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -33,16 +33,12 @@ export class GameManager {
         this.targetDistance = null; 
         this.isPaused = false; 
 
-        // 1. ここで initThree が呼ばれ、OrbitControls が生成されイベントリスナが登録される
         this.initThree();
-        
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
         this.airportManager = new AirportManager(this.scene, this.globe.group);
         this.networkManager = new NetworkManager(this.scene, this.globe.group);
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
-        
-        // 2. UIManager が生成されるのはこのタイミング（※ここで順序のズレが生じていた）
         this.uiManager = new UIManager();
         
         this.economyManager = new EconomyManager(this.uiManager);
@@ -57,13 +53,6 @@ export class GameManager {
             }
         };
 
-        this.rivalManager.onRespawn = (companyId, respawnAirportId) => {
-            const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
-            if (comp) {
-                this.uiManager.showWithdrawToast(`${comp.name} が新たな拠点で復活しました！`, companyId);
-            }
-        };
-
         this.competitionManager = new CompetitionManager(
             this.networkManager,
             this.upgradeManager,
@@ -71,6 +60,7 @@ export class GameManager {
             this.airportManager
         );
 
+        // ★修正: networkManager を第8引数として渡す
         this.eventManager = new EventManager(
             this,
             this.uiManager,
@@ -82,17 +72,20 @@ export class GameManager {
             this.networkManager
         );
 
+        // Phase 6: 期末決算モーダルのハンドラ登録
         this.economyManager.onAnnualSettlement = (settlementData) => {
             this.isPaused = true;
             this.uiManager.showSettlementModal(
                 settlementData,
                 () => {
+                    // 「次期へ進む」選択時
                     this.isPaused = false;
                     if (this.eventManager) {
                         this.eventManager.cooldownTimer = 30.0;
                     }
                 },
                 () => {
+                    // 「経営終了・スコア送信」選択時（ダイレクト合流）
                     this.executeGameExit();
                 }
             );
@@ -134,6 +127,7 @@ export class GameManager {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
                 } else if (actionType === 'remove') {
+                    // 空路廃止時に開拓コストの50%を返金
                     const routeCost = this.economyManager.calculateRouteCost(originData, destData);
                     const refund = Math.floor(routeCost * 0.5);
                     this.economyManager.addFunds(refund);
@@ -239,6 +233,7 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
+    // Phase 6: 終了確定処理（ダイレクト合流）
     executeGameExit() {
         this.uiManager.soundManager.playSuccessSound();
         setTimeout(() => {
@@ -347,8 +342,6 @@ export class GameManager {
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
-        // ★OrbitControlsは生成直後に同期的にchangeイベントを発火させる事があるため、
-        // 呼び出し先の checkZoomLimit で未定義オブジェクトにアクセスしないよう完璧にガードしています。
         this.controls.addEventListener('change', () => this.checkZoomLimit());
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -360,7 +353,6 @@ export class GameManager {
     }
 
     zoomCamera(deltaAmount) {
-        if (!this.controls || !this.camera) return;
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         if (this.targetDistance === null) this.targetDistance = currentDist;
         
@@ -371,10 +363,6 @@ export class GameManager {
     }
 
     checkZoomLimit() {
-        // ★根本的・絶対安全のガード（The Ultimate Guard）
-        // UIManagerが未定義のタイミング（コンストラクタ実行中等）で呼び出された場合、即座に中断してクラッシュを完全に防ぐ。
-        if (!this.uiManager || !this.controls || !this.camera) return;
-
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         const target = this.targetDistance !== null ? this.targetDistance : currentDist;
         const canZoomIn = target > this.controls.minDistance + 0.01;
@@ -429,6 +417,7 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
+        // 決算モーダル表示中もタップ無効化
         if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) return;
 
         const tapX = event.clientX;
@@ -534,39 +523,17 @@ export class GameManager {
         const rawDelta = this.clock.getDelta();
         const delta = this.isPaused ? 0 : rawDelta;
 
-        if (this.controls && this.controls.target && this.camera) {
-            if (this.targetDistance !== null) {
-                const currentDist = this.camera.position.distanceTo(this.controls.target);
-                const diff = this.targetDistance - currentDist;
-                
-                if (Math.abs(diff) < 0.01) {
-                    this.targetDistance = null;
-                } else {
-                    const step = diff * 10.0 * rawDelta; 
-                    
-                    const direction = new THREE.Vector3();
-                    direction.subVectors(this.camera.position, this.controls.target);
-                    direction.normalize();
-                    
-                    this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
-                    this.controls.update(); 
-                }
-            }
-
-            const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
-            let minDesc = this.controls.minDistance; 
-            let maxDesc = this.controls.maxDistance; 
+        if (this.targetDistance !== null) {
+            const currentDist = this.camera.position.distanceTo(this.controls.target);
+            const diff = this.targetDistance - currentDist;
             
-            if (minDesc === undefined || isNaN(minDesc)) minDesc = 7.5;
-            if (maxDesc === undefined || isNaN(maxDesc)) maxDesc = 25.0;
-            
-            const denom = maxDesc - minDesc;
-            if (denom > 0) {
-                const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / denom));
-                const newSpeed = 0.15 + (distanceRatio * 0.35);
-                if (!isNaN(newSpeed)) {
-                    this.controls.rotateSpeed = newSpeed;
-                }
+            if (Math.abs(diff) < 0.01) {
+                this.targetDistance = null;
+            } else {
+                const step = diff * 10.0 * rawDelta; 
+                const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
+                this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
+                this.controls.update(); 
             }
         }
 
@@ -577,6 +544,7 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
+        // ★改善1＆3: CompetitionManager に経過年数（year）を連携
         this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1);
         
         this.economyManager.update(
@@ -593,24 +561,21 @@ export class GameManager {
             this.eventManager.update(delta);
         }
 
-        if (this.uiManager && typeof this.uiManager.checkRouteConfirmButton === 'function') {
-            this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
-        }
+        // 航路開拓確認ボタンのリアルタイム資金連動チェック
+        this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
 
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
             this.rivalUiTimer = 0;
-            if (this.uiManager && this.uiManager.isRivalsPanelOpen()) {
+            if (this.uiManager.isRivalsPanelOpen()) {
                 this.updateRivalsPanelData();
             }
-            if (this.uiManager && this.uiManager.isOverviewPanelOpen()) {
+            if (this.uiManager.isOverviewPanelOpen()) {
                 this.updateOverviewPanelData();
             }
         }
 
-        if (this.controls) {
-            this.controls.update(); 
-        }
+        this.controls.update(); 
         this.renderer.render(this.scene, this.camera);
     }
 

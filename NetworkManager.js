@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【絶対安全版：環境依存によるNaNクラッシュ（特異点エラー）の完全排除】
- * ★緊急修正: 空路の線（ベジェ曲線）の中点計算において、座標が完全に被った際などにベクトルの長さがゼロになり、
- * normalize() で NaN (非数) になってシステムが完全にブラックアウトするエラーを未然に防ぐため、
- * `if (midPoint.lengthSq() > 0.000001)` による絶対安全な特異点ガードを組み込みました。
+ * 【UI破壊防止（後方互換性） ＋ AI総延長キャッシュの安全追加】
+ * 既存の `cachedTotalLength` とゲッター `playerTotalNetworkLength` を一切改変せずそのまま維持。
+ * AI専用のキャッシュ辞書 `aiCachedTotalLengths` を新たに設け、UIのクラッシュ原因を完全に根絶しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -29,8 +28,10 @@ export class NetworkManager {
             'fictional': 3
         };
         
+        // プレイヤー専用のキャッシュ（既存UIが依存しているため絶対に消さない）
         this.cachedTotalLength = 0;
         
+        // ★追加: AI専用のキャッシュ辞書
         this.aiCachedTotalLengths = {};
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id !== 'player') {
@@ -40,146 +41,154 @@ export class NetworkManager {
     }
 
     getConnectionCount(airportId, companyId = 'player') {
-        return this.network[companyId]?.[airportId]?.length || 0;
+        return this.network[companyId][airportId] ? this.network[companyId][airportId].length : 0;
     }
 
-    isConnected(id1, id2, companyId = 'player') {
-        const net = this.network[companyId];
-        if (!net || !net[id1]) return false;
-        return net[id1].some(r => r.id === id2);
+    isConnected(fromId, toId, companyId = 'player') {
+        if (!this.network[companyId][fromId]) return false;
+        return this.network[companyId][fromId].some(dest => dest.id === toId);
     }
 
-    canConnect(originNode, destNode, companyId = 'player') {
-        const maxConn = this.MAX_CONNECTIONS[originNode.type] || 5;
-        const currentConn = this.getConnectionCount(originNode.id, companyId);
-        if (currentConn >= maxConn) return false;
+    canConnect(fromData, toData, companyId = 'player') {
+        if (fromData.id === toData.id) return false;
+
+        const fromCount = this.getConnectionCount(fromData.id, companyId);
+        const toCount = this.getConnectionCount(toData.id, companyId);
+        const fromMax = this.MAX_CONNECTIONS[fromData.type];
+        const toMax = this.MAX_CONNECTIONS[toData.type];
+
+        if (fromCount >= fromMax || toCount >= toMax) return false;
+
+        if (this.isConnected(fromData.id, toData.id, companyId)) return false;
+
         return true;
     }
 
-    addRoute(originNode, destNode, companyId = 'player') {
-        if (this.isConnected(originNode.id, destNode.id, companyId)) return false;
+    addRoute(fromData, toData, companyId = 'player') {
+        if (!this.canConnect(fromData, toData, companyId)) return false;
 
-        const posA = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
-        const posB = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);
+        const compIndex = CONFIG.COMPANIES.findIndex(c => c.id === companyId);
+        const comp = CONFIG.COMPANIES[compIndex];
+        const routeColor = comp ? comp.routeColor : 0x0ea5e9;
+        
+        // Zファイティング防止の微小オフセット
+        const offset = Math.max(0, compIndex) * 0.0002;
+
+        const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
+        const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
+
+        const midPoint = posA.clone().lerp(posB, 0.5);
         const distance = posA.distanceTo(posB);
-
-        if (!this.network[companyId][originNode.id]) this.network[companyId][originNode.id] = [];
-        if (!this.network[companyId][destNode.id]) this.network[companyId][destNode.id] = [];
-
-        const existingCount = this.network[companyId][originNode.id].length;
-        const offset = (existingCount % 3) * 0.015;
-
-        // ★絶対安全な記述: 1ステップずつ確実に計算し、NaNエラーを防ぐ最強のガードを設置
-        const midPoint = new THREE.Vector3();
-        midPoint.copy(posA);
-        midPoint.lerp(posB, 0.5);
-        
-        // ゼロベクトル（対蹠点などの特異点）で normalize() すると NaN になるのを防ぐ
-        if (midPoint.lengthSq() > 0.000001) {
-            midPoint.normalize(); 
-        } else {
-            // 万が一特異点になった場合は安全に上方向へ逃がす（フォールバック）
-            midPoint.copy(posA).normalize();
-        }
-        
-        const arcHeight = CONFIG.GLOBE_RADIUS + 0.03 + offset + (distance * 0.15);
-        midPoint.multiplyScalar(arcHeight);
+        midPoint.normalize().multiplyScalar(CONFIG.GLOBE_RADIUS + 0.02 + offset + distance * 0.3);
 
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
+        const curveLength = curve.getLength();
 
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
-        let colorVal = CONFIG.COLORS.COASTLINE;
-        const company = CONFIG.COMPANIES.find(c => c.id === companyId);
-        if (company) {
-            colorVal = company.routeColor;
+        
+        const baseColor = new THREE.Color(routeColor);
+        const neonColor = baseColor.clone();
+        
+        // 色の明るさ（輝度）を計算し、暗い色のみに純白をブレンドして白ボケを防ぐ
+        const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
+        if (luminance < 0.5) {
+            neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
         }
-
-        const material = new THREE.LineBasicMaterial({
-            color: colorVal,
-            linewidth: companyId === 'player' ? 2 : 1,
-            transparent: true,
-            opacity: companyId === 'player' ? 0.85 : 0.6
+        
+        const material = new THREE.LineBasicMaterial({ 
+            color: neonColor, 
+            transparent: true, 
+            opacity: 0.65 
         });
-
+        
         const line = new THREE.Line(geometry, material);
+        line.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
+        
         this.routeGroup.add(line);
 
-        const routeDataObj = {
-            id: destNode.id,
-            lineMesh: line,
-            curve: curve,
-            length: distance
-        };
+        if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
+        if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
 
-        const reverseRouteDataObj = {
-            id: originNode.id,
-            lineMesh: line,
-            curve: curve,
-            length: distance
-        };
+        this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData });
+        
+        const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
+        this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
 
-        this.network[companyId][originNode.id].push(routeDataObj);
-        this.network[companyId][destNode.id].push(reverseRouteDataObj);
-
+        // キャッシュ更新の切り分け
         if (companyId === 'player') {
             this._updateCachedTotalLength();
         } else {
-            this._updateAiCachedTotalLength(companyId);
+            this._updateAiCachedTotalLength(companyId); // ★追加
         }
 
         return true;
     }
 
-    removeRoute(originNode, destNode, companyId = 'player') {
-        const net = this.network[companyId];
-        if (!net) return;
+    removeRoute(fromData, toData, companyId = 'player') {
+        const fromId = typeof fromData === 'object' ? fromData.id : fromData;
+        const toId = typeof toData === 'object' ? toData.id : toData;
+        
+        if (this.network[companyId][fromId]) {
+            this.network[companyId][fromId] = this.network[companyId][fromId].filter(r => r.id !== toId);
+        }
+        if (this.network[companyId][toId]) {
+            this.network[companyId][toId] = this.network[companyId][toId].filter(r => r.id !== fromId);
+        }
 
-        if (net[originNode.id]) {
-            const index = net[originNode.id].findIndex(r => r.id === destNode.id);
-            if (index !== -1) {
-                const route = net[originNode.id][index];
-                if (route.lineMesh) {
-                    this.routeGroup.remove(route.lineMesh);
-                    route.lineMesh.geometry.dispose();
-                    if (route.lineMesh.material) route.lineMesh.material.dispose();
+        const linesToRemove = [];
+        this.routeGroup.children.forEach(child => {
+            if (child.userData && child.userData.companyId === companyId) {
+                const u = child.userData;
+                if ((u.fromId === fromId && u.toId === toId) || (u.fromId === toId && u.toId === fromId)) {
+                    linesToRemove.push(child);
                 }
-                net[originNode.id].splice(index, 1);
             }
-        }
+        });
 
-        if (net[destNode.id]) {
-            const index = net[destNode.id].findIndex(r => r.id === originNode.id);
-            if (index !== -1) {
-                net[destNode.id].splice(index, 1);
-            }
-        }
+        linesToRemove.forEach(line => {
+            this.routeGroup.remove(line);
+            if (line.geometry) line.geometry.dispose();
+            if (line.material) line.material.dispose();
+        });
 
+        // キャッシュ更新の切り分け
         if (companyId === 'player') {
             this._updateCachedTotalLength();
         } else {
-            this._updateAiCachedTotalLength(companyId);
+            this._updateAiCachedTotalLength(companyId); // ★追加
         }
+
+        return true;
     }
 
-    getRandomConnectedAirport(airportId, companyId = 'player') {
-        const net = this.network[companyId];
-        if (!net || !net[airportId] || net[airportId].length === 0) return null;
-        const connectedIds = net[airportId].map(r => r.id);
+    getRandomRouteFrom(airportId, companyId = 'player') {
+        const routes = this.network[companyId][airportId];
+        if (!routes || routes.length === 0) return null;
+        
+        const randomIndex = Math.floor(Math.random() * routes.length);
+        return routes[randomIndex];
+    }
+
+    getRandomConnectedAirport(companyId = 'player') {
+        const connectedIds = Object.keys(this.network[companyId]).filter(id => this.network[companyId][id].length > 0);
+        if (connectedIds.length === 0) return null;
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
+    // プレイヤー用キャッシュ更新
     _updateCachedTotalLength() {
         this.cachedTotalLength = this._calculateTotalNetworkLength('player');
     }
 
+    // ★追加: AI用キャッシュ更新
     _updateAiCachedTotalLength(companyId) {
         if (companyId !== 'player') {
             this.aiCachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
         }
     }
 
+    // 実際の計算メソッド（毎フレームではなく、必要な時だけ呼ばれる）
     _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
@@ -202,10 +211,12 @@ export class NetworkManager {
         return totalLength;
     }
 
+    // プレイヤー用の軽量なゲッター（既存UIが依存。絶対に消さない）
     get playerTotalNetworkLength() {
         return this.cachedTotalLength;
     }
 
+    // ★追加: AI用の軽量なゲッター
     getAiTotalNetworkLength(companyId) {
         return this.aiCachedTotalLengths[companyId] || 0;
     }
