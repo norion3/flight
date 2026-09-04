@@ -1,11 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路の2本見え完全撤廃（単一ライン化） ＆ 不透明度0.95によるくっきり視認化 ＆ 全機能完全保持】
- * 1. 拡大時に2本に割れて見えていた重合補助線（glowLine）を完全撤廃し、完全な「1本線」に戻しました。
- * 2. 線の不透明度（opacity）を 0.95 に引き上げ、暗い宇宙背景に対するかすれを無くして1本のままで明瞭に視認できるよう調整。
+ * 【空路のリボン（帯メッシュ）方式実装 ＆ 幅1.5倍化 ＆ 機体データ完全保持】
+ * 1. WebGLのハードウェア1px制限を突破するため、THREE.Lineから帯状のメッシュ（THREE.Mesh / BufferGeometry）へ描画方式を刷新。
+ * 2. ベジェ曲線の各点から法線と接線の外積（従法線）を算出し、幅0.012（halfWidth = 0.006）の美しい帯（リボン）を生成。
+ * どれだけ拡大しても2本に割れることなく、完全な1本の太さ（約1.5倍）として滑らかに描画されます。
  * 3. 機体飛行に不可欠な `{ id, curve, length, data }` 構造を100%完全維持し、機体非表示バグを防止。
  * 4. 大円の真中点を厳密に通過するベジェ曲線の制御点計算（midPoint = 2 * peakPoint - chordMid）は完全保持。
- * 5. プレイヤー用キャッシュ・AI用キャッシュの独立管理およびUI互換ゲッターは100%完全保持。
+ * 5. 路線削除時（removeRoute）のリソース解放（geometry / material の dispose）およびキャッシュ管理も完全対応。
  */
 
 import { CONFIG } from './Config.js';
@@ -101,8 +102,49 @@ export class NetworkManager {
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
+        // ★帯（リボン）メッシュの生成：2本に割れず、常に1本の美しい1.5倍幅を実現
         const points = curve.getPoints(50);
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const halfWidth = 0.006; // 1.5倍の太さに相当する上品なリボン半幅
+        const vertices = [];
+        const indices = [];
+
+        for (let i = 0; i < points.length; i++) {
+            const pt = points[i];
+            const normal = pt.clone().normalize();
+            let tangent;
+            if (i === 0) {
+                tangent = points[1].clone().sub(points[0]).normalize();
+            } else if (i === points.length - 1) {
+                tangent = points[i].clone().sub(points[i - 1]).normalize();
+            } else {
+                tangent = points[i + 1].clone().sub(points[i - 1]).normalize();
+            }
+
+            let binormal = new THREE.Vector3().crossVectors(tangent, normal);
+            if (binormal.lengthSq() > 0.000001) {
+                binormal.normalize();
+            } else {
+                binormal.set(0, 1, 0);
+            }
+
+            // 左右の頂点を展開して帯を形成
+            const pLeft = pt.clone().addScaledVector(binormal, -halfWidth);
+            const pRight = pt.clone().addScaledVector(binormal, halfWidth);
+
+            vertices.push(pLeft.x, pLeft.y, pLeft.z);
+            vertices.push(pRight.x, pRight.y, pRight.z);
+
+            if (i < points.length - 1) {
+                const base = i * 2;
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 1, base + 3, base + 2);
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
         
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
@@ -113,16 +155,16 @@ export class NetworkManager {
             neonColor.lerp(new THREE.Color(0xffffff), 0.2); 
         }
         
-        // ★完全な単一ライン（不透明度0.95でかすれを解消し、くっきりと視認化）
-        const material = new THREE.LineBasicMaterial({ 
+        const material = new THREE.MeshBasicMaterial({ 
             color: neonColor, 
+            side: THREE.DoubleSide,
             transparent: true, 
             opacity: 0.95 
         });
         
-        const line = new THREE.Line(geometry, material);
-        line.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
-        this.routeGroup.add(line);
+        const ribbonMesh = new THREE.Mesh(geometry, material);
+        ribbonMesh.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
+        this.routeGroup.add(ribbonMesh);
 
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
@@ -154,20 +196,20 @@ export class NetworkManager {
             this.network[companyId][toId] = this.network[companyId][toId].filter(r => r.id !== fromId);
         }
 
-        const linesToRemove = [];
+        const meshesToRemove = [];
         this.routeGroup.children.forEach(child => {
             if (child.userData && child.userData.companyId === companyId) {
                 const u = child.userData;
                 if ((u.fromId === fromId && u.toId === toId) || (u.fromId === toId && u.toId === fromId)) {
-                    linesToRemove.push(child);
+                    meshesToRemove.push(child);
                 }
             }
         });
 
-        linesToRemove.forEach(line => {
-            this.routeGroup.remove(line);
-            if (line.geometry) line.geometry.dispose();
-            if (line.material) line.material.dispose();
+        meshesToRemove.forEach(mesh => {
+            this.routeGroup.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) mesh.material.dispose();
         });
 
         // キャッシュ更新の切り分け
