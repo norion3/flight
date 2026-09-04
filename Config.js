@@ -1,9 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ローグライク特化・爽快機体パラメータ ＆ プレイヤー初期資金50M】
- * 1. 大型機・超大型機の収益（incomeBase）をステップアップの爽快感重視で高めに設定し、
- * 維持費（upkeep）を軽めに設定して赤字ストレスを解消。
- * 2. プレイヤー初期資金 50M、AI初期資金 30M、5段階距離別コスト設定（ROUTE_TIERS）等は100%完全保持。
+ * 【プレイヤー初期資金100M設定 ＆ 全機能完全保持】
+ * 1. プレイヤー初期資金を 100M（100,000,000）に設定し、index.html のHUD初期表示と完全統一。
+ * 2. AI初期資金 30M、機体パラメータ、5段階距離別コスト設定（ROUTE_TIERS）等は100%完全保持。
  */
 
 export const CONFIG = {
@@ -25,11 +24,11 @@ export const CONFIG = {
     ],
 
     ECONOMY: {
-        INITIAL_FUNDS: 100000000,    // プレイヤー初期資金: 100M
+        INITIAL_FUNDS: 100000000,   // ★プレイヤー初期資金: 100M（仕様統一）
         AI_INITIAL_FUNDS: 30000000, // AI初期資金: 30M
         MAX_PLANES_INITIAL: 10,
         
-        // ★爽快感重視の機体パラメータ設定（大型・超大型でドカンと稼げる）
+        // 爽快感重視の機体パラメータ設定
         PLANES: {
             small:  { cost: 5000000,   sellRate: 0.70, upkeep: 250,  baseDemand: 30,  incomeBase: 1200 },
             medium: { cost: 25000000,  sellRate: 0.60, upkeep: 600,  baseDemand: 90,  incomeBase: 4500 },

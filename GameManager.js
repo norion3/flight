@@ -1,7 +1,7 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【EventManagerへのnetworkManager受け渡し追加 ＆ 全機能完全保持】
- * 1. `new EventManager(...)` の引数に `this.networkManager` を追加し、イベント抽選時の未定義エラーを解消。
+ * 【EventManagerへのnetworkManager受け渡し追加 ＆ CompetitionManagerへの経過年数連携 ＆ 全機能完全保持】
+ * 1. update ループ内で `this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1)` を実行し、経過年数を確実に連携。
  * 2. Phase 6の期末決算モーダル制御（onAnnualSettlement）、ダイレクト終了合流（executeGameExit）、
  * 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動等は100%完全保持。
  */
@@ -544,7 +544,8 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
-        this.competitionManager.update(delta);
+        // ★改善1＆3: CompetitionManager に経過年数（year）を連携
+        this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1);
         
         this.economyManager.update(
             delta,

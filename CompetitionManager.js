@@ -1,8 +1,8 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【顧客満足度バランスの自然な対比設計 ＆ 世界シェア計算完全保持】
- * 1. 自社の基礎満足度（初期値 100）に合わせ、AIライバルの基準満足度（baseAiSatisfaction = 150）と
- * 満足度上限キャップ（400）を綺麗に調和させ、段階的な成長が実感できるゲームバランスを構築。
+ * 【AI顧客満足度の年度成長式（初期値70、毎年+35、上限2500キャップ） ＆ 世界シェア計算完全保持】
+ * 1. AIの顧客満足度を初期値 70（±5）からスタートさせ、経過年数（year）ごとに +35 ずつ緩やかに上昇させ、
+ * 上限 2500 で成長を停止（キャップ）させるゲームバランス設計を実装。
  * 2. 地球儀上の全空港ランク別総ポイント（分母: 約350点）に基づくリアルな世界シェア計算（getWorldShare）は100%完全保持。
  */
 
@@ -17,12 +17,14 @@ export class CompetitionManager {
 
         this.shares = {};
         this.globalShares = {}; 
-        this.baseAiSatisfaction = 150; 
+        this.baseAiSatisfaction = 70; // 初期基準値: 70
+        this.currentYear = 1;
         
-        this.aiSatisfactions = {};
+        this.aiBaseOffsets = {};
     }
 
-    update(delta) {
+    update(delta, year = 1) {
+        this.currentYear = year;
         this._calculateShares();
     }
 
@@ -126,10 +128,13 @@ export class CompetitionManager {
         return Math.min(1.0, connectedPoints / totalWorldPoints);
     }
     
+    // ★AI満足度: 初期値70付近、毎年+35成長、上限2500キャップ
     getAiSatisfaction(companyId) {
-        if (!this.aiSatisfactions[companyId]) {
-            this.aiSatisfactions[companyId] = this.baseAiSatisfaction + (Math.random() * 30 - 15);
+        if (!this.aiBaseOffsets[companyId]) {
+            this.aiBaseOffsets[companyId] = this.baseAiSatisfaction + (Math.random() * 10 - 5);
         }
-        return this.aiSatisfactions[companyId];
+        const year = this.currentYear || 1;
+        const growth = (year - 1) * 35;
+        return Math.min(2500, Math.round(this.aiBaseOffsets[companyId] + growth));
     }
 }
