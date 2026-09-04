@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【絶対安全版：環境依存のメソッドチェーンによるクラッシュを完全排除 ＆ 全機能維持】
- * 1. update ループ内で `this.competitionManager.update(delta, ...year)` を実行し年数を連携。
- * 2. ズーム時のスワイプ過剰回転を防ぐため、rotateSpeed を動的スケーリング（NaN汚染ガード付き）。
- * 3. AI復活時のトースト通知コールバック連動。
- * 4. ★緊急修正: `THREE.Vector3` のメソッドチェーン（subVectors().normalize()等）を完全に分割し、特定のThree.js環境で発生する undefined エラーによる起動クラッシュを根絶。
+ * 【絶対安全版：初期化順序の罠による起動時クラッシュ（ローディングで止まるバグ）の完全解決】
+ * ★緊急・根本修正: `OrbitControls` が初期化時に同期的に `change` イベントを発火させた際、
+ * まだ `this.uiManager` が存在しない状態で `checkZoomLimit()` が呼ばれてクラッシュしていた致命的バグを、
+ * `if (!this.uiManager || !this.controls || !this.camera) return;` のガードで完全に防ぎました。
  */
 
 import { CONFIG } from './Config.js';
@@ -34,12 +33,16 @@ export class GameManager {
         this.targetDistance = null; 
         this.isPaused = false; 
 
+        // 1. ここで initThree が呼ばれ、OrbitControls が生成されイベントリスナが登録される
         this.initThree();
+        
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
         this.airportManager = new AirportManager(this.scene, this.globe.group);
         this.networkManager = new NetworkManager(this.scene, this.globe.group);
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
+        
+        // 2. UIManager が生成されるのはこのタイミング（※ここで順序のズレが生じていた）
         this.uiManager = new UIManager();
         
         this.economyManager = new EconomyManager(this.uiManager);
@@ -344,6 +347,8 @@ export class GameManager {
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
+        // ★OrbitControlsは生成直後に同期的にchangeイベントを発火させる事があるため、
+        // 呼び出し先の checkZoomLimit で未定義オブジェクトにアクセスしないよう完璧にガードしています。
         this.controls.addEventListener('change', () => this.checkZoomLimit());
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -355,6 +360,7 @@ export class GameManager {
     }
 
     zoomCamera(deltaAmount) {
+        if (!this.controls || !this.camera) return;
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         if (this.targetDistance === null) this.targetDistance = currentDist;
         
@@ -365,6 +371,10 @@ export class GameManager {
     }
 
     checkZoomLimit() {
+        // ★根本的・絶対安全のガード（The Ultimate Guard）
+        // UIManagerが未定義のタイミング（コンストラクタ実行中等）で呼び出された場合、即座に中断してクラッシュを完全に防ぐ。
+        if (!this.uiManager || !this.controls || !this.camera) return;
+
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         const target = this.targetDistance !== null ? this.targetDistance : currentDist;
         const canZoomIn = target > this.controls.minDistance + 0.01;
@@ -524,7 +534,6 @@ export class GameManager {
         const rawDelta = this.clock.getDelta();
         const delta = this.isPaused ? 0 : rawDelta;
 
-        // ★完全防弾化: controls や target が存在しない環境でも絶対にクラッシュさせない
         if (this.controls && this.controls.target && this.camera) {
             if (this.targetDistance !== null) {
                 const currentDist = this.camera.position.distanceTo(this.controls.target);
@@ -535,7 +544,6 @@ export class GameManager {
                 } else {
                     const step = diff * 10.0 * rawDelta; 
                     
-                    // ★安全な書き方: メソッドチェーンを排除し、undefined エラーを根絶
                     const direction = new THREE.Vector3();
                     direction.subVectors(this.camera.position, this.controls.target);
                     direction.normalize();
@@ -545,7 +553,6 @@ export class GameManager {
                 }
             }
 
-            // ★NaN汚染ガード: スワイプ感度補正計算が NaN になった場合は適応をスキップする
             const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
             let minDesc = this.controls.minDistance; 
             let maxDesc = this.controls.maxDistance; 
@@ -586,15 +593,17 @@ export class GameManager {
             this.eventManager.update(delta);
         }
 
-        this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
+        if (this.uiManager && typeof this.uiManager.checkRouteConfirmButton === 'function') {
+            this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
+        }
 
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
             this.rivalUiTimer = 0;
-            if (this.uiManager.isRivalsPanelOpen()) {
+            if (this.uiManager && this.uiManager.isRivalsPanelOpen()) {
                 this.updateRivalsPanelData();
             }
-            if (this.uiManager.isOverviewPanelOpen()) {
+            if (this.uiManager && this.uiManager.isOverviewPanelOpen()) {
                 this.updateOverviewPanelData();
             }
         }

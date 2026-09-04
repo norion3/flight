@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【絶対安全版：環境依存のメソッドチェーンによるクラッシュを完全排除】
- * 既存の `cachedTotalLength` 等の構造は一切改変せず維持。
- * ★緊急修正: 空路の線（ベジェ曲線）の頂点（midPoint）計算において、
- * `posA.clone().lerp().normalize()` などのチェーンを完全に分解し、
- * いかなるThree.jsのバージョンや環境でも絶対に undefined / NaN エラーによる起動クラッシュが起きない堅牢な実装に変更しました。
+ * 【絶対安全版：環境依存によるNaNクラッシュ（特異点エラー）の完全排除】
+ * ★緊急修正: 空路の線（ベジェ曲線）の中点計算において、座標が完全に被った際などにベクトルの長さがゼロになり、
+ * normalize() で NaN (非数) になってシステムが完全にブラックアウトするエラーを未然に防ぐため、
+ * `if (midPoint.lengthSq() > 0.000001)` による絶対安全な特異点ガードを組み込みました。
  */
 
 import { CONFIG } from './Config.js';
@@ -70,11 +69,18 @@ export class NetworkManager {
         const existingCount = this.network[companyId][originNode.id].length;
         const offset = (existingCount % 3) * 0.015;
 
-        // ★絶対安全な記述: メソッドチェーンを排除し、一つずつ確実に計算する
+        // ★絶対安全な記述: 1ステップずつ確実に計算し、NaNエラーを防ぐ最強のガードを設置
         const midPoint = new THREE.Vector3();
         midPoint.copy(posA);
         midPoint.lerp(posB, 0.5);
-        midPoint.normalize(); 
+        
+        // ゼロベクトル（対蹠点などの特異点）で normalize() すると NaN になるのを防ぐ
+        if (midPoint.lengthSq() > 0.000001) {
+            midPoint.normalize(); 
+        } else {
+            // 万が一特異点になった場合は安全に上方向へ逃がす（フォールバック）
+            midPoint.copy(posA).normalize();
+        }
         
         const arcHeight = CONFIG.GLOBE_RADIUS + 0.03 + offset + (distance * 0.15);
         midPoint.multiplyScalar(arcHeight);
