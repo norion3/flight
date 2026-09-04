@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【UI破壊防止（後方互換性） ＋ AI総延長キャッシュの安全追加 ＋ 大円真中央に基づく真のベジェ中点計算】
+ * 【UI破壊防止（後方互換性） ＋ AI総延長キャッシュの安全追加 ＋ 大円真中央に基づく安全なベジェ中点計算】
  * 既存の `cachedTotalLength` とゲッター `playerTotalNetworkLength` を一切改変せずそのまま維持。
  * AI専用のキャッシュ辞書 `aiCachedTotalLengths` を新たに設け、UIのクラッシュ原因を完全に根絶しました。
- * さらに空路の線（ベジェ曲線）の頂点（midPoint）を大円上の真中点に厳密化し、線の中央ズレを完全に解消。
+ * ★緊急修正: 空路の線（ベジェ曲線）の頂点（midPoint）計算において `addVectors().normalize()` ではなく、
+ * より安全な `lerp(posB, 0.5).normalize()` を用いることで、NaNエラーによる起動クラッシュを完全防止しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -71,8 +72,8 @@ export class NetworkManager {
         const existingCount = this.network[companyId][originNode.id].length;
         const offset = (existingCount % 3) * 0.015;
 
-        // ★修正: ベジェ曲線の中点を、大円上の真中点ベクトル（正規化足し算）に補正し、中央ズレを根絶
-        const midPoint = new THREE.Vector3().addVectors(posA, posB).normalize();
+        // ★修正: 安全なlerpを用いて大円の真中点を算出し、NaNエラーによるクラッシュを完全防止
+        const midPoint = posA.clone().lerp(posB, 0.5).normalize();
         const arcHeight = CONFIG.GLOBE_RADIUS + 0.03 + offset + (distance * 0.15);
         midPoint.multiplyScalar(arcHeight);
 

@@ -4,6 +4,7 @@
  * 1. update ループ内で `this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1)` を実行し、経過年数を確実に連携。
  * 2. ズームイン時のスワイプ過剰回転を防ぐため、現在のカメラ距離に応じて `controls.rotateSpeed` を動的にスケーリング。
  * 3. RivalManager の onRespawn コールバックを新設し、AI復活時に専用トーストが確実に出るよう UIManager と完璧に連動。
+ * 4. ★緊急修正: `animate` ループ内で `this.controls` が初期化される前に参照してクラッシュするバグを `if (this.controls && this.controls.target)` の安全なガードで完全遮断。
  */
 
 import { CONFIG } from './Config.js';
@@ -53,7 +54,6 @@ export class GameManager {
             }
         };
 
-        // ★追加: AI復活時のトースト通知ハンドラ連動
         this.rivalManager.onRespawn = (companyId, respawnAirportId) => {
             const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
             if (comp) {
@@ -68,7 +68,6 @@ export class GameManager {
             this.airportManager
         );
 
-        // ★修正: networkManager を第8引数として渡す
         this.eventManager = new EventManager(
             this,
             this.uiManager,
@@ -425,7 +424,6 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        // 決算モーダル表示中もタップ無効化
         if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) return;
 
         const tapX = event.clientX;
@@ -531,26 +529,29 @@ export class GameManager {
         const rawDelta = this.clock.getDelta();
         const delta = this.isPaused ? 0 : rawDelta;
 
-        if (this.targetDistance !== null) {
-            const currentDist = this.camera.position.distanceTo(this.controls.target);
-            const diff = this.targetDistance - currentDist;
-            
-            if (Math.abs(diff) < 0.01) {
-                this.targetDistance = null;
-            } else {
-                const step = diff * 10.0 * rawDelta; 
-                const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
-                this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
-                this.controls.update(); 
+        // ★緊急修正ガード: this.controls と this.controls.target が完全に初期化されている時だけカメラ計算を行う
+        if (this.controls && this.controls.target) {
+            if (this.targetDistance !== null) {
+                const currentDist = this.camera.position.distanceTo(this.controls.target);
+                const diff = this.targetDistance - currentDist;
+                
+                if (Math.abs(diff) < 0.01) {
+                    this.targetDistance = null;
+                } else {
+                    const step = diff * 10.0 * rawDelta; 
+                    const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
+                    this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
+                    this.controls.update(); 
+                }
             }
-        }
 
-        // ★ズーム倍率に応じた地球儀回転量（rotateSpeed）の動的スケーリング補正
-        const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
-        const minDesc = this.controls.minDistance; 
-        const maxDesc = this.controls.maxDistance; 
-        const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / (maxDesc - minDesc)));
-        this.controls.rotateSpeed = 0.15 + (distanceRatio * 0.35);
+            // ズーム倍率に応じた地球儀回転量（rotateSpeed）の動的スケーリング補正
+            const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
+            const minDesc = this.controls.minDistance; 
+            const maxDesc = this.controls.maxDistance; 
+            const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / (maxDesc - minDesc)));
+            this.controls.rotateSpeed = 0.15 + (distanceRatio * 0.35);
+        }
 
         const currentBonuses = this.upgradeManager.getBonuses();
         this.economyManager.maxPlanes = currentBonuses.maxPlanes;
@@ -559,7 +560,6 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
-        // ★改善1＆3: CompetitionManager に経過年数（year）を連携
         this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1);
         
         this.economyManager.update(
@@ -576,7 +576,6 @@ export class GameManager {
             this.eventManager.update(delta);
         }
 
-        // 航路開拓確認ボタンのリアルタイム資金連動チェック
         this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
 
         this.rivalUiTimer += delta;
@@ -590,7 +589,9 @@ export class GameManager {
             }
         }
 
-        this.controls.update(); 
+        if (this.controls) {
+            this.controls.update(); 
+        }
         this.renderer.render(this.scene, this.camera);
     }
 
