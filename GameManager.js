@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【EventManagerへのnetworkManager受け渡し追加 ＆ CompetitionManagerへの経過年数連携 ＆ 全機能完全保持】
- * 1. update ループ内で `this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1)` を実行し、経過年数を確実に連携。
- * 2. Phase 6の期末決算モーダル制御（onAnnualSettlement）、ダイレクト終了合流（executeGameExit）、
- * 空路廃止時の50%返金、航路開拓ボタンのリアルタイム資金連動等は100%完全保持。
+ * 【ステップ1：起動クラッシュ防止ガード（爆弾処理） ＆ 全機能完全保持】
+ * 1. OrbitControls生成直後や初期化時のchangeイベント暴発時に、未初期化のuiManagerへのアクセスで
+ * TypeErrorが発生してシステムが起動不能（ローディング画面で停止）になるのを防ぐため、
+ * checkZoomLimit / zoomCamera に `if (!this.uiManager || !this.controls || !this.camera) return;` のガードを追加。
+ * 2. その他すべてのロジック、パラメータ、イベント連携、決算処理等は直前のマスターコードを100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -353,6 +354,7 @@ export class GameManager {
     }
 
     zoomCamera(deltaAmount) {
+        if (!this.controls || !this.camera) return;
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         if (this.targetDistance === null) this.targetDistance = currentDist;
         
@@ -363,6 +365,9 @@ export class GameManager {
     }
 
     checkZoomLimit() {
+        // ★最優先ガード: 初期化中等でuiManagerやcontrolsが未生成の時に呼ばれても絶対にクラッシュさせない
+        if (!this.uiManager || !this.controls || !this.camera) return;
+
         const currentDist = this.camera.position.distanceTo(this.controls.target);
         const target = this.targetDistance !== null ? this.targetDistance : currentDist;
         const canZoomIn = target > this.controls.minDistance + 0.01;
