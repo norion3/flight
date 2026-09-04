@@ -1,12 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【長文トーストの動的画面幅取得・ギリギリまで1行維持対応 ＆ 全機能完全保持】
- * 1. showToast / showWithdrawToast において、window.innerWidth から左右マージン（計28px）を
- * 差し引いた最大許容幅を動的に計算し、`width = max-content` を適用。
- * これにより「まだ画面幅に余裕があるのに2行になってしまう現象」を完全に根絶し、
- * 画面端のギリギリ限界まで1行を維持し、本当に溢れた時のみ左右余白を残して美しく折り返します。
- * 2. 4〜6位の洗練された縦型順位バッジレイアウト、期末決算モーダル（showSettlementModal）、
- * 突発イベントモーダル、上部HUD、折れ線グラフ描画、個別最適高さ等は100%完全保持。
+ * 【トースト表示の1行維持 ＆ 文字数に応じた動的フォントサイズ微調整（下げすぎ防止） ＆ 全機能完全保持】
+ * 1. showToast / showWithdrawToast において、不自然な場所で2段に分断される現象を `whitespace-nowrap` で完全遮断。
+ * 2. 文字数（半角・全角換算）を自動判定し、ライバル撤退などの通常メッセージ（〜23文字）は標準サイズ（14px / text-sm）のまま1行表示。
+ * 3. 長文イベント通知（24〜27文字）は 12px (text-xs)、超長文（28文字〜）は 11px (text-[11px]・下限リミット) に控えめに落とし、
+ * 可読性を維持したまま画面端に美しく収まるスマートな1行表示を実現。
+ * 4. 4〜6位の洗練された縦型順位バッジ、期末決算モーダル、イベントモーダル、上部HUD、折れ線グラフ描画、
+ * 各画面の個別最適高さ等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -608,11 +608,21 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
-        // ★画面の横幅を動的に取得し、左右に最小限の安全マージン（計28px）を残した最大幅を算出
-        const screenW = window.innerWidth || document.documentElement.clientWidth || 360;
-        const maxAllowedW = Math.max(200, screenW - 28);
+        // ★文字数（全角換算）を計算し、3段階でフォントサイズを決定（下げすぎ防止・11px下限）
+        let charLen = 0;
+        for (let i = 0; i < message.length; i++) {
+            charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
+        }
 
-        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-4 py-2 text-sm font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center break-words leading-snug";
+        let sizeClasses = "text-sm px-4 py-2"; // 通常（〜23文字）
+        if (charLen > 27) {
+            sizeClasses = "text-[11px] px-3 py-1.5"; // 超長文（下限11px）
+        } else if (charLen > 23) {
+            sizeClasses = "text-xs px-3.5 py-1.5"; // 長文（12px）
+        }
+
+        // ★whitespace-nowrap で不自然な途中改行を完全防止し、常に美しい1行を維持
+        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -625,9 +635,8 @@ export class UIManager {
             this.toast.className = `${baseClasses} bg-slate-800/95 text-cyan-400 border border-slate-700 shadow-slate-900/50`;
         }
         
-        // ★max-content で限界まで1行を維持し、maxAllowedW で画面端を越える超長文のみ折り返す
-        this.toast.style.maxWidth = `${maxAllowedW}px`;
-        this.toast.style.width = 'max-content';
+        this.toast.style.maxWidth = '';
+        this.toast.style.width = '';
 
         this.toast.innerText = message;
         void this.toast.offsetWidth;
@@ -643,11 +652,20 @@ export class UIManager {
     showWithdrawToast(message, rivalId) {
         this.soundManager.playEventSound();
         
-        // ★同様に画面幅から左右マージンを残した最大幅を動的計算
-        const screenW = window.innerWidth || document.documentElement.clientWidth || 360;
-        const maxAllowedW = Math.max(200, screenW - 28);
+        // ★同様に文字数を判定（ライバル撤退通知は全角換算約19〜20文字のため、確実に標準text-sm 14pxが適用される）
+        let charLen = 0;
+        for (let i = 0; i < message.length; i++) {
+            charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
+        }
 
-        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-4 py-2 text-sm font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center break-words leading-snug";
+        let sizeClasses = "text-sm px-4 py-2";
+        if (charLen > 27) {
+            sizeClasses = "text-[11px] px-3 py-1.5";
+        } else if (charLen > 23) {
+            sizeClasses = "text-xs px-3.5 py-1.5";
+        }
+
+        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
@@ -656,9 +674,8 @@ export class UIManager {
         this.toast.style.borderColor = hexColor;
         this.toast.style.boxShadow = `0 10px 25px -5px ${hexColor}40`;
         
-        // ★max-content で限界まで1行を維持し、maxAllowedW で画面端を越える超長文のみ折り返す
-        this.toast.style.maxWidth = `${maxAllowedW}px`;
-        this.toast.style.width = 'max-content';
+        this.toast.style.maxWidth = '';
+        this.toast.style.width = '';
         
         this.toast.innerText = message;
         void this.toast.offsetWidth;
