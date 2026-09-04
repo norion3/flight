@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【空路のリボン（帯メッシュ）方式実装 ＆ 幅1.5倍化 ＆ 機体データ完全保持】
+ * 【空路のリボン（帯メッシュ）方式実装 ＆ 最適幅調整（halfWidth = 0.002） ＆ 機体データ完全保持】
  * 1. WebGLのハードウェア1px制限を突破するため、THREE.Lineから帯状のメッシュ（THREE.Mesh / BufferGeometry）へ描画方式を刷新。
- * 2. ベジェ曲線の各点から法線と接線の外積（従法線）を算出し、幅0.012（halfWidth = 0.006）の美しい帯（リボン）を生成。
- * どれだけ拡大しても2本に割れることなく、完全な1本の太さ（約1.5倍）として滑らかに描画されます。
+ * 2. halfWidthを 0.002 に設定し、ズーム時にも帯や板に見えない「シャープで上質な光線」として、
+ * 線の時よりほんのり見やすい最適な太さを実現。
  * 3. 機体飛行に不可欠な `{ id, curve, length, data }` 構造を100%完全維持し、機体非表示バグを防止。
  * 4. 大円の真中点を厳密に通過するベジェ曲線の制御点計算（midPoint = 2 * peakPoint - chordMid）は完全保持。
  * 5. 路線削除時（removeRoute）のリソース解放（geometry / material の dispose）およびキャッシュ管理も完全対応。
@@ -102,9 +102,9 @@ export class NetworkManager {
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
         const curveLength = curve.getLength();
 
-        // ★帯（リボン）メッシュの生成：2本に割れず、常に1本の美しい1.5倍幅を実現
+        // ★帯（リボン）メッシュの生成：halfWidth = 0.002 で線の時より少し見やすい上品な幅を実現
         const points = curve.getPoints(50);
-        const halfWidth = 0.006; // 1.5倍の太さに相当する上品なリボン半幅
+        const halfWidth = 0.002; 
         const vertices = [];
         const indices = [];
 
