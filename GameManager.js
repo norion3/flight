@@ -1,10 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ステップ1：起動クラッシュ防止ガード（爆弾処理） ＆ 全機能完全保持】
- * 1. OrbitControls生成直後や初期化時のchangeイベント暴発時に、未初期化のuiManagerへのアクセスで
- * TypeErrorが発生してシステムが起動不能（ローディング画面で停止）になるのを防ぐため、
- * checkZoomLimit / zoomCamera に `if (!this.uiManager || !this.controls || !this.camera) return;` のガードを追加。
- * 2. その他すべてのロジック、パラメータ、イベント連携、決算処理等は直前のマスターコードを100%完全保持。
+ * 【ステップ2：ズーム倍率に応じた地球儀回転量（rotateSpeed）の安全な動的スケーリング ＆ 全機能完全保持】
+ * 1. 拡大時のスワイプ過剰回転を防ぐため、カメラと地球の距離に応じて controls.rotateSpeed を 0.15 〜 0.50 で動的補正。
+ * 2. minDistance / maxDistance の未定義や除算エラーを防ぐ万全のガードと NaN 汚染防止を実装。
+ * 3. ステップ1で実装した起動クラッシュ防止ガード（checkZoomLimit / zoomCamera）およびその他の全ロジックを100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -539,6 +538,24 @@ export class GameManager {
                 const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
                 this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
                 this.controls.update(); 
+            }
+        }
+
+        // ★ステップ2: ズーム倍率に応じた地球儀回転量（rotateSpeed）の動的スケーリング補正（安全ガード付き）
+        if (this.controls && this.controls.target && this.camera) {
+            const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
+            let minDesc = this.controls.minDistance;
+            let maxDesc = this.controls.maxDistance;
+            if (minDesc === undefined || isNaN(minDesc)) minDesc = 7.5;
+            if (maxDesc === undefined || isNaN(maxDesc)) maxDesc = 25.0;
+
+            const denom = maxDesc - minDesc;
+            if (denom > 0) {
+                const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / denom));
+                const dynamicRotateSpeed = 0.15 + (distanceRatio * 0.35); // 拡大時: 0.15, 縮小時: 0.50
+                if (!isNaN(dynamicRotateSpeed)) {
+                    this.controls.rotateSpeed = dynamicRotateSpeed;
+                }
             }
         }
 

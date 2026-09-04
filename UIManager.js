@@ -1,11 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ライバル画面・4〜6位の洗練された縦型順位バッジレイアウト ＆ 全機能完全保持】
- * 1. `updateRivalsPanel` において、4位〜6位の表示を数字（モノスペース太字）と「位」ラベルによる
- * 専用の縦型デザインバッジ（flex-col）へ整形し、1〜3位のメダル絵文字と美しく調和。
- * 2. 期末決算モーダル（showSettlementModal）、突発イベントモーダル、上部HUD（年間客数・累計客数）、
- * 折れ線グラフ描画、各画面の個別最適高さ（410px/450px/410px/540px）、空路廃止返金（50%）、
- * 比較バーの100%終端レール視認性等は100%完全保持しています。
+ * 【ステップ2：長文トーストの安全な自動調整・折り返し対応 ＆ 全機能完全保持】
+ * 1. showToast および showWithdrawToast において、固定幅・強制1行（whitespace-nowrap w-max）を解消。
+ * `w-fit max-w-[92vw] text-center break-words` により、通常文は1行で中央表示し、
+ * 画面端（約92vw）を越える長文のみ左右に余白を確保して適切に折り返すよう修正。
+ * 2. 4〜6位の洗練された縦型順位バッジレイアウト、期末決算モーダル（showSettlementModal）、
+ * 突発イベントモーダル、上部HUD、折れ線グラフ描画、個別最適高さ等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -574,7 +574,7 @@ export class UIManager {
             if (elShare) elShare.innerText = shareStr;
         } else {
             if (elPassengers) elPassengers.innerText = yearlyPassengersStr;
-            if (elShare) elShare.innerText = passengersStr;
+            if (elShare) elShare.innerText = shareStr;
         }
     }
 
@@ -607,7 +607,8 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
-        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        // ★ステップ2: w-fit と max-w-[92vw] text-center break-words により、短文は1行・長文時のみ左右余白を確保して適切に折り返し
+        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 w-fit max-w-[92vw] text-center break-words";
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -633,7 +634,8 @@ export class UIManager {
 
     showWithdrawToast(message, rivalId) {
         this.soundManager.playEventSound();
-        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max";
+        // ★ステップ2: 同様に w-fit と max-w-[92vw] text-center break-words で長文時の画面端はみ出しを防止
+        const baseClasses = "fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 w-fit max-w-[92vw] text-center break-words";
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
@@ -1265,7 +1267,6 @@ export class UIManager {
 
         stats.forEach((stat, index) => {
             const rank = index + 1;
-            // ★修正: 4位〜6位を美しく整えた専用の縦型順位バッジレイアウト
             const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `
                 <div class="flex flex-col items-center justify-center leading-none">
                     <span class="text-xs font-bold font-mono text-slate-300">${rank}</span>
