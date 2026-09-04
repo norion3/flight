@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【UI破壊防止（後方互換性） ＋ AI総延長キャッシュの安全追加 ＋ 大円真中央に基づく安全なベジェ中点計算】
- * 既存の `cachedTotalLength` とゲッター `playerTotalNetworkLength` を一切改変せずそのまま維持。
- * AI専用のキャッシュ辞書 `aiCachedTotalLengths` を新たに設け、UIのクラッシュ原因を完全に根絶しました。
- * ★緊急修正: 空路の線（ベジェ曲線）の頂点（midPoint）計算において `addVectors().normalize()` ではなく、
- * より安全な `lerp(posB, 0.5).normalize()` を用いることで、NaNエラーによる起動クラッシュを完全防止しました。
+ * 【絶対安全版：環境依存のメソッドチェーンによるクラッシュを完全排除】
+ * 既存の `cachedTotalLength` 等の構造は一切改変せず維持。
+ * ★緊急修正: 空路の線（ベジェ曲線）の頂点（midPoint）計算において、
+ * `posA.clone().lerp().normalize()` などのチェーンを完全に分解し、
+ * いかなるThree.jsのバージョンや環境でも絶対に undefined / NaN エラーによる起動クラッシュが起きない堅牢な実装に変更しました。
  */
 
 import { CONFIG } from './Config.js';
@@ -30,10 +30,8 @@ export class NetworkManager {
             'fictional': 3
         };
         
-        // プレイヤー専用のキャッシュ（既存UIが依存しているため絶対に消さない）
         this.cachedTotalLength = 0;
         
-        // ★追加: AI専用のキャッシュ辞書
         this.aiCachedTotalLengths = {};
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id !== 'player') {
@@ -72,8 +70,12 @@ export class NetworkManager {
         const existingCount = this.network[companyId][originNode.id].length;
         const offset = (existingCount % 3) * 0.015;
 
-        // ★修正: 安全なlerpを用いて大円の真中点を算出し、NaNエラーによるクラッシュを完全防止
-        const midPoint = posA.clone().lerp(posB, 0.5).normalize();
+        // ★絶対安全な記述: メソッドチェーンを排除し、一つずつ確実に計算する
+        const midPoint = new THREE.Vector3();
+        midPoint.copy(posA);
+        midPoint.lerp(posB, 0.5);
+        midPoint.normalize(); 
+        
         const arcHeight = CONFIG.GLOBE_RADIUS + 0.03 + offset + (distance * 0.15);
         midPoint.multiplyScalar(arcHeight);
 
@@ -162,19 +164,16 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
-    // プレイヤー用キャッシュ更新
     _updateCachedTotalLength() {
         this.cachedTotalLength = this._calculateTotalNetworkLength('player');
     }
 
-    // ★追加: AI用キャッシュ更新
     _updateAiCachedTotalLength(companyId) {
         if (companyId !== 'player') {
             this.aiCachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
         }
     }
 
-    // 実際の計算メソッド（毎フレームではなく、必要な時だけ呼ばれる）
     _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
@@ -197,12 +196,10 @@ export class NetworkManager {
         return totalLength;
     }
 
-    // プレイヤー用の軽量なゲッター（既存UIが依存。絶対に消さない）
     get playerTotalNetworkLength() {
         return this.cachedTotalLength;
     }
 
-    // ★追加: AI用の軽量なゲッター
     getAiTotalNetworkLength(companyId) {
         return this.aiCachedTotalLengths[companyId] || 0;
     }

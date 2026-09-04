@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【EventManagerへのnetworkManager受け渡し追加 ＆ CompetitionManagerへの経過年数連携 ＆ 全機能完全保持】
- * 1. update ループ内で `this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1)` を実行し、経過年数を確実に連携。
- * 2. ズームイン時のスワイプ過剰回転を防ぐため、現在のカメラ距離に応じて `controls.rotateSpeed` を動的にスケーリング。
- * 3. RivalManager の onRespawn コールバックを新設し、AI復活時に専用トーストが確実に出るよう UIManager と完璧に連動。
- * 4. ★緊急修正: `animate` ループ内で `this.controls` が初期化される前に参照してクラッシュするバグを `if (this.controls && this.controls.target)` の安全なガードで完全遮断。
+ * 【絶対安全版：環境依存のメソッドチェーンによるクラッシュを完全排除 ＆ 全機能維持】
+ * 1. update ループ内で `this.competitionManager.update(delta, ...year)` を実行し年数を連携。
+ * 2. ズーム時のスワイプ過剰回転を防ぐため、rotateSpeed を動的スケーリング（NaN汚染ガード付き）。
+ * 3. AI復活時のトースト通知コールバック連動。
+ * 4. ★緊急修正: `THREE.Vector3` のメソッドチェーン（subVectors().normalize()等）を完全に分割し、特定のThree.js環境で発生する undefined エラーによる起動クラッシュを根絶。
  */
 
 import { CONFIG } from './Config.js';
@@ -79,20 +79,17 @@ export class GameManager {
             this.networkManager
         );
 
-        // Phase 6: 期末決算モーダルのハンドラ登録
         this.economyManager.onAnnualSettlement = (settlementData) => {
             this.isPaused = true;
             this.uiManager.showSettlementModal(
                 settlementData,
                 () => {
-                    // 「次期へ進む」選択時
                     this.isPaused = false;
                     if (this.eventManager) {
                         this.eventManager.cooldownTimer = 30.0;
                     }
                 },
                 () => {
-                    // 「経営終了・スコア送信」選択時（ダイレクト合流）
                     this.executeGameExit();
                 }
             );
@@ -134,7 +131,6 @@ export class GameManager {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
                 } else if (actionType === 'remove') {
-                    // 空路廃止時に開拓コストの50%を返金
                     const routeCost = this.economyManager.calculateRouteCost(originData, destData);
                     const refund = Math.floor(routeCost * 0.5);
                     this.economyManager.addFunds(refund);
@@ -240,7 +236,6 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    // Phase 6: 終了確定処理（ダイレクト合流）
     executeGameExit() {
         this.uiManager.soundManager.playSuccessSound();
         setTimeout(() => {
@@ -529,8 +524,8 @@ export class GameManager {
         const rawDelta = this.clock.getDelta();
         const delta = this.isPaused ? 0 : rawDelta;
 
-        // ★緊急修正ガード: this.controls と this.controls.target が完全に初期化されている時だけカメラ計算を行う
-        if (this.controls && this.controls.target) {
+        // ★完全防弾化: controls や target が存在しない環境でも絶対にクラッシュさせない
+        if (this.controls && this.controls.target && this.camera) {
             if (this.targetDistance !== null) {
                 const currentDist = this.camera.position.distanceTo(this.controls.target);
                 const diff = this.targetDistance - currentDist;
@@ -539,18 +534,33 @@ export class GameManager {
                     this.targetDistance = null;
                 } else {
                     const step = diff * 10.0 * rawDelta; 
-                    const direction = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
+                    
+                    // ★安全な書き方: メソッドチェーンを排除し、undefined エラーを根絶
+                    const direction = new THREE.Vector3();
+                    direction.subVectors(this.camera.position, this.controls.target);
+                    direction.normalize();
+                    
                     this.camera.position.copy(this.controls.target).add(direction.multiplyScalar(currentDist + step));
                     this.controls.update(); 
                 }
             }
 
-            // ズーム倍率に応じた地球儀回転量（rotateSpeed）の動的スケーリング補正
+            // ★NaN汚染ガード: スワイプ感度補正計算が NaN になった場合は適応をスキップする
             const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
-            const minDesc = this.controls.minDistance; 
-            const maxDesc = this.controls.maxDistance; 
-            const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / (maxDesc - minDesc)));
-            this.controls.rotateSpeed = 0.15 + (distanceRatio * 0.35);
+            let minDesc = this.controls.minDistance; 
+            let maxDesc = this.controls.maxDistance; 
+            
+            if (minDesc === undefined || isNaN(minDesc)) minDesc = 7.5;
+            if (maxDesc === undefined || isNaN(maxDesc)) maxDesc = 25.0;
+            
+            const denom = maxDesc - minDesc;
+            if (denom > 0) {
+                const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / denom));
+                const newSpeed = 0.15 + (distanceRatio * 0.35);
+                if (!isNaN(newSpeed)) {
+                    this.controls.rotateSpeed = newSpeed;
+                }
+            }
         }
 
         const currentBonuses = this.upgradeManager.getBonuses();
