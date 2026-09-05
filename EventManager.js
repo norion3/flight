@@ -5,6 +5,7 @@
  * `TypeError: Cannot read properties of undefined` が発生する問題を解消。
  * 2. `_triggerEvent` 内のフリーズ防止 `try...catch / finally` ガード、
  * 期末決算モーダル表示中の排他制御（isSettlementModalOpen）は100%完全保持。
+ * 3. 【追加】マクロ経済を揺るがす「グローバルイベント（ワールドニュース）」の処理ロジックを追加。
  */
 
 import { EVENT_DATA } from './Data_Events.js';
@@ -19,7 +20,7 @@ export class EventManager {
         this.competitionManager = competitionManager;
         this.planeManager = planeManager;
         this.rivalManager = rivalManager;
-        this.networkManager = networkManager; // ★修正: networkManagerを保持
+        this.networkManager = networkManager; 
 
         this.isEventActive = false;
         this.checkTimer = 0;
@@ -40,6 +41,14 @@ export class EventManager {
             passengersRate: 0,
             timer: 0
         };
+
+        // ★追加: グローバルイベント効果（全社に影響）
+        this.globalBuffs = {
+            region: null,
+            incomeRate: 0,
+            passengersRate: 0,
+            timer: 0
+        };
     }
 
     update(delta) {
@@ -48,6 +57,16 @@ export class EventManager {
             if (this.activeBuffs.timer <= 0) {
                 this.activeBuffs.incomeRate = 0;
                 this.activeBuffs.passengersRate = 0;
+            }
+        }
+
+        // ★追加: グローバルイベントのタイマー処理
+        if (this.globalBuffs.timer > 0) {
+            this.globalBuffs.timer -= delta;
+            if (this.globalBuffs.timer <= 0) {
+                this.globalBuffs.region = null;
+                this.globalBuffs.incomeRate = 0;
+                this.globalBuffs.passengersRate = 0;
             }
         }
 
@@ -140,6 +159,14 @@ export class EventManager {
                             if (result.passengersRateDelta) this.activeBuffs.passengersRate = result.passengersRateDelta;
                         }
 
+                        // ★追加: グローバルイベントが選択（確認）された場合の適用
+                        if (result.globalEffect) {
+                            this.globalBuffs.region = result.globalEffect.region;
+                            this.globalBuffs.timer = result.globalEffect.durationMonths * 20.0;
+                            this.globalBuffs.incomeRate = result.globalEffect.incomeRateDelta || 0;
+                            this.globalBuffs.passengersRate = result.globalEffect.passengersRateDelta || 0;
+                        }
+
                         this.uiManager.showToast(result.message, result.fundsDelta < 0 ? 'info' : 'success');
                     }
                 } catch (err) {
@@ -161,5 +188,10 @@ export class EventManager {
 
     getBuffs() {
         return this.activeBuffs;
+    }
+
+    // ★追加: グローバルバフの取得
+    getGlobalBuffs() {
+        return this.globalBuffs;
     }
 }

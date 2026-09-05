@@ -5,6 +5,7 @@
  * 2. `transition-all` によるフォントサイズ補間（一瞬大きく出て縮む現象）を排除するため、`transition-[opacity,transform] duration-200` に限定。
  * 3. イベント結果等で呼ばれる `type === 'success'` に鮮やかなエメラルドグリーン（bg-emerald-600）を適用し、地味なグレー化を解消。
  * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: イエロー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
+ * 5. 【追加】決算モーダルからの「終了・送信」誤操作を防ぐための `showExitConfirm()` および `onExitCanceled` を実装。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -54,6 +55,7 @@ export class UIManager {
         
         this.onGraphTabChanged = null; 
         this.onPanelOpened = null; 
+        this.onExitCanceled = null; // ★追加: 終了確認キャンセル時のフリーズ回避用コールバック
 
         this.currentRouteAction = null; 
         this.currentRouteCost = 50000;
@@ -117,6 +119,19 @@ export class UIManager {
         });
     }
 
+    // ★追加: 誤操作を防ぐ安全な終了確認モーダル呼び出し
+    showExitConfirm() {
+        if (this._isSettlementModalOpen) {
+            this.hideSettlementModal();
+        } else {
+            this.hideAll();
+        }
+        if (this.exitCard) {
+            this.exitCard.classList.add('show');
+            this._toggleMainButtons(false);
+        }
+    }
+
     _bindEvents() {
         document.getElementById('btn-connect').addEventListener('click', () => {
             this.soundManager.playTapSound();
@@ -141,7 +156,7 @@ export class UIManager {
                 return;
             }
             this.soundManager.playSuccessSound();
-            if (this.onRouteActionConfirmed) this.onRouteActionConfirmed(this.currentRouteAction);
+            if (this.onRouteActionConfirmed) this.currentRouteAction && this.onRouteActionConfirmed(this.currentRouteAction);
         });
 
         this.fabBuy.addEventListener('click', () => {
@@ -383,6 +398,8 @@ export class UIManager {
                 this.soundManager.playTapSound();
                 this.exitCard.classList.remove('show');
                 this._toggleMainButtons(true);
+                // ★追加: 確認画面がキャンセルされた場合のフォールバック（フリーズ回避）
+                if (this.onExitCanceled) this.onExitCanceled();
             });
         }
 

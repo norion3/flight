@@ -4,6 +4,7 @@
  * 1. トーストメッセージの文末を「〜しました！」に統一し、UI上の視認性と爽快感を向上。
  * 2. 構文エラーの原因となった不要なエスケープ記号を完全に排除し、安全でクリーンな構造を維持。
  * 3. 所持金や月収に対する割合（%）ベースの動的コスト計算、Stage 1〜6の進行条件等は100%保持しています。
+ * 4. 【追加】マクロ経済を揺るがす「グローバルイベント（ワールドニュース）」を追加。
  */
 
 export const EVENT_DATA = [
@@ -364,6 +365,68 @@ export const EVENT_DATA = [
                 apply: (ctx, cost) => ({
                     satisfactionDelta: 0,
                     message: '手元資金を温存し、将来の設備投資に備えました！'
+                })
+            }
+        ]
+    },
+
+    // -------------------------------------------------------------
+    // ■ グローバルイベント（ワールドニュース）
+    // ※全社に影響を与えるマクロ経済イベント
+    // -------------------------------------------------------------
+    {
+        id: 'global_eu_strike',
+        type: 'global',
+        stageMin: 2,
+        stageMax: 6,
+        title: '【国際速報】欧州 大規模航空ストライキ',
+        description: 'ヨーロッパ地域の空港で大規模なストライキが発生。欧州発着便の需要が3ヶ月間、半減します。',
+        condition: (ctx) => true,
+        options: [
+            {
+                text: '確認',
+                getCost: (ctx) => 0,
+                apply: (ctx, cost) => ({
+                    globalEffect: { region: 'eu', passengersRateDelta: -0.50, durationMonths: 3 },
+                    message: '欧州路線の需要が激減しています！'
+                })
+            }
+        ]
+    },
+    {
+        id: 'global_asia_boom',
+        type: 'global',
+        stageMin: 2,
+        stageMax: 6,
+        title: '【国際速報】アジア・太平洋 経済ブーム',
+        description: 'アジア・オセアニア地域で歴史的な好景気が到来。同地域発着便の収益が4ヶ月間、+40%増加します。',
+        condition: (ctx) => true,
+        options: [
+            {
+                text: '確認',
+                getCost: (ctx) => 0,
+                apply: (ctx, cost) => ({
+                    globalEffect: { region: 'as_oc', incomeRateDelta: 0.40, durationMonths: 4 },
+                    message: 'アジア・太平洋路線の収益が急増しています！'
+                })
+            }
+        ]
+    },
+    {
+        id: 'global_fuel_crisis',
+        type: 'global',
+        stageMin: 3,
+        stageMax: 6,
+        title: '【国際速報】世界的な航空燃油高騰',
+        description: '地政学的要因により、航空燃油サーチャージが世界的に高騰。全社の全路線で収益率が3ヶ月間、-25%悪化します。',
+        condition: (ctx) => true,
+        options: [
+            {
+                text: '確認',
+                getCost: (ctx) => 0,
+                apply: (ctx, cost) => ({
+                    globalEffect: { region: 'all', incomeRateDelta: -0.25, durationMonths: 3 },
+                    message: '世界的に航空会社の収益が圧迫されています！'
                 })
             }
         ]

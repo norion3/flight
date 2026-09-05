@@ -5,6 +5,7 @@
  *    専用の `showReviveToast` が確実に画面上にポップアップするよう修正。
  * 2. 撤退通知（onWithdraw）、動的rotateSpeedスケーリング、ズームボタン安全ガード、
  *    期末決算モーダル、イベント連携等は100%完全保持。
+ * 3. 【追加】決算モーダルの「終了・送信」誤操作を防ぐ安全確認と、キャンセル時のフリーズ回避を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -91,9 +92,15 @@ export class GameManager {
                     }
                 },
                 () => {
-                    this.executeGameExit();
+                    // ★修正: いきなり終了させず、安全な確認画面へ遷移
+                    this.uiManager.showExitConfirm();
                 }
             );
+        };
+
+        // ★追加: 終了確認画面でキャンセルされた場合、停止した時間を再開させる
+        this.uiManager.onExitCanceled = () => {
+            this.isPaused = false;
         };
 
         this.uiManager.onConnectRequested = () => {

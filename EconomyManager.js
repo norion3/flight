@@ -4,6 +4,7 @@
  * 1. `_updateAiEconomy` において、AI客数に該当路線の両端空港シェア（avgShare）を掛け合わせ、プレイヤーがシェアを奪った際にAIの客数がリアルに激減する仕様を保持。
  * 2. AI極限時のセーフティネット支援メソッド `rescueAiFunds` を新設し、思考硬直を防止。
  * 3. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
+ * 4. 【追加】マクロ経済を揺るがす「グローバルイベント（ワールドニュース）」の対象地域バフ・デバフを適用。
  */
 
 import { CONFIG } from './Config.js';
@@ -59,12 +60,42 @@ export class EconomyManager {
         });
     }
 
+    // ★追加: 指定された機体が飛んでいる路線が、グローバルイベントの影響対象地域か判定してバフを返す
+    _getGlobalBuff(plane, networkManager, globalBuffs) {
+        if (!globalBuffs || globalBuffs.timer <= 0 || !globalBuffs.region) {
+            return { incomeRate: 0, passengersRate: 0 };
+        }
+        
+        const destData = plane.currentRoute ? plane.currentRoute.data : null;
+        let originData = null;
+        
+        // ネットワークデータから起点の空港情報を逆引き取得
+        if (destData && networkManager.network[plane.companyId] && networkManager.network[plane.companyId][destData.id]) {
+            const rev = networkManager.network[plane.companyId][destData.id].find(r => r.id === plane.currentAirportId);
+            if (rev) originData = rev.data;
+        }
+        
+        const inRegion = (node, region) => {
+            if (!node) return false;
+            if (region === 'all') return true;
+            if (region === 'eu') return node.lon >= -30 && node.lon <= 50 && node.lat >= 25; // 欧州周辺
+            if (region === 'as_oc') return node.lon >= 60 && node.lon <= 180 && node.lat >= -50 && node.lat <= 55; // アジア・オセアニア周辺
+            return false;
+        };
+
+        // 起点か終点のいずれかが対象地域に属していれば影響を受ける
+        if (inRegion(originData, globalBuffs.region) || inRegion(destData, globalBuffs.region)) {
+            return { incomeRate: globalBuffs.incomeRate, passengersRate: globalBuffs.passengersRate };
+        }
+        return { incomeRate: 0, passengersRate: 0 };
+    }
+
     update(delta, planes, networkManager, upgradeManager, competitionManager, eventManager = null) {
         const bonuses = upgradeManager ? upgradeManager.getBonuses() : { incomeRate: 1.0, satisfaction: 100 };
         const eventBuffs = eventManager ? eventManager.getBuffs() : { incomeRate: 0, passengersRate: 0 };
         
-        const finalIncomeRate = bonuses.incomeRate * (1.0 + eventBuffs.incomeRate);
-        const finalPassengersRate = 1.0 + eventBuffs.passengersRate;
+        // ★追加: グローバルイベント効果を取得
+        const globalBuffs = eventManager && typeof eventManager.getGlobalBuffs === 'function' ? eventManager.getGlobalBuffs() : null;
 
         this.incomeTimer += delta;
         this.monthTimer += delta;
@@ -94,6 +125,11 @@ export class EconomyManager {
             currentUpkeepPerSec += conf.upkeep;
 
             if (plane.currentRoute && plane.progress < 1.0) {
+                // ★修正: 対象路線ごとのグローバルイベント効果を合算
+                const gb = this._getGlobalBuff(plane, networkManager, globalBuffs);
+                const finalIncomeRate = bonuses.incomeRate * (1.0 + eventBuffs.incomeRate + gb.incomeRate);
+                const finalPassengersRate = 1.0 + eventBuffs.passengersRate + gb.passengersRate;
+
                 const routeLength = plane.currentRoute.length;
                 const distBonus = Math.min(1.5, routeLength / 5.0); 
 
@@ -118,7 +154,7 @@ export class EconomyManager {
         this.grossIncomeBuffer += currentGrossPerSec * delta;
         this.upkeepBuffer += currentUpkeepPerSec * delta;
 
-        this._updateAiEconomy(delta, planes, networkManager, competitionManager);
+        this._updateAiEconomy(delta, planes, networkManager, competitionManager, eventManager);
 
         if (this.incomeTimer >= 1.0) {
             const netIncome = this.grossIncomeBuffer - this.upkeepBuffer;
@@ -327,7 +363,9 @@ export class EconomyManager {
         }
     }
 
-    _updateAiEconomy(delta, planes, networkManager, competitionManager) {
+    _updateAiEconomy(delta, planes, networkManager, competitionManager, eventManager = null) {
+        const globalBuffs = eventManager && typeof eventManager.getGlobalBuffs === 'function' ? eventManager.getGlobalBuffs() : null;
+
         CONFIG.COMPANIES.forEach(comp => {
             if (comp.id === 'player') return;
 
@@ -347,21 +385,32 @@ export class EconomyManager {
             }
 
             let activeFlyingPlanes = 0;
+            let totalAiGrossMod = 0; // ★追加: 収益算出用に飛んでいる機体の平均バフを計算
+
             compPlanes.forEach(plane => {
                 if (plane.currentRoute && plane.progress < 1.0) {
                     activeFlyingPlanes++;
+                    
+                    // ★追加: グローバルイベント効果をAI客数にも適用
+                    const gb = this._getGlobalBuff(plane, networkManager, globalBuffs);
+                    const finalPassengersRate = 1.0 + gb.passengersRate;
+                    totalAiGrossMod += gb.incomeRate;
+
                     const baseDemand = (CONFIG.ECONOMY.PLANES[plane.sizeType]?.baseDemand) || 50;
                     
                     const originShare = competitionManager ? competitionManager.getShare(plane.currentAirportId, comp.id) : 0.2;
                     const destShare = competitionManager ? competitionManager.getShare(plane.currentRoute.id, comp.id) : 0.2;
                     const avgShare = (originShare + destShare) / 2;
 
-                    const pass = baseDemand * (1.0 + (competitionManager.getAiSatisfaction(comp.id) || 150) * 0.005) * Math.max(0.05, avgShare) * delta;
+                    const pass = baseDemand * (1.0 + (competitionManager.getAiSatisfaction(comp.id) || 150) * 0.005) * Math.max(0.05, avgShare) * finalPassengersRate * delta;
                     
                     this.aiTotalPassengers[comp.id] += pass;
                     this.aiYearlyPassengers[comp.id] += pass;
                 }
             });
+
+            // 稼働機体の平均グローバル収益バフを適用
+            const avgGlobalIncomeRate = activeFlyingPlanes > 0 ? totalAiGrossMod / activeFlyingPlanes : 0;
 
             const sat = competitionManager ? competitionManager.getAiSatisfaction(comp.id) : 150;
             const satBonus = 1.0 + (sat * 0.005);
@@ -376,7 +425,7 @@ export class EconomyManager {
             });
 
             let baseIncome = (routeCount * 1200) + (activeFlyingPlanes * 3500) + (planeCount * 600) + basePlaneIncome; 
-            let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult;
+            let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult * (1.0 + avgGlobalIncomeRate);
             
             let totalAiUpkeep = 0;
             compPlanes.forEach(p => {
