@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【全滅復活時の旧機体メッシュ完全破棄メソッド（removeAllPlanes）新設 ＆ ゴースト機体完全根絶 ＆ 全機能完全保持】
- * 1. 会社IDを指定して所属全機体の3Dメッシュを scene/planeGroup から安全に remove し、
- *    geometry および material を dispose（メモリ解放）した上で配列から完全削除する `removeAllPlanes(companyId)` を新設。
- *    これにより、AI不死鳥リベンジ復活時に空中に旧機体が静止して残るゴーストバグを100%完全根絶。
- * 2. 弾丸型エンジン翼形状、遊休機体優先売却（sellIdlePlane / sellPlane）、機体追従、カメラ距離別スケーリング等は100%完全保持。
+ * 【共有ジオメトリ完全保護（描画消失バグ根絶） ＆ 旧機体メッシュ解放 ＆ 全機能完全保持】
+ * 1. `removeAllPlanes`, `sellIdlePlane`, `sellPlane` 内で誤って共有の `this.baseGeometry` を
+ *    `dispose()` していた処理を完全排除。個別マテリアルのみを解放するように修正し、
+ *    機体売却・再起後に新機体が透明化したりWebGL頂点エラーが発生する重大リスクを100%根絶。
+ * 2. 所属全機体の3Dメッシュを scene/planeGroup から安全に remove し配列から完全削除する機能、
+ *    弾丸型エンジン翼形状、遊休機体優先売却、機体追従、カメラ距離別スケーリング等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -129,15 +130,15 @@ export class PlaneManager {
     }
 
     /**
-     * ★新設: 指定会社の全機体3Dメッシュを完全に破棄・解放し、配列からも全削除する
-     * （AI不死鳥リベンジ復活時のゴースト機体残留・メモリリークを完全根絶）
+     * 指定会社の全機体3Dメッシュを完全に破棄・解放し、配列からも全削除する
+     * ※共有ジオメトリ（this.baseGeometry）は保護し、個別マテリアルのみ破棄
      */
     removeAllPlanes(companyId) {
         for (let i = this.planes.length - 1; i >= 0; i--) {
             const plane = this.planes[i];
             if (plane.companyId === companyId) {
                 this.planeGroup.remove(plane.mesh);
-                if (plane.mesh.geometry) plane.mesh.geometry.dispose();
+                // ★修正: 共有ジオメトリ baseGeometry は破棄せず、マテリアルのみ解放
                 if (plane.mesh.material) {
                     if (Array.isArray(plane.mesh.material)) {
                         plane.mesh.material.forEach(m => m.dispose());
@@ -158,7 +159,7 @@ export class PlaneManager {
                 const sizeType = plane.sizeType;
                 
                 this.planeGroup.remove(plane.mesh);
-                if (plane.mesh.geometry) plane.mesh.geometry.dispose();
+                // ★修正: 共有ジオメトリ baseGeometry は破棄せず、マテリアルのみ解放
                 if (plane.mesh.material) {
                     if (Array.isArray(plane.mesh.material)) {
                         plane.mesh.material.forEach(m => m.dispose());
@@ -200,7 +201,7 @@ export class PlaneManager {
             const plane = this.planes[targetIndex];
             this.planeGroup.remove(plane.mesh);
             
-            if (plane.mesh.geometry) plane.mesh.geometry.dispose();
+            // ★修正: 共有ジオメトリ baseGeometry は破棄せず、マテリアルのみ解放
             if (plane.mesh.material) {
                 if (Array.isArray(plane.mesh.material)) {
                     plane.mesh.material.forEach(m => m.dispose());

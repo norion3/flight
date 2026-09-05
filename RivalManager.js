@@ -1,11 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【案A適用：撤退シェア基準引き上げ（38%未満即時撤退）＆ 不死鳥リベンジ旧機体メッシュ完全破棄連動 ＆ 全機能完全保持】
- * 1. 撤退ラインを `20%未満` ➔ `38%未満`（originShare < 0.38）へ大幅引き上げ。
- *    これにより、プレイヤーが空港に参入して投資効果で優位（シェア62%以上）に立った段階で、
- *    AIがしぶとく居座らず素直に退散し、別天地での再起（不死鳥リベンジ）へと心地よく移行。
- * 2. 全滅時（_attemptRevival）の `planeManager.removeAllPlanes(companyId)` によるゴースト機体根絶、
- *    実在空港連動（activeAirports）、自律リストラ・再生融資、動的機体枠等は100%完全保持。
+ * 【機体リプレースのトランザクション化（機体減少バグ防止） ＆ 撤退シェア38% ＆ 不死鳥リベンジ完全保持】
+ * 1. 【機体減少バグ根絶】小型機から中型・大型機への買い替え時、先に `addPlane` で上位機体を購入し、
+ *    追加が成功した後に小型機を `sellPlane` する安全なトランザクション順序に改修。
+ *    これにより、航路スロットの都合等で上位機体追加が失敗した際に小型機だけ消滅する問題を完全防止。
+ * 2. 撤退ライン 38% 未満（originShare < 0.38）即時撤退、
+ *    全滅時 `planeManager.removeAllPlanes(companyId)` による旧機体完全破棄、
+ *    実在空港（activeAirports）連動、自律リストラ・再生融資、動的機体枠等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -97,7 +98,7 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // ★案A適用: 撤退シェア基準を 38% 未満に引き上げ（過度な居座りの完全解消）
+        // ★撤退シェア基準 38% 未満（過度な居座りの完全解消）
         if (competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -192,20 +193,20 @@ export class RivalManager {
             } else if (desiredType !== 'small') {
                 const hasSmallPlane = currentPlanes.some(p => p.sizeType === 'small');
                 if (hasSmallPlane && planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
-                    let sold = false;
-                    if (typeof this.planeManager.sellPlane === 'function') {
-                        sold = this.planeManager.sellPlane('small', companyId);
-                    }
-                    if (sold) {
-                        const smallConf = CONFIG.ECONOMY.PLANES.small;
-                        const refund = smallConf ? (smallConf.cost * smallConf.sellRate) : 3500000;
-                        this.economyManager.addAiFunds(companyId, refund);
-
-                        const success = this.planeManager.addPlane(desiredType, companyId);
-                        if (success) {
-                            this.economyManager.deductAiFunds(companyId, planeConf.cost);
-                            return;
+                    // ★修正: 先に上位機体の追加を試行し、成功した後に小型機を売却する（トランザクション化）
+                    const success = this.planeManager.addPlane(desiredType, companyId);
+                    if (success) {
+                        this.economyManager.deductAiFunds(companyId, planeConf.cost);
+                        
+                        if (typeof this.planeManager.sellPlane === 'function') {
+                            const sold = this.planeManager.sellPlane('small', companyId);
+                            if (sold) {
+                                const smallConf = CONFIG.ECONOMY.PLANES.small;
+                                const refund = smallConf ? (smallConf.cost * smallConf.sellRate) : 3500000;
+                                this.economyManager.addAiFunds(companyId, refund);
+                            }
                         }
+                        return;
                     }
                 }
             }
@@ -271,7 +272,7 @@ export class RivalManager {
         for (const candidateHub of shuffledHubs) {
             const success = this._expandRoute(companyId, candidateHub, true);
             if (success) {
-                // 旧機体の3Dメッシュ・ジオメトリ・マテリアルを完全破棄・解放
+                // 旧機体の3Dメッシュ・マテリアルを完全破棄・解放（共有ジオメトリは保護）
                 if (this.planeManager) {
                     if (typeof this.planeManager.removeAllPlanes === 'function') {
                         this.planeManager.removeAllPlanes(companyId);
