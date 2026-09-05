@@ -1,15 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI改善・ゲームバランス設計（資金枯渇フリーズ解消・粘り強い撤退判定・不死鳥復活連携・機体過密防止）】
- * 1. 資金枯渇硬直の完全解消:
- *    遊休機体がない場合でも、稼働中機体の緊急売却（自律リストラ）を行い、機体僅少かつ資金1M未満の極限時はセーフティネット再生資金を注入。
- * 2. 粘り強い撤退判定（即時撤退の防止）:
- *    撤退基準をシェア12%未満に引き下げ、さらに2サイクル連続（約44秒）で下回った場合のみ撤退する「猶予カウンター」を導入。
- * 3. 不死鳥リベンジ（別所復活機能）の完全開花:
- *    最後の1路線でもシェア低下時に撤退可能とし、全滅状態（路線数0）からの別所再起を正常発動。
- * 4. 復活時の機体過密（団子状態）防止:
- *    全滅時に余剰待機機体をリセットし、新天地で新規小型機2機から再スタート。
- * 5. 機体保有数の動的解放（最大60機）、時代アンロック、空きスロット正確判定は100%完全保持。
+ * 【画面実在空港（activeAirports）連動 ＆ 幽霊空港接続の完全根絶 ＆ 全機能完全保持】
+ * 1. 路線開拓（_expandRoute）および不死鳥リベンジ（_attemptRevival）の候補選定において、
+ *    除外前の全データではなく、画面上にマーカーが生成された実在空港（activeAirports）のみを参照するよう修正。
+ *    これにより、ユーザーに見えない幽霊空港（LGWやORY等）にAIだけが航路を開設し、
+ *    同一区間に2本線が並走して見える現象を根本から完全根絶。
+ * 2. 資金枯渇時の自律リストラ・再生融資、猶予カウンター付き粘り強い撤退（シェア12%・2サイクル）、
+ *    不死鳥リベンジ時の旧機体リセット、動的機体枠（最大60機）等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -267,8 +264,11 @@ export class RivalManager {
             }
         }
 
-        // 自社が未進出で、かつ接続スロットに空きのある空港を候補として抽出
-        const allAirports = this.airportManager.allAirports;
+        // ★修正: 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
+        const allAirports = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
+            ? this.airportManager.activeAirports
+            : this.airportManager.allAirports;
+
         const availableHubs = allAirports.filter(node => {
             const maxConn = this.networkManager.MAX_CONNECTIONS[node.type] || 5;
             const currentConn = this.networkManager.getConnectionCount(node.id, companyId);
@@ -282,7 +282,6 @@ export class RivalManager {
         for (const candidateHub of shuffledHubs) {
             const success = this._expandRoute(companyId, candidateHub, true);
             if (success) {
-                // ★改善4: 全滅していた旧機体をリセットし、新天地で2機から再スタート（団子化防止）
                 if (this.planeManager && Array.isArray(this.planeManager.planes)) {
                     this.planeManager.planes = this.planeManager.planes.filter(p => p.companyId !== companyId);
                 }
@@ -311,7 +310,11 @@ export class RivalManager {
     }
 
     _expandRoute(companyId, originNode, isFree = false) {
-        const candidates = this.airportManager.allAirports;
+        // ★修正: 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
+        const candidates = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
+            ? this.airportManager.activeAirports
+            : this.airportManager.allAirports;
+
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
         const validCandidates = candidates.filter(destNode => {

@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【起点と目的地のハイライト独立管理】に加え、
- * 履歴287にて、プレイヤーの陣営色（エメラルド）とハイライト色（シアン）がバッティングして
- * 視認性が落ちていた問題を解消するため、起点(origin)を「純白」、目的地(dest)を「ゴールド」へ変更し、
- * 高級感のあるUIと直感的な操作性を両立させました。
- * （※視直径ベースの正確な地平線カリングは100%維持しています。）
+ * 【実在空港リスト（activeAirports）の新設 ＆ 幽霊空港へのAI接続防止 ＆ 全機能完全保持】
+ * 1. 近接除外フィルター（EXCLUDE_DIST）を通過し、実際に画面上に3Dマーカーが生成された空港のみを
+ *    `this.activeAirports` に格納して公開。
+ *    これにより、画面外に除外された不可視空港（ガトウィックやオルリー等）にAIだけが接続してしまう非対称性バグを解消。
+ * 2. 起点（純白）・目的地（ゴールド）の独立ハイライト、地平線カリング、マーカースケール計算等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -23,6 +23,7 @@ export class AirportManager {
 
         this.markers = []; 
         this.allAirports = this._compileAllAirports();
+        this.activeAirports = []; // ★画面上に実在・表示されている空港のリスト
     }
 
     _compileAllAirports() {
@@ -39,6 +40,8 @@ export class AirportManager {
     }
 
     buildAirportMarkers() {
+        this.activeAirports = []; // マーカー構築時に初期化
+
         const majorCoreGeo = new THREE.SphereGeometry(0.02, 16, 16);
         const majorCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const majorRingGeo1 = new THREE.RingGeometry(0.035, 0.045, 32);
@@ -76,6 +79,9 @@ export class AirportManager {
             } else {
                 placedMajors.push(pos);
             }
+
+            // ★近接除外フィルターを通過し、実際に画面に配置された空港として登録
+            this.activeAirports.push(airport);
 
             const markerGroup = new THREE.Group();
             const visualGroup = new THREE.Group();
@@ -121,10 +127,8 @@ export class AirportManager {
             
             if (m.userData.targetMesh) {
                 if (m.userData.isOrigin) {
-                    // ★修正: 起点(選択中)のハイライトを純白にして目立たせる
                     m.userData.targetMesh.material.color.setHex(0xffffff); 
                 } else if (m.userData.isDest) {
-                    // ★修正: 目的地(接続候補)のハイライトをゴールドにする
                     m.userData.targetMesh.material.color.setHex(0xffd700); 
                 } else {
                     m.userData.targetMesh.material.color.setHex(m.userData.originalColor); 
@@ -138,11 +142,9 @@ export class AirportManager {
         
         if (type === 'origin') {
             hitMesh.userData.isOrigin = true;
-            // ★修正: 起点(選択中)のハイライトを純白にして目立たせる
             hitMesh.userData.targetMesh.material.color.setHex(0xffffff);
         } else if (type === 'dest') {
             hitMesh.userData.isDest = true;
-            // ★修正: 目的地(接続候補)のハイライトをゴールドにする
             hitMesh.userData.targetMesh.material.color.setHex(0xffd700);
         }
     }
