@@ -1,10 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【撤退シェア25% ＆ 猶予カウンター復活（競合交戦の実現） ＆ トランザクション・不死鳥リベンジ完全保持】
- * 1. 撤退基準を 38% ➔ 25% 未満（originShare < 0.25）へ適正化。
- *    さらに「シェア25%未満が2サイクル（約44秒）継続」で初めて撤退する猶予カウンターを導入。
- *    これにより、1本乗り入れただけで即逃げ出す大味な挙動を解消し、適度な空中戦・競合を楽しめるバランスを実現。
- * 2. 機体リプレースのトランザクション化（addPlane成功後sellPlane）、全滅時メッシュ完全破棄、
+ * 【撤退シェア35% ＆ 1サイクル猶予 ＆ 放射状路線の形成アルゴリズム】
+ * 1. 撤退基準を 35% 未満（originShare < 0.35）とし、猶予カウンターを1サイクル（約22秒）に短縮。
+ *    これにより、プレイヤーが圧倒した際のスピーディな制圧テンポと爽快感を実現。
+ * 2. 路線開拓（_expandRoute）時に、既存路線とのベクトル（方角）のなす角を計算し、
+ *    同じ方角（45度以内）にある空港には巨大な距離ペナルティ（+50）を与えるアルゴリズムを導入。
+ *    これにより、同じ方向に重なる太い並行線を防ぎ、美しくリアルなクモの巣状（放射状）の路線網を形成。
+ * 3. 機体リプレースのトランザクション化、全滅時メッシュ完全破棄、
  *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
  */
 
@@ -97,7 +99,7 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // ★撤退シェア基準 25% 未満 ＆ 2サイクル猶予カウンター（ほど良い交戦の実現）
+        // ★撤退シェア基準 35% 未満 ＆ 1サイクル（約22秒）猶予カウンター
         if (competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -105,11 +107,11 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // シェア25%未満の場合、カウンターを加算
-                if (originShare < 0.25) {
+                // シェア35%未満の場合、カウンターを加算
+                if (originShare < 0.35) {
                     this.withdrawCounters[companyId][originId] = (this.withdrawCounters[companyId][originId] || 0) + 1;
 
-                    // 2サイクル（約44秒）連続で下回った場合に初めて撤退を実行
+                    // 1サイクル（約22秒）継続で撤退を実行
                     if (this.withdrawCounters[companyId][originId] >= 2) {
                         const originNode = this.airportManager.getAirportById(originId);
                         if (originNode) {
@@ -312,6 +314,17 @@ export class RivalManager {
 
         const posOrigin = Utils.latLonToVector3(originNode.lat, originNode.lon, CONFIG.GLOBE_RADIUS);
 
+        // ★改善2: 既存路線の方向ベクトルを取得（放射状の美しい路線網を構築するため）
+        const existingRoutes = this.networkManager.network[companyId] && this.networkManager.network[companyId][originNode.id] 
+            ? this.networkManager.network[companyId][originNode.id] : [];
+        const existingDestVectors = existingRoutes.map(r => {
+            const destNode = this.airportManager.getAirportById(r.id);
+            if (destNode) {
+                return Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS).sub(posOrigin).normalize();
+            }
+            return null;
+        }).filter(v => v !== null);
+
         const validCandidates = candidates.filter(destNode => {
             if (originNode.id === destNode.id) return false;
             if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) return false;
@@ -329,7 +342,23 @@ export class RivalManager {
         validCandidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
             const posB = Utils.latLonToVector3(b.lat, b.lon, CONFIG.GLOBE_RADIUS);
-            return posOrigin.distanceTo(posA) - posOrigin.distanceTo(posB);
+            
+            let penaltyA = 0;
+            let penaltyB = 0;
+
+            const dirA = posA.clone().sub(posOrigin).normalize();
+            const dirB = posB.clone().sub(posOrigin).normalize();
+
+            // ★改善2: 既存の路線と同じ方向（45度以内、cos(45) ≒ 0.707）の空港にはペナルティを与え後回しにする
+            for (const existingDir of existingDestVectors) {
+                if (dirA.dot(existingDir) > 0.707) penaltyA += 50;
+                if (dirB.dot(existingDir) > 0.707) penaltyB += 50;
+            }
+
+            const scoreA = posOrigin.distanceTo(posA) + penaltyA;
+            const scoreB = posOrigin.distanceTo(posB) + penaltyB;
+
+            return scoreA - scoreB;
         });
 
         const poolSize = Math.min(validCandidates.length, 4);
