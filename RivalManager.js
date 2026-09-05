@@ -1,12 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【画面実在空港（activeAirports）連動 ＆ 幽霊空港接続の完全根絶 ＆ 全機能完全保持】
- * 1. 路線開拓（_expandRoute）および不死鳥リベンジ（_attemptRevival）の候補選定において、
- *    除外前の全データではなく、画面上にマーカーが生成された実在空港（activeAirports）のみを参照するよう修正。
- *    これにより、ユーザーに見えない幽霊空港（LGWやORY等）にAIだけが航路を開設し、
- *    同一区間に2本線が並走して見える現象を根本から完全根絶。
- * 2. 資金枯渇時の自律リストラ・再生融資、猶予カウンター付き粘り強い撤退（シェア12%・2サイクル）、
- *    不死鳥リベンジ時の旧機体リセット、動的機体枠（最大60機）等は100%完全保持。
+ * 【撤退テンポ高速化（シェア20%未満即時撤退）＆ 不死鳥リベンジ100%発動 ＆ 全機能完全保持】
+ * 1. 撤退基準をシェア12%未満から「シェア20%未満」に引き上げ、長すぎる猶予カウンターを廃止して即時撤退へ変更。
+ *    プレイヤーが制圧した際のテンポ・爽快感を大幅に向上。
+ * 2. 全滅時の不死鳥リベンジ（_attemptRevival）における40%確率制限を撤廃し、全滅時は次のサイクルで100%確実に新拠点で復活。
+ * 3. 画面実在空港（activeAirports）連動、旧機体リセット、自律リストラ・再生融資、動的機体枠（最大60機）等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -98,7 +96,7 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // ★改善2: 粘り強い撤退判定（シェア12%未満が2サイクル継続した場合のみ安全に撤退）
+        // ★改善2: テンポの良い撤退判定（シェア20%未満で粘りすぎずに撤退）
         if (competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -106,36 +104,28 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // シェア12%未満の場合、カウンターを加算
-                if (originShare < 0.12) {
-                    this.withdrawCounters[companyId][originId] = (this.withdrawCounters[companyId][originId] || 0) + 1;
-                    
-                    // 2サイクル（約44秒）連続で下回った場合に初めて撤退を実行
-                    if (this.withdrawCounters[companyId][originId] >= 2) {
-                        const originNode = this.airportManager.getAirportById(originId);
-                        if (originNode) {
-                            const routesCopy = [...originRoutes];
-                            routesCopy.forEach(destRoute => {
-                                const destNode = this.airportManager.getAirportById(destRoute.id);
-                                if (destNode) {
-                                    this.networkManager.removeRoute(originNode, destNode, companyId);
-                                }
-                            });
-
-                            delete this.withdrawCounters[companyId][originId];
-                            this.planeManager.checkAndReassignPlanes(companyId);
-                            
-                            // 撤退トーストの発火
-                            if (this.onWithdraw) {
-                                this.onWithdraw(companyId, originId);
+                // シェア20%未満の場合、即時撤退を実行
+                if (originShare < 0.20) {
+                    const originNode = this.airportManager.getAirportById(originId);
+                    if (originNode) {
+                        const routesCopy = [...originRoutes];
+                        routesCopy.forEach(destRoute => {
+                            const destNode = this.airportManager.getAirportById(destRoute.id);
+                            if (destNode) {
+                                this.networkManager.removeRoute(originNode, destNode, companyId);
                             }
-                            return; // 1回の思考で1空港から撤退
+                        });
+
+                        if (this.withdrawCounters[companyId][originId]) {
+                            delete this.withdrawCounters[companyId][originId];
                         }
-                    }
-                } else {
-                    // シェアを持ち直した場合はカウンターをリセット
-                    if (this.withdrawCounters[companyId][originId]) {
-                        delete this.withdrawCounters[companyId][originId];
+                        this.planeManager.checkAndReassignPlanes(companyId);
+                        
+                        // 撤退トーストの発火
+                        if (this.onWithdraw) {
+                            this.onWithdraw(companyId, originId);
+                        }
+                        return; // 1回の思考で1空港から撤退
                     }
                 }
             }
@@ -252,9 +242,9 @@ export class RivalManager {
         }
     }
 
-    // ★安全な不死鳥リベンジ（別所再起）処理
+    // ★安全かつ確実な不死鳥リベンジ（別所再起）処理
     _attemptRevival(companyId) {
-        if (Math.random() > 0.60) return;
+        // 全滅時は確率制限を挟まず、速やかに新天地での再起を実行
 
         // 再起用シード資金の確保
         if (this.economyManager) {
@@ -264,7 +254,7 @@ export class RivalManager {
             }
         }
 
-        // ★修正: 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
+        // 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
         const allAirports = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
             ? this.airportManager.activeAirports
             : this.airportManager.allAirports;
@@ -310,7 +300,7 @@ export class RivalManager {
     }
 
     _expandRoute(companyId, originNode, isFree = false) {
-        // ★修正: 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
+        // 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
         const candidates = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
             ? this.airportManager.activeAirports
             : this.airportManager.allAirports;
