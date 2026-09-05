@@ -1,6 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【撤退シェア35% ＆ 1サイクル猶予 ＆ 放射状路線の形成アルゴリズム ＆ 機体リプレース拡張】
+ * 【撤退シェア35% ＆ 1サイクル猶予 ＆ 放射状路線の形成アルゴリズム ＆ 機体リプレース拡張 ＆ 大型機長距離開拓優遇】
  * 1. 撤退基準を 35% 未満（originShare < 0.35）とし、猶予カウンターを1サイクル（約22秒）に短縮。
  *    これにより、プレイヤーが圧倒した際のスピーディな制圧テンポと爽快感を実現。
  * 2. 路線開拓（_expandRoute）時に、既存路線とのベクトル（方角）のなす角を計算し、
@@ -10,6 +10,7 @@
  *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
  * 4. 【追加】就航アクティブ制に基づき、競合他社の機体がその空港を発着して飛んでいる場合のみ撤退を判定。
  * 5. 【改善】機体リプレース時、小型機に限定せず保有中の「最小サイズ機（desiredType未満）」を下取り売却できるよう拡張。
+ * 6. 【改善】大型機・超大型機（large/super）保有時は長距離（dist >= 1.8）路線を開拓しやすくなるよう優遇重み付けを導入。
  */
 
 import { CONFIG } from './Config.js';
@@ -357,6 +358,10 @@ export class RivalManager {
 
         if (validCandidates.length === 0) return false;
 
+        // ★大型機・超大型機保有判定（長距離路線優遇用）
+        const compPlanes = this.planeManager.planes.filter(p => p.companyId === companyId);
+        const hasWidebody = compPlanes.some(p => p.sizeType === 'super' || p.sizeType === 'large');
+
         validCandidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
             const posB = Utils.latLonToVector3(b.lat, b.lon, CONFIG.GLOBE_RADIUS);
@@ -383,8 +388,12 @@ export class RivalManager {
                 if (dirB.dot(existingDir) > thresholdB) penaltyB += penaltyValB;
             }
 
-            const scoreA = distA + penaltyA;
-            const scoreB = distB + penaltyB;
+            // ★改善: 大型・超大型機保有時は中長距離（dist >= 1.8）の距離スコアを優遇（割り引き）
+            const bonusA = (hasWidebody && distA >= 1.8) ? -1.5 : 0;
+            const bonusB = (hasWidebody && distB >= 1.8) ? -1.5 : 0;
+
+            const scoreA = distA + penaltyA + bonusA;
+            const scoreB = distB + penaltyB + bonusB;
 
             return scoreA - scoreB;
         });
