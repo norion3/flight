@@ -1,6 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【撤退シェア35% ＆ 1サイクル猶予 ＆ 放射状路線の形成アルゴリズム】
+ * 【撤退シェア35% ＆ 1サイクル猶予 ＆ 放射状路線の形成アルゴリズム ＆ 機体リプレース拡張】
  * 1. 撤退基準を 35% 未満（originShare < 0.35）とし、猶予カウンターを1サイクル（約22秒）に短縮。
  *    これにより、プレイヤーが圧倒した際のスピーディな制圧テンポと爽快感を実現。
  * 2. 路線開拓（_expandRoute）時に、既存路線とのベクトル（方角）のなす角を計算し、
@@ -9,6 +9,7 @@
  * 3. 機体リプレースのトランザクション保護（Config参照による動的売却額計算）、全滅時メッシュ完全破棄、
  *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
  * 4. 【追加】就航アクティブ制に基づき、競合他社の機体がその空港を発着して飛んでいる場合のみ撤退を判定。
+ * 5. 【改善】機体リプレース時、小型機に限定せず保有中の「最小サイズ機（desiredType未満）」を下取り売却できるよう拡張。
  */
 
 import { CONFIG } from './Config.js';
@@ -205,17 +206,27 @@ export class RivalManager {
                     }
                 }
             } else if (desiredType !== 'small') {
-                const hasSmallPlane = currentPlanes.some(p => p.sizeType === 'small');
-                if (hasSmallPlane && planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
+                // desiredType より格下の機体を保有機の中から最小サイズ順（small -> medium -> large）で検索
+                const sizeOrder = ['small', 'medium', 'large', 'super'];
+                const desiredRank = sizeOrder.indexOf(desiredType);
+                let smallerType = null;
+                for (let i = 0; i < desiredRank; i++) {
+                    if (currentPlanes.some(p => p.sizeType === sizeOrder[i])) {
+                        smallerType = sizeOrder[i];
+                        break;
+                    }
+                }
+
+                if (smallerType && planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
                     const success = this.planeManager.addPlane(desiredType, companyId);
                     if (success) {
                         this.economyManager.deductAiFunds(companyId, planeConf.cost);
                         
                         if (typeof this.planeManager.sellPlane === 'function') {
-                            const sold = this.planeManager.sellPlane('small', companyId);
+                            const sold = this.planeManager.sellPlane(smallerType, companyId);
                             if (sold) {
-                                const smallConf = CONFIG.ECONOMY.PLANES.small;
-                                const refund = smallConf ? (smallConf.cost * smallConf.sellRate) : (CONFIG.ECONOMY.PLANES.small.cost * CONFIG.ECONOMY.PLANES.small.sellRate);
+                                const smallerConf = CONFIG.ECONOMY.PLANES[smallerType];
+                                const refund = smallerConf ? (smallerConf.cost * smallerConf.sellRate) : (CONFIG.ECONOMY.PLANES[smallerType].cost * CONFIG.ECONOMY.PLANES[smallerType].sellRate);
                                 this.economyManager.addAiFunds(companyId, refund);
                             }
                         }

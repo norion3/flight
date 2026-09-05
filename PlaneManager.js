@@ -7,6 +7,7 @@
  * 2. 所属全機体の3Dメッシュを scene/planeGroup から安全に remove し配列から完全削除する機能、
  *    弾丸型エンジン翼形状、遊休機体優先売却、機体追従、カメラ距離別スケーリング等は100%完全保持。
  * 3. 【追加】就航アクティブ制に基づき、機体がフライト・割り当てられた路線の就航フラグを有効化。
+ * 4. 【追加】到着時に次便が見つからない場合の「折り返し反転（リバース）」安全フォールバックを追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -404,8 +405,17 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
-                const nextRoute = this._getRouteBySeparation(nextAirportId, plane.companyId);
+                let nextRoute = this._getRouteBySeparation(nextAirportId, plane.companyId);
                 
+                // ★折り返し反転（リバース）安全フォールバック: 次便がない場合、直前に飛んできた路線を逆向きに割り当てて即座に反転運航
+                if (!nextRoute) {
+                    const previousOriginId = plane.currentAirportId;
+                    const routesFromArrival = this.networkManager.network[plane.companyId] ? this.networkManager.network[plane.companyId][nextAirportId] : null;
+                    if (routesFromArrival && routesFromArrival.length > 0) {
+                        nextRoute = routesFromArrival.find(r => r.id === previousOriginId) || routesFromArrival[0];
+                    }
+                }
+
                 if (nextRoute) {
                     // ★次便の就航フラグを有効化
                     nextRoute.isOperational = true;
