@@ -1,11 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【案Aカラースワップ連動（アジア:ピンク / アフリカ:イエロー） ＆ トースト1行・動的フォント ＆ 全機能完全保持】
- * 1. updateRivalsPanel 内のアコーディオンアイコン背景色を新カラー構成に同期：
- *    rival_as ➔ bg-pink-500、rival_af ➔ bg-yellow-500。
- * 2. showToast / showWithdrawToast / showReviveToast の1行維持（whitespace-nowrap）、
- *    文字数に応じた動的フォントサイズ（14px / 12px / 11px）、期末決算モーダル、イベントモーダル、
- *    4〜6位の縦型順位バッジ、折れ線グラフ描画等は100%完全保持。
+ * 【トースト視認性向上・最小12px統一・フォントサイズ遷移ブレ防止・成功色エメラルド化 ＆ 全機能完全保持】
+ * 1. トースト最小サイズを 12px (text-xs) に統一（11px廃止）。パディングを最適化し、iPhone SE等でも1行で美しく収まるよう調整。
+ * 2. `transition-all` によるフォントサイズ補間（一瞬大きく出て縮む現象）を排除するため、`transition-[opacity,transform] duration-200` に限定。
+ * 3. イベント結果等で呼ばれる `type === 'success'` に鮮やかなエメラルドグリーン（bg-emerald-600）を適用し、地味なグレー化を解消。
+ * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: イエロー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -612,21 +611,25 @@ export class UIManager {
             charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
         }
 
+        // ★最小サイズを12px (text-xs) に統一。パディングもスリム化して375px幅画面の端余白を確保
         let sizeClasses = "text-sm px-4 py-2"; 
-        if (charLen > 27) {
-            sizeClasses = "text-[11px] px-3 py-1.5"; 
-        } else if (charLen > 23) {
-            sizeClasses = "text-xs px-3.5 py-1.5"; 
+        if (charLen > 22) {
+            sizeClasses = "text-xs px-3 py-1.5"; 
         }
 
-        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        // ★transition-all を排除し、透明度と位置のみのアニメーションに限定（フォントサイズの補間ブレを防止）
+        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
-            this.toast.className = `${baseClasses} bg-rose-600/90 text-white shadow-rose-900/50`;
+            this.toast.className = `${baseClasses} bg-rose-600/95 text-white shadow-rose-900/50`;
         } else if (type === 'info') {
             this.soundManager.playEventSound();
-            this.toast.className = `${baseClasses} bg-blue-600/90 text-white shadow-blue-900/50`;
+            this.toast.className = `${baseClasses} bg-blue-600/95 text-white shadow-blue-900/50`;
+        } else if (type === 'success') {
+            // ★イベント成功・黒字通知向けに鮮やかなエメラルドグリーンを適用
+            this.soundManager.playSuccessSound();
+            this.toast.className = `${baseClasses} bg-emerald-600/95 text-white shadow-emerald-900/50`;
         } else {
             this.soundManager.playEventSound();
             this.toast.className = `${baseClasses} bg-slate-800/95 text-cyan-400 border border-slate-700 shadow-slate-900/50`;
@@ -655,13 +658,11 @@ export class UIManager {
         }
 
         let sizeClasses = "text-sm px-4 py-2";
-        if (charLen > 27) {
-            sizeClasses = "text-[11px] px-3 py-1.5";
-        } else if (charLen > 23) {
-            sizeClasses = "text-xs px-3.5 py-1.5";
+        if (charLen > 22) {
+            sizeClasses = "text-xs px-3 py-1.5";
         }
 
-        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
@@ -693,13 +694,11 @@ export class UIManager {
         }
 
         let sizeClasses = "text-sm px-4 py-2";
-        if (charLen > 27) {
-            sizeClasses = "text-[11px] px-3 py-1.5";
-        } else if (charLen > 23) {
-            sizeClasses = "text-xs px-3.5 py-1.5";
+        if (charLen > 22) {
+            sizeClasses = "text-xs px-3 py-1.5";
         }
 
-        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#10b981';
