@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ステップ2：ズーム倍率に応じた地球儀回転量（rotateSpeed）の安全な動的スケーリング ＆ 全機能完全保持】
- * 1. 拡大時のスワイプ過剰回転を防ぐため、カメラと地球の距離に応じて controls.rotateSpeed を 0.15 〜 0.50 で動的補正。
- * 2. minDistance / maxDistance の未定義や除算エラーを防ぐ万全のガードと NaN 汚染防止を実装。
- * 3. ステップ1で実装した起動クラッシュ防止ガード（checkZoomLimit / zoomCamera）およびその他の全ロジックを100%完全保持。
+ * 【再起トースト通知コールバック（onRevive）の登録 ＆ 全機能完全保持】
+ * 1. `this.rivalManager.onRevive` を新設・登録し、ライバル企業が新拠点で復活した際に
+ *    専用の `showReviveToast` が確実に画面上にポップアップするよう修正。
+ * 2. 撤退通知（onWithdraw）、動的rotateSpeedスケーリング、ズームボタン安全ガード、
+ *    期末決算モーダル、イベント連携等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -53,6 +54,13 @@ export class GameManager {
             }
         };
 
+        // ★追加: ライバル再起（復活）時のトースト通知コールバックを確実に登録
+        this.rivalManager.onRevive = (companyId, airportId) => {
+            const comp = CONFIG.COMPANIES.find(c => c.id === companyId);
+            const compName = comp ? comp.name : companyId;
+            this.uiManager.showReviveToast(`${compName} が新たな拠点で復活しました！`, companyId);
+        };
+
         this.competitionManager = new CompetitionManager(
             this.networkManager,
             this.upgradeManager,
@@ -60,7 +68,6 @@ export class GameManager {
             this.airportManager
         );
 
-        // ★修正: networkManager を第8引数として渡す
         this.eventManager = new EventManager(
             this,
             this.uiManager,
@@ -78,14 +85,12 @@ export class GameManager {
             this.uiManager.showSettlementModal(
                 settlementData,
                 () => {
-                    // 「次期へ進む」選択時
                     this.isPaused = false;
                     if (this.eventManager) {
                         this.eventManager.cooldownTimer = 30.0;
                     }
                 },
                 () => {
-                    // 「経営終了・スコア送信」選択時（ダイレクト合流）
                     this.executeGameExit();
                 }
             );
@@ -127,7 +132,6 @@ export class GameManager {
                         this.uiManager.showToast(window.APP_LANG.toastLimit);
                     }
                 } else if (actionType === 'remove') {
-                    // 空路廃止時に開拓コストの50%を返金
                     const routeCost = this.economyManager.calculateRouteCost(originData, destData);
                     const refund = Math.floor(routeCost * 0.5);
                     this.economyManager.addFunds(refund);
@@ -233,7 +237,6 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    // Phase 6: 終了確定処理（ダイレクト合流）
     executeGameExit() {
         this.uiManager.soundManager.playSuccessSound();
         setTimeout(() => {
@@ -364,7 +367,6 @@ export class GameManager {
     }
 
     checkZoomLimit() {
-        // ★最優先ガード: 初期化中等でuiManagerやcontrolsが未生成の時に呼ばれても絶対にクラッシュさせない
         if (!this.uiManager || !this.controls || !this.camera) return;
 
         const currentDist = this.camera.position.distanceTo(this.controls.target);
@@ -421,7 +423,6 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        // 決算モーダル表示中もタップ無効化
         if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) return;
 
         const tapX = event.clientX;
@@ -541,7 +542,6 @@ export class GameManager {
             }
         }
 
-        // ★ステップ2: ズーム倍率に応じた地球儀回転量（rotateSpeed）の動的スケーリング補正（安全ガード付き）
         if (this.controls && this.controls.target && this.camera) {
             const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
             let minDesc = this.controls.minDistance;
@@ -552,7 +552,7 @@ export class GameManager {
             const denom = maxDesc - minDesc;
             if (denom > 0) {
                 const distanceRatio = Math.max(0, Math.min(1, (currentDistForRotate - minDesc) / denom));
-                const dynamicRotateSpeed = 0.15 + (distanceRatio * 0.35); // 拡大時: 0.15, 縮小時: 0.50
+                const dynamicRotateSpeed = 0.15 + (distanceRatio * 0.35);
                 if (!isNaN(dynamicRotateSpeed)) {
                     this.controls.rotateSpeed = dynamicRotateSpeed;
                 }
@@ -566,7 +566,6 @@ export class GameManager {
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
 
-        // ★改善1＆3: CompetitionManager に経過年数（year）を連携
         this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1);
         
         this.economyManager.update(
@@ -583,7 +582,6 @@ export class GameManager {
             this.eventManager.update(delta);
         }
 
-        // 航路開拓確認ボタンのリアルタイム資金連動チェック
         this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
 
         this.rivalUiTimer += delta;

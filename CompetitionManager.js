@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【プレイヤー満足度400キャップ撤廃 ＆ AI満足度年度成長式 ＆ 世界シェア計算完全保持】
- * 1. プレイヤー満足度の Math.min(400, ...) キャップを撤廃し、アップグレードやイベントによる満足度（最大6000超）がフルにシェア計算へ反映されるよう修正。
- * 2. AIの顧客満足度は初期値 70（±5）から経過年数（year）ごとに +35 上昇（上限2500キャップ）を完全維持。
- * 3. 地球儀上の全空港ランク別総ポイント（分母: 約350点）に基づくリアルな世界シェア計算（getWorldShare）は100%完全保持。
+ * 【接続数配点強化（10➔25点） ＆ 満足度係数マイルド化（0.15） ＆ AI初期満足度100 ＆ 全機能完全保持】
+ * 1. 空港スコア計算式を `(connections * 25) + (satisfaction * 0.15)` に改修。
+ *    接続数（空路ネットワーク規模）の価値を大幅に高め、参入直後の即時撤退を防止。
+ * 2. AIの基礎顧客満足度初期値を 70 ➔ 100 に引き上げ、創業時の老舗ライバルとしての実力を適正化。
+ * 3. プレイヤー満足度の400キャップ撤廃、AI満足度年度成長式（毎年+35）、世界シェア計算等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -17,7 +18,7 @@ export class CompetitionManager {
 
         this.shares = {};
         this.globalShares = {}; 
-        this.baseAiSatisfaction = 70; // 初期基準値: 70
+        this.baseAiSatisfaction = 100; // ★初期基準値を 70 ➔ 100 へ引き上げ
         this.currentYear = 1;
         
         this.aiBaseOffsets = {};
@@ -46,7 +47,6 @@ export class CompetitionManager {
             if (companyId === 'player') {
                 const baseSat = this.upgradeManager ? this.upgradeManager.getBonuses().satisfaction : 100;
                 const eventSat = this.upgradeManager ? (this.upgradeManager.eventSatisfactionBonus || 0) : 0;
-                // ★修正: 400キャップを撤廃し、プレイヤーの満足度投資をフルに反映
                 satisfaction = Math.max(0, baseSat + eventSat);
             } else {
                 satisfaction = this.getAiSatisfaction(companyId);
@@ -60,7 +60,8 @@ export class CompetitionManager {
                     this.shares[airportId] = {};
                 }
 
-                const score = (connections * 10) + (satisfaction * 0.2);
+                // ★修正: 接続数を10点➔25点へ引き上げ、満足度係数を0.2➔0.15に調整
+                const score = (connections * 25) + (satisfaction * 0.15);
                 this.shares[airportId][companyId] = score;
 
                 companyScores[companyId] += score;
@@ -129,7 +130,7 @@ export class CompetitionManager {
         return Math.min(1.0, connectedPoints / totalWorldPoints);
     }
     
-    // ★AI満足度: 初期値70付近、毎年+35成長、上限2500キャップ
+    // ★AI満足度: 初期値100付近、毎年+35成長、上限2500キャップ
     getAiSatisfaction(companyId) {
         if (!this.aiBaseOffsets[companyId]) {
             this.aiBaseOffsets[companyId] = this.baseAiSatisfaction + (Math.random() * 10 - 5);

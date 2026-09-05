@@ -1,12 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【機体リプレースのトランザクション化（機体減少バグ防止） ＆ 撤退シェア38% ＆ 不死鳥リベンジ完全保持】
- * 1. 【機体減少バグ根絶】小型機から中型・大型機への買い替え時、先に `addPlane` で上位機体を購入し、
- *    追加が成功した後に小型機を `sellPlane` する安全なトランザクション順序に改修。
- *    これにより、航路スロットの都合等で上位機体追加が失敗した際に小型機だけ消滅する問題を完全防止。
- * 2. 撤退ライン 38% 未満（originShare < 0.38）即時撤退、
- *    全滅時 `planeManager.removeAllPlanes(companyId)` による旧機体完全破棄、
- *    実在空港（activeAirports）連動、自律リストラ・再生融資、動的機体枠等は100%完全保持。
+ * 【撤退シェア25% ＆ 猶予カウンター復活（競合交戦の実現） ＆ トランザクション・不死鳥リベンジ完全保持】
+ * 1. 撤退基準を 38% ➔ 25% 未満（originShare < 0.25）へ適正化。
+ *    さらに「シェア25%未満が2サイクル（約44秒）継続」で初めて撤退する猶予カウンターを導入。
+ *    これにより、1本乗り入れただけで即逃げ出す大味な挙動を解消し、適度な空中戦・競合を楽しめるバランスを実現。
+ * 2. 機体リプレースのトランザクション化（addPlane成功後sellPlane）、全滅時メッシュ完全破棄、
+ *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -98,7 +97,7 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // ★撤退シェア基準 38% 未満（過度な居座りの完全解消）
+        // ★撤退シェア基準 25% 未満 ＆ 2サイクル猶予カウンター（ほど良い交戦の実現）
         if (competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -106,28 +105,36 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // シェア38%未満の場合、即時撤退を実行
-                if (originShare < 0.38) {
-                    const originNode = this.airportManager.getAirportById(originId);
-                    if (originNode) {
-                        const routesCopy = [...originRoutes];
-                        routesCopy.forEach(destRoute => {
-                            const destNode = this.airportManager.getAirportById(destRoute.id);
-                            if (destNode) {
-                                this.networkManager.removeRoute(originNode, destNode, companyId);
-                            }
-                        });
+                // シェア25%未満の場合、カウンターを加算
+                if (originShare < 0.25) {
+                    this.withdrawCounters[companyId][originId] = (this.withdrawCounters[companyId][originId] || 0) + 1;
 
-                        if (this.withdrawCounters[companyId][originId]) {
+                    // 2サイクル（約44秒）連続で下回った場合に初めて撤退を実行
+                    if (this.withdrawCounters[companyId][originId] >= 2) {
+                        const originNode = this.airportManager.getAirportById(originId);
+                        if (originNode) {
+                            const routesCopy = [...originRoutes];
+                            routesCopy.forEach(destRoute => {
+                                const destNode = this.airportManager.getAirportById(destRoute.id);
+                                if (destNode) {
+                                    this.networkManager.removeRoute(originNode, destNode, companyId);
+                                }
+                            });
+
                             delete this.withdrawCounters[companyId][originId];
+                            this.planeManager.checkAndReassignPlanes(companyId);
+                            
+                            // 撤退トーストの発火
+                            if (this.onWithdraw) {
+                                this.onWithdraw(companyId, originId);
+                            }
+                            return; // 1回の思考で1空港から撤退
                         }
-                        this.planeManager.checkAndReassignPlanes(companyId);
-                        
-                        // 撤退トーストの発火
-                        if (this.onWithdraw) {
-                            this.onWithdraw(companyId, originId);
-                        }
-                        return; // 1回の思考で1空港から撤退
+                    }
+                } else {
+                    // シェアを持ち直した場合はカウンターをリセット
+                    if (this.withdrawCounters[companyId][originId]) {
+                        delete this.withdrawCounters[companyId][originId];
                     }
                 }
             }
@@ -137,7 +144,6 @@ export class RivalManager {
         if (aiFunds < 2000000) {
             let soldType = this.planeManager.sellIdlePlane(companyId);
 
-            // 待機機体がない場合でも、複数機保有していれば稼働中機体を売却してキャッシュ化
             if (!soldType && currentPlanes.length > 1) {
                 if (typeof this.planeManager.sellPlane === 'function') {
                     const hasSmall = currentPlanes.some(p => p.sizeType === 'small');
@@ -155,14 +161,13 @@ export class RivalManager {
                 return;
             }
 
-            // 機体数が残りわずかで資金1M未満に陥った極限時はセーフティネット再生資金を注入
             if (currentPlanes.length <= 2 && aiFunds < 1000000 && this.economyManager) {
                 this.economyManager.rescueAiFunds(companyId, 15000000);
                 return;
             }
         }
 
-        // 余剰機体の売却整理（動的上限超過時または路線過剰時）
+        // 余剰機体の売却整理
         if (currentPlanes.length > maxAllowedPlanes || currentPlanes.length > totalRoutes * 2 + 1) {
             const soldType = this.planeManager.sellIdlePlane(companyId);
             if (soldType && this.economyManager) {
@@ -172,7 +177,7 @@ export class RivalManager {
             }
         }
 
-        // 機体購入条件の適正化、時代アンロック、安全な小型機売却リプレース
+        // 機体購入・リプレース（トランザクション保護）
         let desiredType = null;
         if (currentYear >= 5 && aiFunds >= 250000000) desiredType = 'super';
         else if (currentYear >= 3 && aiFunds >= 100000000) desiredType = 'large';
@@ -193,7 +198,6 @@ export class RivalManager {
             } else if (desiredType !== 'small') {
                 const hasSmallPlane = currentPlanes.some(p => p.sizeType === 'small');
                 if (hasSmallPlane && planeConf && this.economyManager.canAiAfford(companyId, planeConf.cost)) {
-                    // ★修正: 先に上位機体の追加を試行し、成功した後に小型機を売却する（トランザクション化）
                     const success = this.planeManager.addPlane(desiredType, companyId);
                     if (success) {
                         this.economyManager.deductAiFunds(companyId, planeConf.cost);
@@ -212,7 +216,7 @@ export class RivalManager {
             }
         }
 
-        // 路線開拓手詰まりの防止（自社の空きスロットのある空港のみをフィルタリング）
+        // 路線開拓（自社の空きスロットのある空港のみを抽出）
         const availableAirports = connectedAirports.filter(id => {
             const node = this.airportManager.getAirportById(id);
             if (!node) return false;
@@ -246,7 +250,6 @@ export class RivalManager {
 
     // ★安全かつ確実な不死鳥リベンジ（別所再起）処理
     _attemptRevival(companyId) {
-        // 再起用シード資金の確保
         if (this.economyManager) {
             const currentFunds = this.economyManager.getAiFunds(companyId);
             if (currentFunds < 20000000) {
@@ -254,7 +257,6 @@ export class RivalManager {
             }
         }
 
-        // 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
         const allAirports = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
             ? this.airportManager.activeAirports
             : this.airportManager.allAirports;
@@ -272,7 +274,6 @@ export class RivalManager {
         for (const candidateHub of shuffledHubs) {
             const success = this._expandRoute(companyId, candidateHub, true);
             if (success) {
-                // 旧機体の3Dメッシュ・マテリアルを完全破棄・解放（共有ジオメトリは保護）
                 if (this.planeManager) {
                     if (typeof this.planeManager.removeAllPlanes === 'function') {
                         this.planeManager.removeAllPlanes(companyId);
@@ -305,7 +306,6 @@ export class RivalManager {
     }
 
     _expandRoute(companyId, originNode, isFree = false) {
-        // 画面上にマーカーが実在する activeAirports を参照し、不可視空港（幽霊空港）への接続を防止
         const candidates = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
             ? this.airportManager.activeAirports
             : this.airportManager.allAirports;
