@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【不死鳥リベンジ旧機体メッシュ完全破棄連動 ＆ 撤退テンポ高速化 ＆ 全機能完全保持】
- * 1. 全滅時（_attemptRevival）に `planeManager.removeAllPlanes(companyId)` を安全に呼び出し、
- *    Three.js 上の旧機体メッシュ・ジオメトリ・マテリアルを完全にメモリ解放・消去してから新拠点で小型機を再配備。
- * 2. 撤退基準（シェア20%未満即時撤退）、100%確実な新拠点復活、実在空港連動（activeAirports）、
- *    自律リストラ・再生融資、動的機体枠（最大60機）等は100%完全保持。
+ * 【案A適用：撤退シェア基準引き上げ（38%未満即時撤退）＆ 不死鳥リベンジ旧機体メッシュ完全破棄連動 ＆ 全機能完全保持】
+ * 1. 撤退ラインを `20%未満` ➔ `38%未満`（originShare < 0.38）へ大幅引き上げ。
+ *    これにより、プレイヤーが空港に参入して投資効果で優位（シェア62%以上）に立った段階で、
+ *    AIがしぶとく居座らず素直に退散し、別天地での再起（不死鳥リベンジ）へと心地よく移行。
+ * 2. 全滅時（_attemptRevival）の `planeManager.removeAllPlanes(companyId)` によるゴースト機体根絶、
+ *    実在空港連動（activeAirports）、自律リストラ・再生融資、動的機体枠等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -77,7 +78,7 @@ export class RivalManager {
 
         const connectedAirports = Object.keys(net).filter(id => net[id].length > 0);
         
-        // ★改善1: AI不死鳥リベンジ（全路線喪失時の別所再起・復活処理）
+        // ★AI不死鳥リベンジ（全路線喪失時の別所再起・復活処理）
         if (connectedAirports.length === 0) {
             this._attemptRevival(companyId);
             return;
@@ -96,7 +97,7 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
 
-        // ★改善2: テンポの良い撤退判定（シェア20%未満で粘りすぎずに撤退）
+        // ★案A適用: 撤退シェア基準を 38% 未満に引き上げ（過度な居座りの完全解消）
         if (competitionManager) {
             for (const originId in net) {
                 const originRoutes = net[originId];
@@ -104,8 +105,8 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // シェア20%未満の場合、即時撤退を実行
-                if (originShare < 0.20) {
+                // シェア38%未満の場合、即時撤退を実行
+                if (originShare < 0.38) {
                     const originNode = this.airportManager.getAirportById(originId);
                     if (originNode) {
                         const routesCopy = [...originRoutes];
@@ -131,7 +132,7 @@ export class RivalManager {
             }
         }
 
-        // ★改善3: 資金難時の自律リストラ＆セーフティネット（思考停止の完全防止）
+        // ★資金難時の自律リストラ＆セーフティネット（思考停止の完全防止）
         if (aiFunds < 2000000) {
             let soldType = this.planeManager.sellIdlePlane(companyId);
 
@@ -270,7 +271,7 @@ export class RivalManager {
         for (const candidateHub of shuffledHubs) {
             const success = this._expandRoute(companyId, candidateHub, true);
             if (success) {
-                // ★修正: 旧機体の3Dメッシュ・ジオメトリ・マテリアルを完全破棄・解放
+                // 旧機体の3Dメッシュ・ジオメトリ・マテリアルを完全破棄・解放
                 if (this.planeManager) {
                     if (typeof this.planeManager.removeAllPlanes === 'function') {
                         this.planeManager.removeAllPlanes(companyId);
