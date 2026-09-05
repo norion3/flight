@@ -8,6 +8,7 @@
  *    これにより、同じ方向に重なる太い並行線を防ぎ、美しくリアルなクモの巣状（放射状）の路線網を形成。
  * 3. 機体リプレースのトランザクション化、全滅時メッシュ完全破棄、
  *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
+ * 4. 【追加】就航アクティブ制に基づき、競合他社の機体がその空港を発着して飛んでいる場合のみ撤退を判定。
  */
 
 import { CONFIG } from './Config.js';
@@ -107,8 +108,14 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // シェア35%未満の場合、カウンターを加算
-                if (originShare < 0.35) {
+                // ★就航アクティブ制ガード: 競合他社（プレイヤーまたは他社AI）の機体が、現在その空港を発着して飛行中であるか判定
+                const hasCompetitorPlane = this.planeManager.planes.some(p => 
+                    p.companyId !== companyId && 
+                    (p.currentAirportId === originId || (p.currentRoute && p.currentRoute.id === originId))
+                );
+
+                // シェア35%未満かつ競合機が実際に飛んでいる場合のみ撤退カウンターを加算
+                if (originShare < 0.35 && hasCompetitorPlane) {
                     this.withdrawCounters[companyId][originId] = (this.withdrawCounters[companyId][originId] || 0) + 1;
 
                     // 1サイクル（約22秒）継続で撤退を実行
@@ -134,7 +141,7 @@ export class RivalManager {
                         }
                     }
                 } else {
-                    // シェアを持ち直した場合はカウンターをリセット
+                    // シェアを持ち直したか、競合機が飛んでいない場合はカウンターをリセット
                     if (this.withdrawCounters[companyId][originId]) {
                         delete this.withdrawCounters[companyId][originId];
                     }

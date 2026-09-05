@@ -7,6 +7,7 @@
  * 3. 【堅牢なガード】引数がオブジェクトまたはID文字列のどちらで渡されてもクラッシュしない安全フォールバックを実装。
  * 4. 【リソース破棄メソッド】撤退時やリセット時にメモリリークを防ぐ `removeAllRoutesForAirport` / `clearAllRoutes` を新設。
  * 5. 機体飛行用 `{ id, curve, length, data }` 構造、ベジェ制御点計算、距離キャッシュ等は100%完全保持。
+ * 6. 【追加】就航アクティブ制のための内部実績フラグ（`isOperational`）および `setRouteOperational` を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -69,6 +70,19 @@ export class NetworkManager {
         if (this.isConnected(fromData.id, toData.id, companyId)) return false;
 
         return true;
+    }
+
+    // ★追加: 路線を実際に飛行機が飛んだ際に就航フラグを両方向有効化するメソッド
+    setRouteOperational(fromId, toId, companyId = 'player') {
+        if (!this.network[companyId]) return;
+        if (this.network[companyId][fromId]) {
+            const r1 = this.network[companyId][fromId].find(r => r.id === toId);
+            if (r1) r1.isOperational = true;
+        }
+        if (this.network[companyId][toId]) {
+            const r2 = this.network[companyId][toId].find(r => r.id === fromId);
+            if (r2) r2.isOperational = true;
+        }
     }
 
     addRoute(fromData, toData, companyId = 'player') {
@@ -189,11 +203,11 @@ export class NetworkManager {
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
 
-        // 飛行移動に必要な curve, length, data を格納
-        this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData });
+        // 飛行移動に必要な curve, length, data を格納（★isOperational: false で初期化）
+        this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData, isOperational: false });
         
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
-        this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData });
+        this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData, isOperational: false });
 
         if (companyId === 'player') {
             this._updateCachedTotalLength();

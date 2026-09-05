@@ -6,6 +6,7 @@
  *    機体売却・再起後に新機体が透明化したりWebGL頂点エラーが発生する重大リスクを100%根絶。
  * 2. 所属全機体の3Dメッシュを scene/planeGroup から安全に remove し配列から完全削除する機能、
  *    弾丸型エンジン翼形状、遊休機体優先売却、機体追従、カメラ距離別スケーリング等は100%完全保持。
+ * 3. 【追加】就航アクティブ制に基づき、機体がフライト・割り当てられた路線の就航フラグを有効化。
  */
 
 import { CONFIG } from './Config.js';
@@ -223,6 +224,12 @@ export class PlaneManager {
         const routeData = this._getRouteBySeparation(spawnAirportId, companyId);
         if (!routeData) return false;
 
+        // ★就航アクティブ制: 機体が割り当てられた路線の就航フラグを有効化
+        routeData.isOperational = true;
+        if (this.networkManager.setRouteOperational) {
+            this.networkManager.setRouteOperational(spawnAirportId, routeData.id, companyId);
+        }
+
         let scale = 0.11;
         let speed = 0.20; 
         if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
@@ -319,6 +326,12 @@ export class PlaneManager {
             return;
         }
 
+        // ★就航アクティブ制: 再割り当てされた路線の就航フラグを有効化
+        nextRoute.isOperational = true;
+        if (this.networkManager.setRouteOperational) {
+            this.networkManager.setRouteOperational(spawnAirportId, nextRoute.id, plane.companyId);
+        }
+
         plane.mesh.visible = true; 
         plane.currentAirportId = spawnAirportId;
         plane.currentRoute = nextRoute;
@@ -373,6 +386,14 @@ export class PlaneManager {
             
             if (!plane.currentRoute) continue;
 
+            // ★就航アクティブ制: 飛行中機体の路線を就航済みに更新
+            if (!plane.currentRoute.isOperational) {
+                plane.currentRoute.isOperational = true;
+                if (this.networkManager.setRouteOperational) {
+                    this.networkManager.setRouteOperational(plane.currentAirportId, plane.currentRoute.id, plane.companyId);
+                }
+            }
+
             const curve = plane.currentRoute.curve;
             const length = plane.currentRoute.length;
             
@@ -386,6 +407,11 @@ export class PlaneManager {
                 const nextRoute = this._getRouteBySeparation(nextAirportId, plane.companyId);
                 
                 if (nextRoute) {
+                    // ★次便の就航フラグを有効化
+                    nextRoute.isOperational = true;
+                    if (this.networkManager.setRouteOperational) {
+                        this.networkManager.setRouteOperational(nextAirportId, nextRoute.id, plane.companyId);
+                    }
                     plane.currentAirportId = nextAirportId;
                     plane.currentRoute = nextRoute;
                     plane.progress = 0;
