@@ -6,6 +6,7 @@
  * 2. 撤退通知（onWithdraw）、動的rotateSpeedスケーリング、ズームボタン安全ガード、
  *    期末決算モーダル、イベント連携等は100%完全保持。
  * 3. 【追加】決算モーダルの「終了・送信」誤操作を防ぐ安全確認と、キャンセル時のフリーズ回避を実装。
+ * 4. 【追加】スターター機体の初期就航フラグ（setRouteOperational）を明示的に有効化。
  */
 
 import { CONFIG } from './Config.js';
@@ -408,8 +409,16 @@ export class GameManager {
         const cts = this.airportManager.getAirportById('CTS'); 
         const fuk = this.airportManager.getAirportById('FUK'); 
 
-        if (hnd && cts) this.networkManager.addRoute(hnd, cts);
-        if (hnd && fuk) this.networkManager.addRoute(hnd, fuk);
+        if (hnd && cts) {
+            this.networkManager.addRoute(hnd, cts);
+            // ★創業時の羽田-千歳線を両方向就航済みに設定し初期シェアを安定化
+            this.networkManager.setRouteOperational('HND', 'CTS', 'player');
+        }
+        if (hnd && fuk) {
+            this.networkManager.addRoute(hnd, fuk);
+            // ★創業時の羽田-福岡線を両方向就航済みに設定し初期シェアを安定化
+            this.networkManager.setRouteOperational('HND', 'FUK', 'player');
+        }
 
         this.planeManager.addPlane('small');
         this.planeManager.addPlane('small');

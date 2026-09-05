@@ -4,7 +4,7 @@
  * 1. トースト最小サイズを 12px (text-xs) に統一（11px廃止）。パディングを最適化し、iPhone SE等でも1行で美しく収まるよう調整。
  * 2. `transition-all` によるフォントサイズ補間（一瞬大きく出て縮む現象）を排除するため、`transition-[opacity,transform] duration-200` に限定。
  * 3. イベント結果等で呼ばれる `type === 'success'` に鮮やかなエメラルドグリーン（bg-emerald-600）を適用し、地味なグレー化を解消。
- * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: イエロー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
+ * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: 琥珀・アンバー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
  * 5. 【追加】決算モーダルからの「終了・送信」誤操作を防ぐための `showExitConfirm()` および `onExitCanceled` を実装。
  */
 
@@ -1363,10 +1363,10 @@ export class UIManager {
             const titleColor = isPlayer ? 'text-emerald-400' : 'text-slate-200';
             const shortName = isPlayer ? '自' : stat.id.replace('rival_', '').toUpperCase();
             
-            // ★案A: アジア（rival_as）をピンク、アフリカ（rival_af）をイエローに反映
+            // ★案A: アジア（rival_as）をピンク、アフリカ（rival_af）をアンバーに反映
             let rivalColorClass = 'bg-blue-500';
             if (stat.id === 'rival_as') rivalColorClass = 'bg-pink-500';
-            if (stat.id === 'rival_af') rivalColorClass = 'bg-yellow-500';
+            if (stat.id === 'rival_af') rivalColorClass = 'bg-amber-500'; // ★琥珀・アンバー
             if (stat.id === 'rival_am') rivalColorClass = 'bg-red-500';
             if (stat.id === 'rival_oc') rivalColorClass = 'bg-purple-500';
             const iconBg = isPlayer ? 'bg-emerald-600' : rivalColorClass;

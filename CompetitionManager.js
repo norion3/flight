@@ -5,7 +5,7 @@
  *    接続数（空路ネットワーク規模）の価値を大幅に高め、参入直後の即時撤退を防止。
  * 2. AIの基礎顧客満足度初期値を 70 ➔ 100 に引き上げ、創業時の老舗ライバルとしての実力を適正化。
  * 3. プレイヤー満足度の400キャップ撤廃、AI満足度年度成長式（毎年+35）、世界シェア計算等は100%完全保持。
- * 4. 【追加】就航アクティブ制に基づき、実際に飛行機が飛んだ実績のある路線（isOperational）のみを接続数としてカウント。
+ * 4. 【追加】就航アクティブ制に基づき、実際に飛行機が飛んだ実績のある路線（isOperational）、または開拓後45秒以内の路線（猶予バッファ）を接続数としてカウント。
  */
 
 import { CONFIG } from './Config.js';
@@ -41,6 +41,8 @@ export class CompetitionManager {
             companyScores[comp.id] = 0;
         });
 
+        const now = Date.now();
+
         for (const companyId in this.networkManager.network) {
             const compNetwork = this.networkManager.network[companyId];
             
@@ -54,8 +56,8 @@ export class CompetitionManager {
             }
 
             for (const airportId in compNetwork) {
-                // ★就航アクティブ制: 実際に飛行機が飛んだ実績のある路線（isOperational）のみを接続数としてカウント
-                const connections = compNetwork[airportId].filter(r => r.isOperational).length;
+                // ★就航アクティブ制 ＆ 猶予バッファ: 運航実績があるか、開拓から45秒以内の路線を接続数としてカウント
+                const connections = compNetwork[airportId].filter(r => r.isOperational || (r.createdAt && (now - r.createdAt < 45000))).length;
                 if (connections === 0) continue;
 
                 if (!this.shares[airportId]) {

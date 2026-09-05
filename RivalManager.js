@@ -4,9 +4,9 @@
  * 1. 撤退基準を 35% 未満（originShare < 0.35）とし、猶予カウンターを1サイクル（約22秒）に短縮。
  *    これにより、プレイヤーが圧倒した際のスピーディな制圧テンポと爽快感を実現。
  * 2. 路線開拓（_expandRoute）時に、既存路線とのベクトル（方角）のなす角を計算し、
- *    同じ方角（45度以内）にある空港には巨大な距離ペナルティ（+50）を与えるアルゴリズムを導入。
- *    これにより、同じ方向に重なる太い並行線を防ぎ、美しくリアルなクモの巣状（放射状）の路線網を形成。
- * 3. 機体リプレースのトランザクション化、全滅時メッシュ完全破棄、
+ *    同じ方角（45度以内、短距離・密集地域では約25度以内）にある空港に動的ペナルティを与えるアルゴリズムを導入。
+ *    これにより、欧州等の密集地域での開拓停止を防ぎつつ、放射状の美しい路線網を形成。
+ * 3. 機体リプレースのトランザクション保護（Config参照による動的売却額計算）、全滅時メッシュ完全破棄、
  *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
  * 4. 【追加】就航アクティブ制に基づき、競合他社の機体がその空港を発着して飛んでいる場合のみ撤退を判定。
  */
@@ -215,7 +215,7 @@ export class RivalManager {
                             const sold = this.planeManager.sellPlane('small', companyId);
                             if (sold) {
                                 const smallConf = CONFIG.ECONOMY.PLANES.small;
-                                const refund = smallConf ? (smallConf.cost * smallConf.sellRate) : 3500000;
+                                const refund = smallConf ? (smallConf.cost * smallConf.sellRate) : (CONFIG.ECONOMY.PLANES.small.cost * CONFIG.ECONOMY.PLANES.small.sellRate);
                                 this.economyManager.addAiFunds(companyId, refund);
                             }
                         }
@@ -350,20 +350,30 @@ export class RivalManager {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
             const posB = Utils.latLonToVector3(b.lat, b.lon, CONFIG.GLOBE_RADIUS);
             
+            const distA = posOrigin.distanceTo(posA);
+            const distB = posOrigin.distanceTo(posB);
+
             let penaltyA = 0;
             let penaltyB = 0;
 
             const dirA = posA.clone().sub(posOrigin).normalize();
             const dirB = posB.clone().sub(posOrigin).normalize();
 
-            // ★改善2: 既存の路線と同じ方向（45度以内、cos(45) ≒ 0.707）の空港にはペナルティを与え後回しにする
+            // ★密集地域向けの開拓ペナルティ減衰: 短距離・密集区画（1.2未満）では判定角度を約25度（0.90）へ引き締め、ペナルティを+15に減衰
+            const thresholdA = distA < 1.2 ? 0.90 : 0.707;
+            const penaltyValA = distA < 1.2 ? 15 : 50;
             for (const existingDir of existingDestVectors) {
-                if (dirA.dot(existingDir) > 0.707) penaltyA += 50;
-                if (dirB.dot(existingDir) > 0.707) penaltyB += 50;
+                if (dirA.dot(existingDir) > thresholdA) penaltyA += penaltyValA;
             }
 
-            const scoreA = posOrigin.distanceTo(posA) + penaltyA;
-            const scoreB = posOrigin.distanceTo(posB) + penaltyB;
+            const thresholdB = distB < 1.2 ? 0.90 : 0.707;
+            const penaltyValB = distB < 1.2 ? 15 : 50;
+            for (const existingDir of existingDestVectors) {
+                if (dirB.dot(existingDir) > thresholdB) penaltyB += penaltyValB;
+            }
+
+            const scoreA = distA + penaltyA;
+            const scoreB = distB + penaltyB;
 
             return scoreA - scoreB;
         });

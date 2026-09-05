@@ -191,8 +191,8 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <!-- トースト通知 -->
-    <div id="toast-notification" class="fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 px-5 py-2 text-sm font-bold rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-nowrap w-max">
+    <!-- トースト通知（初期クラスをUIManagerの基本設定と完全同期） -->
+    <div id="toast-notification" class="fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug text-sm px-4 py-2">
         Message
     </div>
 
@@ -538,10 +538,10 @@
                     </div>
                     <div class="w-[100px] flex flex-col gap-1.5">
                         <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="large">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$ 50M</span>
+                            <span>購入</span> <span class="font-mono text-emerald-200">$ 60M</span>
                         </button>
                         <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="large" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 25M</span>
+                            <span>売却</span> <span class="font-mono text-rose-300">$ 30M</span>
                         </button>
                     </div>
                 </div>
@@ -560,10 +560,10 @@
                     </div>
                     <div class="w-[100px] flex flex-col gap-1.5">
                         <button class="buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1" data-type="super">
-                            <span>購入</span> <span class="font-mono text-emerald-200">$100M</span>
+                            <span>購入</span> <span class="font-mono text-emerald-200">$150M</span>
                         </button>
                         <button class="sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none flex justify-center gap-1" data-type="super" disabled>
-                            <span>売却</span> <span class="font-mono text-rose-300">$ 50M</span>
+                            <span>売却</span> <span class="font-mono text-rose-300">$ 60M</span>
                         </button>
                     </div>
                 </div>

@@ -7,7 +7,7 @@
  * 3. 【堅牢なガード】引数がオブジェクトまたはID文字列のどちらで渡されてもクラッシュしない安全フォールバックを実装。
  * 4. 【リソース破棄メソッド】撤退時やリセット時にメモリリークを防ぐ `removeAllRoutesForAirport` / `clearAllRoutes` を新設。
  * 5. 機体飛行用 `{ id, curve, length, data }` 構造、ベジェ制御点計算、距離キャッシュ等は100%完全保持。
- * 6. 【追加】就航アクティブ制のための内部実績フラグ（`isOperational`）および `setRouteOperational` を実装。
+ * 6. 【追加】就航アクティブ制のための内部実績フラグ（`isOperational`）および開拓タイムスタンプ（`createdAt`）、`setRouteOperational` を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -203,11 +203,12 @@ export class NetworkManager {
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
 
-        // 飛行移動に必要な curve, length, data を格納（★isOperational: false で初期化）
-        this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData, isOperational: false });
+        // 飛行移動に必要な curve, length, data を格納（★isOperational: false, 開拓時刻 createdAt を記録）
+        const now = Date.now();
+        this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData, isOperational: false, createdAt: now });
         
         const reverseCurve = new THREE.QuadraticBezierCurve3(posB, midPoint, posA);
-        this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData, isOperational: false });
+        this.network[companyId][toData.id].push({ id: fromData.id, curve: reverseCurve, length: curveLength, data: fromData, isOperational: false, createdAt: now });
 
         if (companyId === 'player') {
             this._updateCachedTotalLength();
