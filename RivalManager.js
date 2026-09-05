@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【撤退テンポ高速化（シェア20%未満即時撤退）＆ 不死鳥リベンジ100%発動 ＆ 全機能完全保持】
- * 1. 撤退基準をシェア12%未満から「シェア20%未満」に引き上げ、長すぎる猶予カウンターを廃止して即時撤退へ変更。
- *    プレイヤーが制圧した際のテンポ・爽快感を大幅に向上。
- * 2. 全滅時の不死鳥リベンジ（_attemptRevival）における40%確率制限を撤廃し、全滅時は次のサイクルで100%確実に新拠点で復活。
- * 3. 画面実在空港（activeAirports）連動、旧機体リセット、自律リストラ・再生融資、動的機体枠（最大60機）等は100%完全保持。
+ * 【不死鳥リベンジ旧機体メッシュ完全破棄連動 ＆ 撤退テンポ高速化 ＆ 全機能完全保持】
+ * 1. 全滅時（_attemptRevival）に `planeManager.removeAllPlanes(companyId)` を安全に呼び出し、
+ *    Three.js 上の旧機体メッシュ・ジオメトリ・マテリアルを完全にメモリ解放・消去してから新拠点で小型機を再配備。
+ * 2. 撤退基準（シェア20%未満即時撤退）、100%確実な新拠点復活、実在空港連動（activeAirports）、
+ *    自律リストラ・再生融資、動的機体枠（最大60機）等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -244,8 +244,6 @@ export class RivalManager {
 
     // ★安全かつ確実な不死鳥リベンジ（別所再起）処理
     _attemptRevival(companyId) {
-        // 全滅時は確率制限を挟まず、速やかに新天地での再起を実行
-
         // 再起用シード資金の確保
         if (this.economyManager) {
             const currentFunds = this.economyManager.getAiFunds(companyId);
@@ -272,8 +270,13 @@ export class RivalManager {
         for (const candidateHub of shuffledHubs) {
             const success = this._expandRoute(companyId, candidateHub, true);
             if (success) {
-                if (this.planeManager && Array.isArray(this.planeManager.planes)) {
-                    this.planeManager.planes = this.planeManager.planes.filter(p => p.companyId !== companyId);
+                // ★修正: 旧機体の3Dメッシュ・ジオメトリ・マテリアルを完全破棄・解放
+                if (this.planeManager) {
+                    if (typeof this.planeManager.removeAllPlanes === 'function') {
+                        this.planeManager.removeAllPlanes(companyId);
+                    } else if (Array.isArray(this.planeManager.planes)) {
+                        this.planeManager.planes = this.planeManager.planes.filter(p => p.companyId !== companyId);
+                    }
                 }
 
                 this.planeManager.addPlane('small', companyId);

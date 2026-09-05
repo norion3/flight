@@ -1,9 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【AI遊休機体の売却処理の追加】
- * 1. 会社IDを指定して、航路を持たずに待機中（遊休状態）の機体を優先して売却・削除し、
- * その機体タイプを返す `sellIdlePlane(companyId)` メソッドを追加しました。
- * 2. 既存の `sellPlane` も遊休機体を優先して売却するように最適化し、完全な互換性を維持しています。
+ * 【全滅復活時の旧機体メッシュ完全破棄メソッド（removeAllPlanes）新設 ＆ ゴースト機体完全根絶 ＆ 全機能完全保持】
+ * 1. 会社IDを指定して所属全機体の3Dメッシュを scene/planeGroup から安全に remove し、
+ *    geometry および material を dispose（メモリ解放）した上で配列から完全削除する `removeAllPlanes(companyId)` を新設。
+ *    これにより、AI不死鳥リベンジ復活時に空中に旧機体が静止して残るゴーストバグを100%完全根絶。
+ * 2. 弾丸型エンジン翼形状、遊休機体優先売却（sellIdlePlane / sellPlane）、機体追従、カメラ距離別スケーリング等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -127,7 +128,29 @@ export class PlaneManager {
         return counts;
     }
 
-    // ★追加: 航路を持たない「遊休状態」の機体を特定して売却・削除するメソッド
+    /**
+     * ★新設: 指定会社の全機体3Dメッシュを完全に破棄・解放し、配列からも全削除する
+     * （AI不死鳥リベンジ復活時のゴースト機体残留・メモリリークを完全根絶）
+     */
+    removeAllPlanes(companyId) {
+        for (let i = this.planes.length - 1; i >= 0; i--) {
+            const plane = this.planes[i];
+            if (plane.companyId === companyId) {
+                this.planeGroup.remove(plane.mesh);
+                if (plane.mesh.geometry) plane.mesh.geometry.dispose();
+                if (plane.mesh.material) {
+                    if (Array.isArray(plane.mesh.material)) {
+                        plane.mesh.material.forEach(m => m.dispose());
+                    } else {
+                        plane.mesh.material.dispose();
+                    }
+                }
+                this.planes.splice(i, 1);
+            }
+        }
+    }
+
+    // 航路を持たない「遊休状態」の機体を特定して売却・削除するメソッド
     sellIdlePlane(companyId) {
         for (let i = this.planes.length - 1; i >= 0; i--) {
             const plane = this.planes[i];
