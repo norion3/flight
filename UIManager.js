@@ -611,13 +611,13 @@ export class UIManager {
             charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
         }
 
-        // ★最小サイズを12px (text-xs) に統一。パディングもスリム化して375px幅画面の端余白を確保
+        // 最小フォントサイズを 13px (text-[13px]) に設定し視認性を向上
         let sizeClasses = "text-sm px-4 py-2"; 
         if (charLen > 22) {
-            sizeClasses = "text-xs px-3 py-1.5"; 
+            sizeClasses = "text-[13px] px-3.5 py-1.5"; 
         }
 
-        // ★transition-all を排除し、透明度と位置のみのアニメーションに限定（フォントサイズの補間ブレを防止）
+        // transition-all を排除し、透明度と位置のみのアニメーションに限定（フォントサイズの補間ブレを防止）
         const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         if (type === 'error') {
@@ -627,7 +627,6 @@ export class UIManager {
             this.soundManager.playEventSound();
             this.toast.className = `${baseClasses} bg-blue-600/95 text-white shadow-blue-900/50`;
         } else if (type === 'success') {
-            // ★イベント成功・黒字通知向けに鮮やかなエメラルドグリーンを適用
             this.soundManager.playSuccessSound();
             this.toast.className = `${baseClasses} bg-emerald-600/95 text-white shadow-emerald-900/50`;
         } else {
@@ -659,7 +658,7 @@ export class UIManager {
 
         let sizeClasses = "text-sm px-4 py-2";
         if (charLen > 22) {
-            sizeClasses = "text-xs px-3 py-1.5";
+            sizeClasses = "text-[13px] px-3.5 py-1.5";
         }
 
         const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
@@ -695,7 +694,7 @@ export class UIManager {
 
         let sizeClasses = "text-sm px-4 py-2";
         if (charLen > 22) {
-            sizeClasses = "text-xs px-3 py-1.5";
+            sizeClasses = "text-[13px] px-3.5 py-1.5";
         }
 
         const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
