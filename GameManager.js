@@ -7,6 +7,7 @@
  *    期末決算モーダル、イベント連携等は100%完全保持。
  * 3. 【追加】決算モーダルの「終了・送信」誤操作を防ぐ安全確認と、キャンセル時のフリーズ回避を実装。
  * 4. 【追加】スターター機体の初期就航フラグ（setRouteOperational）を明示的に有効化。
+ * 5. 【QRセーブ・ロード簡易テスト版】SaveManagerの初期化、発行・読込ハンドラ登録、HUD即時上書きを実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -22,6 +23,7 @@ import { UpgradeManager } from './UpgradeManager.js';
 import { CompetitionManager } from './CompetitionManager.js';
 import { EventManager } from './EventManager.js';
 import { Utils } from './Utils.js';
+import { SaveManager } from './SaveManager.js';
 
 const STATE_IDLE = 0;
 const STATE_CONNECTING = 1;
@@ -46,6 +48,7 @@ export class GameManager {
         
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
+        this.saveManager = new SaveManager();
         
         this.rivalManager = new RivalManager(this.networkManager, this.planeManager, this.airportManager, this.economyManager);
         
@@ -102,6 +105,75 @@ export class GameManager {
         // ★追加: 終了確認画面でキャンセルされた場合、停止した時間を再開させる
         this.uiManager.onExitCanceled = () => {
             this.isPaused = false;
+        };
+
+        // ★QRセーブ・ロード（簡易テスト版）: セーブデータ発行ハンドラ
+        this.uiManager.onIssueSaveRequested = async () => {
+            try {
+                const testData = {
+                    v: 1,
+                    type: 'test',
+                    funds: Math.floor(this.economyManager.funds),
+                    year: this.economyManager.year,
+                    month: this.economyManager.month
+                };
+                const dataUrl = await this.saveManager.generateQR(testData);
+                this.uiManager.showSaveQR(dataUrl);
+                this.uiManager.showToast('セーブデータ(QR)を発行しました！', 'success');
+            } catch (err) {
+                console.error('[GameManager] Save Issue Error:', err);
+                this.uiManager.showToast('QRコードの発行に失敗しました', 'error');
+            }
+        };
+
+        // ★QRセーブ・ロード（簡易テスト版）: セーブデータ読込ハンドラ
+        this.uiManager.onLoadSaveRequested = async (file) => {
+            try {
+                const data = await this.saveManager.readQRFromFile(file);
+                if (data && data.funds !== undefined) {
+                    // 最小テストデータの即時反映
+                    this.economyManager.funds = data.funds;
+                    if (data.year !== undefined) this.economyManager.year = data.year;
+                    if (data.month !== undefined) this.economyManager.month = data.month;
+
+                    // HUDの即時書き換え
+                    const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
+                    const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
+                    const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.economyManager.displayIncome));
+                    const yearlyPassengersStr = this.economyManager._formatNumber(this.economyManager.yearlyPassengers);
+                    
+                    let passengersStr = '';
+                    if (this.economyManager.totalPassengers >= 1000000000) {
+                        passengersStr = (this.economyManager.totalPassengers / 1000000000).toFixed(2) + 'B';
+                    } else if (this.economyManager.totalPassengers >= 1000000) {
+                        passengersStr = (this.economyManager.totalPassengers / 1000000).toFixed(2) + 'M';
+                    } else {
+                        passengersStr = this.economyManager._formatNumber(this.economyManager.totalPassengers);
+                    }
+                    const rawWorldShare = this.competitionManager ? this.competitionManager.getWorldShare('player') : 0;
+                    const shareStr = (rawWorldShare * 100).toFixed(1);
+                    const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
+
+                    this.uiManager.updateTopHUD(
+                        calendarStr,
+                        fundsStr,
+                        playerPlanes.length,
+                        this.economyManager.maxPlanes,
+                        incomeStr,
+                        yearlyPassengersStr,
+                        passengersStr,
+                        shareStr
+                    );
+
+                    this.uiManager.hideAll();
+                    this.uiManager.showToast('セーブデータを復元しました！', 'success');
+                } else {
+                    this.uiManager.showToast('QRコードが読み取れませんでした', 'error');
+                }
+            } catch (err) {
+                console.error('[GameManager] Save Load Error:', err);
+                this.uiManager.showToast('QRコードが読み取れませんでした', 'error');
+            }
         };
 
         this.uiManager.onConnectRequested = () => {

@@ -6,6 +6,7 @@
  * 3. イベント結果等で呼ばれる `type === 'success'` に鮮やかなエメラルドグリーン（bg-emerald-600）を適用し、地味なグレー化を解消。
  * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: 琥珀・アンバー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
  * 5. 【追加】決算モーダルからの「終了・送信」誤操作を防ぐための `showExitConfirm()` および `onExitCanceled` を実装。
+ * 6. 【QRセーブ・ロード簡易テスト版】セーブ・読込ボトムシート開閉、QR画像表示、写真選択input連携を追加。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -27,6 +28,13 @@ export class UIManager {
         this.helpMenu = document.getElementById('help-menu');
         this.eventBackdrop = document.getElementById('event-modal-backdrop');
         this.settlementBackdrop = document.getElementById('settlement-modal-backdrop');
+
+        // ★QRセーブ・ロードUI要素
+        this.fabSaveLoad = document.getElementById('fab-save-load');
+        this.saveLoadMenu = document.getElementById('save-load-menu');
+        this.qrDisplayContainer = document.getElementById('qr-display-container');
+        this.saveQrImage = document.getElementById('save-qr-image');
+        this.qrFileInput = document.getElementById('qr-file-input');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
@@ -57,6 +65,10 @@ export class UIManager {
         this.onPanelOpened = null; 
         this.onExitCanceled = null; // ★追加: 終了確認キャンセル時のフリーズ回避用コールバック
 
+        // ★QRセーブ・ロード用コールバック
+        this.onIssueSaveRequested = null;
+        this.onLoadSaveRequested = null;
+
         this.currentRouteAction = null; 
         this.currentRouteCost = 50000;
         this._isRouteConfirmOpen = false;
@@ -67,6 +79,7 @@ export class UIManager {
         this._isOverviewOpen = false;
         this._isEventModalOpen = false;
         this._isSettlementModalOpen = false;
+        this._isSaveLoadOpen = false;
         
         this.currentGraphTab = 'funds';
         this._openedRivalId = null; 
@@ -132,6 +145,15 @@ export class UIManager {
         }
     }
 
+    // ★QR画像の表示メソッド
+    showSaveQR(dataUrl) {
+        if (this.saveQrImage && this.qrDisplayContainer) {
+            this.saveQrImage.src = dataUrl;
+            this.qrDisplayContainer.classList.remove('hidden');
+            this.qrDisplayContainer.classList.add('flex');
+        }
+    }
+
     _bindEvents() {
         document.getElementById('btn-connect').addEventListener('click', () => {
             this.soundManager.playTapSound();
@@ -174,6 +196,59 @@ export class UIManager {
             this._isBuyMenuOpen = false; 
             this._toggleMainButtons(true);
         });
+
+        // ★セーブ・読込FABボタンのイベント
+        if (this.fabSaveLoad) {
+            this.fabSaveLoad.addEventListener('click', () => {
+                this.soundManager.playTapSound();
+                this.hideAll();
+                if (this.saveLoadMenu) {
+                    this.saveLoadMenu.classList.add('show');
+                    this._isSaveLoadOpen = true;
+                    this._toggleMainButtons(false);
+                }
+            });
+        }
+
+        const btnCloseSaveLoad = document.getElementById('btn-close-save-load');
+        if (btnCloseSaveLoad) {
+            btnCloseSaveLoad.addEventListener('click', () => {
+                this.soundManager.playTapSound();
+                if (this.saveLoadMenu) {
+                    this.saveLoadMenu.classList.remove('show');
+                    this._isSaveLoadOpen = false;
+                    this._toggleMainButtons(true);
+                }
+            });
+        }
+
+        // ★セーブデータ発行ボタン
+        const btnIssueSave = document.getElementById('btn-issue-save-qr');
+        if (btnIssueSave) {
+            btnIssueSave.addEventListener('click', () => {
+                this.soundManager.playTapSound();
+                if (this.onIssueSaveRequested) {
+                    this.onIssueSaveRequested();
+                }
+            });
+        }
+
+        // ★セーブデータ読込ボタン（写真ファイル選択を起動）
+        const btnLoadSave = document.getElementById('btn-load-save-qr');
+        if (btnLoadSave && this.qrFileInput) {
+            btnLoadSave.addEventListener('click', () => {
+                this.soundManager.playTapSound();
+                this.qrFileInput.click();
+            });
+
+            this.qrFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file && this.onLoadSaveRequested) {
+                    this.onLoadSaveRequested(file);
+                }
+                e.target.value = ''; // 連続同一ファイル選択を可能にするためリセット
+            });
+        }
 
         const btnCloseInfo = document.getElementById('btn-close-info');
         if (btnCloseInfo) {
@@ -446,6 +521,7 @@ export class UIManager {
     _toggleMainButtons(show) {
         const scale = show ? '1' : '0';
         this.fabBuy.style.transform = `scale(${scale})`;
+        if (this.fabSaveLoad) this.fabSaveLoad.style.transform = `scale(${scale})`;
         if (this.zoomControls) this.zoomControls.style.transform = `scale(${scale})`;
         if (this.btnHelp) this.btnHelp.style.transform = `scale(${scale})`;
         if (this.btnSound) this.btnSound.style.transform = `scale(${scale})`;
@@ -852,6 +928,9 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         
+        if (this.saveLoadMenu) this.saveLoadMenu.classList.remove('show');
+        this._isSaveLoadOpen = false;
+
         if (this.controlCenter && this.controlCenter.classList.contains('show')) {
             this.controlCenter.classList.remove('show');
             setTimeout(() => {
@@ -1255,7 +1334,6 @@ export class UIManager {
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
-                    point.setAttribute('cy', lastP[1]);
                     point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
