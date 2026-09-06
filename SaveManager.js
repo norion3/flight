@@ -1,6 +1,6 @@
 /**
  * QRセーブ・ロードマネージャー（簡易テスト版）
- * LZStringによる圧縮と、QRCode/jsQRライブラリを仲介して画像との相互変換を行う
+ * LZStringによる圧縮と、QRious/jsQRライブラリを仲介して画像との相互変換を行う
  */
 
 export class SaveManager {
@@ -13,12 +13,11 @@ export class SaveManager {
      * @returns {Promise<string>} - QRコード画像のDataURL
      */
     generateQR(data) {
-        // ★修正: スマホ環境で確実動作させるため、await方式から古いブラウザでも安全なコールバック方式のPromiseラップへ変更
-        // また、CDNライブラリの読み込み失敗（undefined）を検知してエラーを返すガードを追加
+        // ★修正: iPhoneおよびGRAVITY環境に特化したQRious（cdnjs版）による同期型DataURL生成
         return new Promise((resolve, reject) => {
             try {
-                if (typeof window.QRCode === 'undefined') {
-                    return reject(new Error('QRCodeライブラリが見つかりません'));
+                if (typeof window.QRious === 'undefined') {
+                    return reject(new Error('QRiousライブラリが見つかりません'));
                 }
                 if (typeof window.LZString === 'undefined') {
                     return reject(new Error('LZStringライブラリが見つかりません'));
@@ -28,22 +27,18 @@ export class SaveManager {
                 // URLセーフな形式で極小圧縮
                 const compressed = window.LZString.compressToEncodedURIComponent(jsonStr);
                 
-                window.QRCode.toDataURL(compressed, {
-                    errorCorrectionLevel: 'M',
-                    width: 256,
-                    margin: 2,
-                    color: {
-                        dark: '#000000',
-                        light: '#ffffff'
-                    }
-                }, (err, url) => {
-                    if (err) {
-                        console.error('[SaveManager] QRCode generation error:', err);
-                        reject(err);
-                    } else {
-                        resolve(url);
-                    }
+                const qr = new window.QRious({
+                    value: compressed,
+                    size: 256,
+                    level: 'M'
                 });
+
+                const dataUrl = qr.toDataURL('image/png');
+                if (dataUrl) {
+                    resolve(dataUrl);
+                } else {
+                    reject(new Error('QR画像の生成に失敗しました'));
+                }
             } catch (err) {
                 console.error('[SaveManager] Failed to generate QR:', err);
                 reject(err);

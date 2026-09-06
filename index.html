@@ -95,9 +95,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/topojson-client@3"></script>
 
-    <!-- ★QRセーブ・ロード用外部ライブラリ（ブラウザ完結型・CDN） -->
+    <!-- ★QRセーブ・ロード用外部ライブラリ（ブラウザ完結型・cdnjs通信統一） -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
     <style>
@@ -185,6 +185,13 @@
         }
         #settlement-modal-backdrop.show #settlement-modal-card {
             transform: scale(1);
+        }
+
+        /* ★iOS長押し保存メニューの保護スタイル */
+        #save-qr-image {
+            -webkit-touch-callout: default !important;
+            -webkit-user-select: auto !important;
+            user-select: auto !important;
         }
     </style>
 </head>
