@@ -5,6 +5,7 @@
  * 2. AI極限時のセーフティネット支援メソッド `rescueAiFunds` を新設し、思考硬直を防止。
  * 3. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
  * 4. 【追加】マクロ経済を揺るがす「グローバルイベント（ワールドニュース）」の対象地域バフ・デバフを適用。
+ * 5. 【Step 4追加】AI資金・客数および直近24ヶ月グラフ推移履歴の超軽量パック（exportHistoryData/getAiEconomyData）と完全復元を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -466,5 +467,81 @@ export class EconomyManager {
 
     _formatNumber(value) {
         return Math.floor(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    /**
+     * 【Step 4追加】全社（プレイヤー＋AI4社）の直近24ヶ月履歴を超軽量配列として抽出
+     * @returns {Object} { [companyId]: Array<[monthLabel, funds, income, passengers, planes, satisfaction, share*1000]> }
+     */
+    exportHistoryData() {
+        const packed = {};
+        for (const compId in this.historyData) {
+            packed[compId] = this.historyData[compId].map(h => [
+                h.monthLabel,
+                Math.round(h.funds),
+                Math.round(h.income),
+                Math.round(h.passengers),
+                h.planes,
+                Math.round(h.satisfaction),
+                Math.round((h.share || 0) * 1000)
+            ]);
+        }
+        return packed;
+    }
+
+    /**
+     * 【Step 4追加】セーブデータから直近24ヶ月の履歴オブジェクト配列を完全復元
+     * @param {Object} packed - exportHistoryDataで出力された辞書データ
+     */
+    restoreHistoryData(packed) {
+        if (!packed) return;
+        for (const compId in packed) {
+            if (this.historyData[compId] !== undefined && Array.isArray(packed[compId])) {
+                this.historyData[compId] = packed[compId].map(item => ({
+                    monthLabel: item[0],
+                    funds: item[1],
+                    income: item[2],
+                    passengers: item[3],
+                    planes: item[4],
+                    satisfaction: item[5],
+                    share: item[6] / 1000
+                }));
+            }
+        }
+    }
+
+    /**
+     * 【Step 4追加】AI4社の資金および客数データを抽出
+     * @returns {Object} { funds, totalPassengers, yearlyPassengers }
+     */
+    getAiEconomyData() {
+        return {
+            funds: { ...this.aiFunds },
+            totalPassengers: { ...this.aiTotalPassengers },
+            yearlyPassengers: { ...this.aiYearlyPassengers }
+        };
+    }
+
+    /**
+     * 【Step 4追加】セーブデータからAI4社の資金・客数を完全復元
+     * @param {Object} data - { funds, totalPassengers, yearlyPassengers }
+     */
+    restoreAiEconomyData(data) {
+        if (!data) return;
+        if (data.funds) {
+            for (const id in data.funds) {
+                if (this.aiFunds[id] !== undefined) this.aiFunds[id] = data.funds[id];
+            }
+        }
+        if (data.totalPassengers) {
+            for (const id in data.totalPassengers) {
+                if (this.aiTotalPassengers[id] !== undefined) this.aiTotalPassengers[id] = data.totalPassengers[id];
+            }
+        }
+        if (data.yearlyPassengers) {
+            for (const id in data.yearlyPassengers) {
+                if (this.aiYearlyPassengers[id] !== undefined) this.aiYearlyPassengers[id] = data.yearlyPassengers[id];
+            }
+        }
     }
 }

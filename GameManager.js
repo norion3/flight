@@ -12,6 +12,7 @@
  * 7. 【改善】セーブ画像自体に進行度・所持金・機体数・実時刻を焼き込むメタ情報をSaveManagerへ受け渡し。
  * 8. 【Step 2追加】プレイヤーの「機体」「客数（累計・年間・最高）」「アップグレード全10項目」の完全保存・復元と各種UI連動。
  * 9. 【Step 3追加】空路ネットワークのBase62極小圧縮・保存と、3D空間への完全再構築（順序制御の徹底）を実装。
+ * 10.【Step 4追加】ライバルAI4社の経営状況（路線・機体・資金・思考状態）および直近24ヶ月グラフ推移履歴の完全保存・復元を統合。
  */
 
 import { CONFIG } from './Config.js';
@@ -111,19 +112,30 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 3 拡張版）
+        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版）
         this.uiManager.onIssueSaveRequested = async () => {
             try {
                 const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
                 const planeCounts = this.planeManager.getPlaneCounts('player');
                 const upgradeData = this.upgradeManager.getProgressData();
                 
-                // ★Step 3追加: 路線の極小文字列化（Base62圧縮）
+                // 空港データ配列（Base62圧縮インデックス用）
                 const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
                 const routesStr = this.networkManager.exportRoutes('player', airportsData);
 
+                // ★Step 4追加: ライバルAI4社のデータ（路線Base62・機体数）を抽出
+                const rivalsData = {};
+                CONFIG.COMPANIES.forEach(comp => {
+                    if (comp.id !== 'player') {
+                        rivalsData[comp.id] = {
+                            planes: this.planeManager.getPlaneCounts(comp.id),
+                            routes: this.networkManager.exportRoutes(comp.id, airportsData)
+                        };
+                    }
+                });
+
                 const saveData = {
-                    v: 3, // ★Step 3に拡張
+                    v: 4, // ★Step 4 完全版
                     type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
@@ -135,7 +147,12 @@ export class GameManager {
                     },
                     planes: planeCounts,
                     upgrades: upgradeData,
-                    routes: routesStr // ★路線データを統合
+                    routes: routesStr,
+                    // ★Step 4追加項目
+                    rivals: rivalsData,
+                    aiEconomy: this.economyManager.getAiEconomyData(),
+                    rivalState: this.rivalManager.getRivalState(),
+                    history: this.economyManager.exportHistoryData()
                 };
 
                 // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
@@ -171,7 +188,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 3 拡張版）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -188,25 +205,56 @@ export class GameManager {
                         if (data.passengers.best !== undefined) this.economyManager.bestYearlyPassengers = data.passengers.best;
                     }
 
-                    // 3. アップグレード進捗の復元（Step 2）
+                    // 3. AI資金・客数の復元（★Step 4）
+                    if (data.aiEconomy && this.economyManager.restoreAiEconomyData) {
+                        this.economyManager.restoreAiEconomyData(data.aiEconomy);
+                    }
+
+                    // 4. アップグレード進捗の復元（Step 2）
                     if (data.upgrades && this.upgradeManager.restoreProgressData) {
                         this.upgradeManager.restoreProgressData(data.upgrades);
                     }
                     const currentBonuses = this.upgradeManager.getBonuses();
                     this.economyManager.maxPlanes = currentBonuses.maxPlanes;
 
-                    // 4. 空路ネットワークの復元（★Step 3: 機体配置の前に必ず実行！）
+                    // 5. 空港データ配列の取得
+                    const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
+
+                    // 6. 全5社の空路ネットワーク復元（★順序制御: 機体配置の前に必ず全社路線を再構築！）
                     if (data.routes !== undefined && this.networkManager.restoreRoutes) {
-                        const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
                         this.networkManager.restoreRoutes(data.routes, 'player', airportsData);
                     }
+                    if (data.rivals && this.networkManager.restoreRoutes) {
+                        CONFIG.COMPANIES.forEach(comp => {
+                            if (comp.id !== 'player' && data.rivals[comp.id] && data.rivals[comp.id].routes !== undefined) {
+                                this.networkManager.restoreRoutes(data.rivals[comp.id].routes, comp.id, airportsData);
+                            }
+                        });
+                    }
 
-                    // 5. 機体の復元（Step 2）
+                    // 7. 全5社の機体再配属（★路線構築完了後に実行）
                     if (data.planes && this.planeManager.restorePlanes) {
                         this.planeManager.restorePlanes(data.planes, 'player');
                     }
+                    if (data.rivals && this.planeManager.restorePlanes) {
+                        CONFIG.COMPANIES.forEach(comp => {
+                            if (comp.id !== 'player' && data.rivals[comp.id] && data.rivals[comp.id].planes) {
+                                this.planeManager.restorePlanes(data.rivals[comp.id].planes, comp.id);
+                            }
+                        });
+                    }
 
-                    // 6. 各種UI・パネルの即時更新
+                    // 8. AI思考タイマー・撤退カウンターの同期（★Step 4）
+                    if (data.rivalState && this.rivalManager.restoreRivalState) {
+                        this.rivalManager.restoreRivalState(data.rivalState);
+                    }
+
+                    // 9. 直近24ヶ月のグラフ推移履歴の復元（★Step 4）
+                    if (data.history && this.economyManager.restoreHistoryData) {
+                        this.economyManager.restoreHistoryData(data.history);
+                    }
+
+                    // 10. 各種UI・パネル・ランキングの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
                     const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.economyManager.displayIncome));
@@ -235,11 +283,17 @@ export class GameManager {
                         shareStr
                     );
 
-                    // 機体購入パネルとアップグレードパネルを開いた時と同じように最新データで更新
+                    // パネル表示の即時同期
                     const counts = this.planeManager.getPlaneCounts('player');
                     this.uiManager.updateFleetPanel(counts);
                     if (this.uiManager.isUpgradePanelOpen && this.uiManager.isUpgradePanelOpen()) {
                         this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
+                    }
+                    if (this.uiManager.isRivalsPanelOpen && this.uiManager.isRivalsPanelOpen()) {
+                        this.updateRivalsPanelData();
+                    }
+                    if (this.uiManager.isOverviewPanelOpen && this.uiManager.isOverviewPanelOpen()) {
+                        this.updateOverviewPanelData();
                     }
 
                     this.uiManager.hideAll();

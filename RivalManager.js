@@ -11,6 +11,7 @@
  * 4. 【追加】就航アクティブ制に基づき、競合他社の機体がその空港を発着して飛んでいる場合のみ撤退を判定。
  * 5. 【改善】機体リプレース時、小型機に限定せず保有中の「最小サイズ機（desiredType未満）」を下取り売却できるよう拡張。
  * 6. 【改善】大型機・超大型機（large/super）保有時は長距離（dist >= 1.8）路線を開拓しやすくなるよう優遇重み付けを導入。
+ * 7. 【Step 4追加】AI思考タイマーおよび撤退猶予カウンターの抽出（getRivalState）と復元（restoreRivalState）を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -412,5 +413,32 @@ export class RivalManager {
         this.networkManager.addRoute(originNode, selectedDest, companyId);
         this.planeManager.wakeUpPlanes(companyId);
         return true;
+    }
+
+    /**
+     * 【Step 4追加】AI4社の思考タイマーおよび撤退猶予カウンターを抽出
+     * @returns {Object} { timers, withdrawCounters }
+     */
+    getRivalState() {
+        return {
+            timers: { ...this.timers },
+            withdrawCounters: JSON.parse(JSON.stringify(this.withdrawCounters))
+        };
+    }
+
+    /**
+     * 【Step 4追加】セーブデータからAI思考タイマー・撤退カウンターを復元
+     * @param {Object} state - { timers, withdrawCounters }
+     */
+    restoreRivalState(state) {
+        if (!state) return;
+        if (state.timers) {
+            for (const id in state.timers) {
+                if (this.timers[id] !== undefined) this.timers[id] = state.timers[id];
+            }
+        }
+        if (state.withdrawCounters) {
+            this.withdrawCounters = JSON.parse(JSON.stringify(state.withdrawCounters));
+        }
     }
 }
