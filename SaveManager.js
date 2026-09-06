@@ -59,30 +59,46 @@ export class SaveManager {
                 ctx.fillRect(0, 0, cardWidth, cardHeight);
 
                 // 2. 上部: 進行度の大見出し（例: 【 1年目 - 6月 】）
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#0f172a'; // 濃紺・ダークスレート
                 ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
                 ctx.fillText(metaInfo.yearTitle || '【 セーブデータ 】', cardWidth / 2, 42);
 
-                // 3. 中央: QRコードの描画（qr.imageではなく即時同期描画済みのqr.canvasを使用して白抜けを根絶）
+                // 3. 中央: QRコードの描画（即時同期描画済みのqr.canvasを使用して白抜けを根絶）
                 const qrX = (cardWidth - qrSize) / 2;
                 const qrY = 62;
                 ctx.drawImage(qr.canvas, qrX, qrY, qrSize, qrSize);
 
-                // 4. 下部 1行目: 当時のステータス（資金・機体数、確実に中央揃えを再適用）
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#1e293b';
-                ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.fillText(metaInfo.statusText || '', cardWidth / 2, 335);
+                // 4. 下部テキスト共通の確実な中央揃え描画関数（iOS WebKitのfont変更時アライメントリセット対策）
+                const renderCentered = (text, y, font, color) => {
+                    if (!text) return;
+                    ctx.font = font;
+                    ctx.fillStyle = color;
+                    ctx.textBaseline = 'middle';
+                    // 幅を測って算術的に確実な中央X座標を算出
+                    const metrics = ctx.measureText(text);
+                    const textWidth = metrics.width;
+                    const startX = Math.round((cardWidth - textWidth) / 2);
+                    ctx.textAlign = 'left';
+                    ctx.fillText(text, startX, y);
+                };
 
-                // 5. 下部 2行目: 発行実日時タイムスタンプ（確実に中央揃えを再適用）
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#64748b'; // 落ち着いたスレートグレー
-                ctx.font = 'normal 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.fillText(metaInfo.timeText || '', cardWidth / 2, 362);
+                // 4. 下部 1行目: 当時のステータス（資金・機体数）
+                renderCentered(
+                    metaInfo.statusText || '',
+                    335,
+                    'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    '#1e293b'
+                );
+
+                // 5. 下部 2行目: 発行実日時タイムスタンプ
+                renderCentered(
+                    metaInfo.timeText || '',
+                    362,
+                    'normal 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    '#64748b'
+                );
 
                 const finalDataUrl = canvas.toDataURL('image/png');
                 if (finalDataUrl) {
