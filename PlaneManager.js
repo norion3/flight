@@ -9,6 +9,7 @@
  * 3. 【追加】就航アクティブ制に基づき、機体がフライト・割り当てられた路線の就航フラグを有効化。
  * 4. 【追加】到着時に次便が見つからない場合の「折り返し反転（リバース）」安全フォールバックを追加。
  * 5. 【Step 2追加】セーブデータ復元用メソッド（restorePlanes）を新設。
+ * 6. 【5大対策仕様】路線未開設時も遊休機体（地上駐機モード）として planes 配列に安全保持し、全路線廃止後のセーブ＆ロード時の機体永久消滅を完全根絶。
  */
 
 import { CONFIG } from './Config.js';
@@ -238,15 +239,14 @@ export class PlaneManager {
 
     addPlane(sizeType, companyId = 'player') {
         const spawnAirportId = this.networkManager.getRandomConnectedAirport(companyId);
-        if (!spawnAirportId) return false; 
-
-        const routeData = this._getRouteBySeparation(spawnAirportId, companyId);
-        if (!routeData) return false;
+        const routeData = spawnAirportId ? this._getRouteBySeparation(spawnAirportId, companyId) : null;
 
         // ★就航アクティブ制: 機体が割り当てられた路線の就航フラグを有効化
-        routeData.isOperational = true;
-        if (this.networkManager.setRouteOperational) {
-            this.networkManager.setRouteOperational(spawnAirportId, routeData.id, companyId);
+        if (routeData) {
+            routeData.isOperational = true;
+            if (this.networkManager.setRouteOperational) {
+                this.networkManager.setRouteOperational(spawnAirportId, routeData.id, companyId);
+            }
         }
 
         let scale = 0.11;
@@ -278,14 +278,19 @@ export class PlaneManager {
         const mesh = new THREE.Mesh(this.baseGeometry, [matFront, matSide]);
         mesh.scale.set(scale, scale, scale);
         
+        // ★5大対策仕様: 路線がない場合（全路線廃止後のセーブ＆ロード時等）は遊休機体（地上駐機モード）として非表示待機
+        if (!routeData) {
+            mesh.visible = false;
+        }
+
         this.planeGroup.add(mesh);
 
         const altitudeOffset = Math.max(0, compIndex) * 0.0005;
 
         this.planes.push({
             mesh: mesh,
-            currentAirportId: spawnAirportId,
-            currentRoute: routeData,
+            currentAirportId: routeData ? spawnAirportId : null,
+            currentRoute: routeData || null,
             progress: 0,
             baseSpeed: speed,
             originalScale: scale,

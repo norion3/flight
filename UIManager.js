@@ -8,6 +8,7 @@
  * 5. 【追加】決算モーダルからの「終了・送信」誤操作を防ぐための `showExitConfirm()` および `onExitCanceled` を実装。
  * 6. 【QRセーブ・ロード簡易テスト版】セーブ・読込ボトムシート開閉、QR画像表示、写真選択input連携を追加。
  * 7. 【改善】セーブ画面を閉じた時・開いた時の古いQR自動クリア機能、および発行時刻・ゲーム情報のバッジ表示（resetSaveQRView / showSaveQR拡張）を実装。
+ * 8. 【5大対策仕様】イベント選択肢描画で、報酬（cost < 0）を「+金額（緑色）」、無料（cost === 0）を「出費なし（緑色）」として明快に描画。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -567,8 +568,16 @@ export class UIManager {
             let optionsHtml = '';
             eventData.options.forEach((opt, idx) => {
                 const cost = opt.getCost(context);
-                const costStr = cost > 0 ? `-${this._formatMoneyShort(cost)}` : '出費なし';
-                const costClass = cost > 0 ? 'text-amber-300 font-mono font-bold' : 'text-emerald-300 font-bold';
+                // ★5大対策仕様: 利益（cost < 0）は「+金額（エメラルド緑）」、無料（cost === 0）は「出費なし」、出費（cost > 0）は「-金額（アンバー色）」と描画
+                let costStr = '出費なし';
+                let costClass = 'text-emerald-300 font-bold';
+                if (cost > 0) {
+                    costStr = `-${this._formatMoneyShort(cost)}`;
+                    costClass = 'text-amber-300 font-mono font-bold';
+                } else if (cost < 0) {
+                    costStr = `+${this._formatMoneyShort(Math.abs(cost))}`;
+                    costClass = 'text-emerald-300 font-mono font-bold';
+                }
 
                 optionsHtml += `
                 <button class="event-option-btn w-full p-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-between text-left transition-all active:scale-[0.98]" data-idx="${idx}">

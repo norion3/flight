@@ -6,6 +6,7 @@
  * 3. 所持金や月収に対する割合（%）ベースの動的コスト計算、Stage 1〜6の進行条件等は100%保持しています。
  * 4. 【追加】マクロ経済を揺るがす「グローバルイベント（ワールドニュース）」を追加。
  * 5. 【改善】stage1_local_sweets の選択肢2のリザルトメッセージを適切な文脈に調整。
+ * 6. 【5大対策仕様】stage3_vip_charter の getCost を報酬額（負の値）に変更し、UI上で「+$表記（緑色）」として適正表示。
  */
 
 export const EVENT_DATA = [
@@ -142,9 +143,10 @@ export const EVENT_DATA = [
         options: [
             {
                 text: '専用機を仕立てて最高待遇で受託',
-                getCost: (ctx) => Math.max(300000, Math.round(ctx.funds * 0.05)),
+                // ★5大対策仕様: 利益が得られる選択肢のため負の数（報酬）を返し、UI上で「+$表記（緑色）」で表示
+                getCost: (ctx) => -Math.round(Math.max(300000, Math.round(ctx.funds * 0.05)) * 2.8),
                 apply: (ctx, cost) => ({
-                    fundsDelta: Math.round(cost * 2.8),
+                    fundsDelta: -cost,
                     satisfactionDelta: 15,
                     message: 'VIPチャーター便が大成功！多額のチャーター料を獲得しました！'
                 })

@@ -8,10 +8,11 @@
  *    これにより、欧州等の密集地域での開拓停止を防ぎつつ、放射状の美しい路線網を形成。
  * 3. 機体リプレースのトランザクション保護（Config参照による動的売却額計算）、全滅時メッシュ完全破棄、
  *    画面実在空港（activeAirports）連動、自律リストラ・再生融資は100%完全保持。
- * 4. 【追加】就航アクティブ制に基づき、競合他社の機体がその空港を発着して飛んでいる場合のみ撤退を判定。
+ * 4. 【5大対策仕様】就航アクティブ制に基づき、競合他社の就航路線（isOperational === true）の存在判定に移行（ミリ秒瞬間判定の運ゲー化を根絶）。
  * 5. 【改善】機体リプレース時、小型機に限定せず保有中の「最小サイズ機（desiredType未満）」を下取り売却できるよう拡張。
  * 6. 【改善】大型機・超大型機（large/super）保有時は長距離（dist >= 1.8）路線を開拓しやすくなるよう優遇重み付けを導入。
  * 7. 【Step 4追加】AI思考タイマーおよび撤退猶予カウンターの抽出（getRivalState）と復元（restoreRivalState）を実装。
+ * 8. 【5大対策仕様】方角ペナルティに上限キャップ（+30）と近距離（dist < 1.4）50%減衰を導入し、オセアニア・アフリカAIの開拓停止を解消。
  */
 
 import { CONFIG } from './Config.js';
@@ -111,14 +112,20 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // ★就航アクティブ制ガード: 競合他社（プレイヤーまたは他社AI）の機体が、現在その空港を発着して飛行中であるか判定
-                const hasCompetitorPlane = this.planeManager.planes.some(p => 
-                    p.companyId !== companyId && 
-                    (p.currentAirportId === originId || (p.currentRoute && p.currentRoute.id === originId))
-                );
+                // ★5大対策仕様: 「瞬間空を飛んでいるか」を廃止し、その空港を発着する競合他社（プレイヤーまたは他社AI）の就航路線（isOperational === true）が存在するか判定
+                let hasCompetitorRoute = false;
+                for (const otherComp of CONFIG.COMPANIES) {
+                    if (otherComp.id !== companyId && this.networkManager.network[otherComp.id]) {
+                        const routesFromAirport = this.networkManager.network[otherComp.id][originId];
+                        if (routesFromAirport && routesFromAirport.some(r => r.isOperational)) {
+                            hasCompetitorRoute = true;
+                            break;
+                        }
+                    }
+                }
 
-                // シェア35%未満かつ競合機が実際に飛んでいる場合のみ撤退カウンターを加算
-                if (originShare < 0.35 && hasCompetitorPlane) {
+                // シェア35%未満かつ競合就航路線が存在する場合のみ撤退カウンターを加算
+                if (originShare < 0.35 && hasCompetitorRoute) {
                     this.withdrawCounters[companyId][originId] = (this.withdrawCounters[companyId][originId] || 0) + 1;
 
                     // 1サイクル（約22秒）継続で撤退を実行
@@ -144,7 +151,7 @@ export class RivalManager {
                         }
                     }
                 } else {
-                    // シェアを持ち直したか、競合機が飛んでいない場合はカウンターをリセット
+                    // シェアを持ち直したか、競合就航路線が存在しない場合はカウンターをリセット
                     if (this.withdrawCounters[companyId][originId]) {
                         delete this.withdrawCounters[companyId][originId];
                     }
@@ -382,12 +389,18 @@ export class RivalManager {
             for (const existingDir of existingDestVectors) {
                 if (dirA.dot(existingDir) > thresholdA) penaltyA += penaltyValA;
             }
+            // ★5大対策仕様: 近距離（dist < 1.4）の有力候補都市に対しては方角ペナルティを50%減衰させ、累積上限キャップ(+30)を適用
+            if (distA < 1.4) penaltyA *= 0.5;
+            penaltyA = Math.min(30, penaltyA);
 
             const thresholdB = distB < 1.2 ? 0.90 : 0.707;
             const penaltyValB = distB < 1.2 ? 15 : 50;
             for (const existingDir of existingDestVectors) {
                 if (dirB.dot(existingDir) > thresholdB) penaltyB += penaltyValB;
             }
+            // ★5大対策仕様: 近距離（dist < 1.4）の有力候補都市に対しては方角ペナルティを50%減衰させ、累積上限キャップ(+30)を適用
+            if (distB < 1.4) penaltyB *= 0.5;
+            penaltyB = Math.min(30, penaltyB);
 
             // ★改善: 大型・超大型機保有時は中長距離（dist >= 1.8）の距離スコアを優遇（割り引き）
             const bonusA = (hasWidebody && distA >= 1.8) ? -1.5 : 0;
