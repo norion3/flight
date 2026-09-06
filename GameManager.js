@@ -122,7 +122,9 @@ export class GameManager {
                 this.uiManager.showToast('セーブデータ(QR)を発行しました！', 'success');
             } catch (err) {
                 console.error('[GameManager] Save Issue Error:', err);
-                this.uiManager.showToast('QRコードの発行に失敗しました', 'error');
+                // ★修正: エラーの具体的理由をトーストに表示して原因を可視化
+                const msg = err.message ? err.message : '不明なエラー';
+                this.uiManager.showToast(`発行失敗: ${msg}`, 'error');
             }
         };
 
@@ -172,7 +174,8 @@ export class GameManager {
                 }
             } catch (err) {
                 console.error('[GameManager] Save Load Error:', err);
-                this.uiManager.showToast('QRコードが読み取れませんでした', 'error');
+                const msg = err.message ? err.message : '不明なエラー';
+                this.uiManager.showToast(`読込失敗: ${msg}`, 'error');
             }
         };
 
