@@ -60,21 +60,26 @@ export class SaveManager {
 
                 // 2. 上部: 進行度の大見出し（例: 【 1年目 - 6月 】）
                 ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#0f172a'; // 濃紺・ダークスレート
                 ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.fillText(metaInfo.yearTitle || '【 セーブデータ 】', cardWidth / 2, 42);
 
-                // 3. 中央: QRコードの描画（240x240、余白を十分確保）
+                // 3. 中央: QRコードの描画（qr.imageではなく即時同期描画済みのqr.canvasを使用して白抜けを根絶）
                 const qrX = (cardWidth - qrSize) / 2;
                 const qrY = 62;
-                ctx.drawImage(qr.image, qrX, qrY, qrSize, qrSize);
+                ctx.drawImage(qr.canvas, qrX, qrY, qrSize, qrSize);
 
-                // 4. 下部 1行目: 当時のステータス（資金・機体数）
+                // 4. 下部 1行目: 当時のステータス（資金・機体数、確実に中央揃えを再適用）
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#1e293b';
                 ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.fillText(metaInfo.statusText || '', cardWidth / 2, 335);
 
-                // 5. 下部 2行目: 発行実日時タイムスタンプ
+                // 5. 下部 2行目: 発行実日時タイムスタンプ（確実に中央揃えを再適用）
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#64748b'; // 落ち着いたスレートグレー
                 ctx.font = 'normal 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.fillText(metaInfo.timeText || '', cardWidth / 2, 362);
