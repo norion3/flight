@@ -10,6 +10,7 @@
  * 4. 【追加】到着時に次便が見つからない場合の「折り返し反転（リバース）」安全フォールバックを追加。
  * 5. 【Step 2追加】セーブデータ復元用メソッド（restorePlanes）を新設。
  * 6. 【5大対策仕様】路線未開設時も遊休機体（地上駐機モード）として planes 配列に安全保持し、全路線廃止後のセーブ＆ロード時の機体永久消滅を完全根絶。
+ * 7. 【視覚的追従演出】プレイヤーの速度向上に応じ、AI機体の飛行アニメーション速度も約55%の比率で自然に追従加速。
  */
 
 import { CONFIG } from './Config.js';
@@ -405,6 +406,9 @@ export class PlaneManager {
     }
 
     update(delta, speedMultiplier = 1.0) {
+        // ★視覚的追従演出: プレイヤーの速度向上に応じ、AI機体も約55%の比率で自然に追従加速
+        const aiSpeedMultiplier = 1.0 + (speedMultiplier - 1.0) * 0.55;
+
         for (let i = 0; i < this.planes.length; i++) {
             const plane = this.planes[i];
             
@@ -421,7 +425,9 @@ export class PlaneManager {
             const curve = plane.currentRoute.curve;
             const length = plane.currentRoute.length;
             
-            const currentSpeed = plane.companyId === 'player' ? plane.baseSpeed * speedMultiplier : plane.baseSpeed;
+            // ★修正: 自社機体は speedMultiplier、AI機体は aiSpeedMultiplier を適用
+            const effectiveMultiplier = plane.companyId === 'player' ? speedMultiplier : aiSpeedMultiplier;
+            const currentSpeed = plane.baseSpeed * effectiveMultiplier;
             
             const speedFactor = currentSpeed / length;
             plane.progress += speedFactor * delta;
