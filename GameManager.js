@@ -13,6 +13,7 @@
  * 8. 【Step 2追加】プレイヤーの「機体」「客数（累計・年間・最高）」「アップグレード全10項目」の完全保存・復元と各種UI連動。
  * 9. 【Step 3追加】空路ネットワークのBase62極小圧縮・保存と、3D空間への完全再構築（順序制御の徹底）を実装。
  * 10.【Step 4追加】ライバルAI4社の経営状況（路線・機体・資金・思考状態）および直近24ヶ月グラフ推移履歴の完全保存・復元を統合。
+ * 11.【直近6ヶ月限定軽量化】セーブデータバージョンを v: 5 に更新。
  */
 
 import { CONFIG } from './Config.js';
@@ -135,7 +136,7 @@ export class GameManager {
                 });
 
                 const saveData = {
-                    v: 4, // ★Step 4 完全版
+                    v: 5, // ★直近6ヶ月限定軽量版 (v: 5)
                     type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
@@ -257,7 +258,7 @@ export class GameManager {
                     // 10. 各種UI・パネル・ランキングの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
-                    const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.economyManager.displayIncome));
+                    const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.displayIncome));
                     const yearlyPassengersStr = this.economyManager._formatNumber(this.economyManager.yearlyPassengers);
                     
                     let passengersStr = '';

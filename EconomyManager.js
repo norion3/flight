@@ -6,6 +6,7 @@
  * 3. `addFunds` の下限ガード（funds < 0 ➔ 0）、決算通知（onAnnualSettlement）、月次実機体数記録等は100%完全保持しています。
  * 4. 【追加】マクロ経済を揺るがす「グローバルイベント（ワールドニュース）」の対象地域バフ・デバフを適用。
  * 5. 【Step 4追加】AI資金・客数および直近24ヶ月グラフ推移履歴の超軽量パック（exportHistoryData/getAiEconomyData）と完全復元を実装。
+ * 6. 【直近6ヶ月限定軽量化】セーブデータ容量の肥大化・QRクラッシュを恒久的に防ぐため、履歴抽出を直近最大6件（.slice(-6)）に限定。
  */
 
 import { CONFIG } from './Config.js';
@@ -470,13 +471,13 @@ export class EconomyManager {
     }
 
     /**
-     * 【Step 4追加】全社（プレイヤー＋AI4社）の直近24ヶ月履歴を超軽量配列として抽出
+     * 【Step 4追加 ➔ 直近6ヶ月限定軽量化】全社（プレイヤー＋AI4社）の直近6ヶ月履歴を超軽量配列として抽出
      * @returns {Object} { [companyId]: Array<[monthLabel, funds, income, passengers, planes, satisfaction, share*1000]> }
      */
     exportHistoryData() {
         const packed = {};
         for (const compId in this.historyData) {
-            packed[compId] = this.historyData[compId].map(h => [
+            packed[compId] = this.historyData[compId].slice(-6).map(h => [
                 h.monthLabel,
                 Math.round(h.funds),
                 Math.round(h.income),
