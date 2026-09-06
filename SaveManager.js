@@ -8,11 +8,12 @@ export class SaveManager {
     }
 
     /**
-     * データオブジェクトを圧縮し、QRコードのDataURL（画像URL）を生成
+     * データオブジェクトを圧縮し、進行度・ステータス情報を焼き込んだQRコードカード画像のDataURLを生成
      * @param {Object} data - 保存対象データ
-     * @returns {Promise<string>} - QRコード画像のDataURL
+     * @param {Object} [metaInfo] - 画像内に印字するメタ情報 { yearTitle, statusText, timeText }
+     * @returns {Promise<string>} - 合成されたカード画像のDataURL
      */
-    generateQR(data) {
+    generateQR(data, metaInfo = null) {
         // ★修正: iPhoneおよびGRAVITY環境に特化したQRious（cdnjs版）による同期型DataURL生成
         return new Promise((resolve, reject) => {
             try {
@@ -27,15 +28,60 @@ export class SaveManager {
                 // URLセーフな形式で極小圧縮
                 const compressed = window.LZString.compressToEncodedURIComponent(jsonStr);
                 
+                const qrSize = 240;
                 const qr = new window.QRious({
                     value: compressed,
-                    size: 256,
+                    size: qrSize,
                     level: 'M'
                 });
 
-                const dataUrl = qr.toDataURL('image/png');
-                if (dataUrl) {
-                    resolve(dataUrl);
+                // メタ情報がない場合は純粋なQR画像を出力
+                if (!metaInfo) {
+                    const dataUrl = qr.toDataURL('image/png');
+                    if (dataUrl) {
+                        return resolve(dataUrl);
+                    } else {
+                        return reject(new Error('QR画像の生成に失敗しました'));
+                    }
+                }
+
+                // ★提案仕様: ロゴを排除し、進行度・資金・機体数・発行日時を焼き込んだ白地カード画像を合成
+                const cardWidth = 320;
+                const cardHeight = 400;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = cardWidth;
+                canvas.height = cardHeight;
+                const ctx = canvas.getContext('2d');
+
+                // 1. 背景（純白）
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, cardWidth, cardHeight);
+
+                // 2. 上部: 進行度の大見出し（例: 【 1年目 - 6月 】）
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#0f172a'; // 濃紺・ダークスレート
+                ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(metaInfo.yearTitle || '【 セーブデータ 】', cardWidth / 2, 42);
+
+                // 3. 中央: QRコードの描画（240x240、余白を十分確保）
+                const qrX = (cardWidth - qrSize) / 2;
+                const qrY = 62;
+                ctx.drawImage(qr.image, qrX, qrY, qrSize, qrSize);
+
+                // 4. 下部 1行目: 当時のステータス（資金・機体数）
+                ctx.fillStyle = '#1e293b';
+                ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(metaInfo.statusText || '', cardWidth / 2, 335);
+
+                // 5. 下部 2行目: 発行実日時タイムスタンプ
+                ctx.fillStyle = '#64748b'; // 落ち着いたスレートグレー
+                ctx.font = 'normal 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText(metaInfo.timeText || '', cardWidth / 2, 362);
+
+                const finalDataUrl = canvas.toDataURL('image/png');
+                if (finalDataUrl) {
+                    resolve(finalDataUrl);
                 } else {
                     reject(new Error('QR画像の生成に失敗しました'));
                 }

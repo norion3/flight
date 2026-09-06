@@ -9,6 +9,7 @@
  * 4. 【追加】スターター機体の初期就航フラグ（setRouteOperational）を明示的に有効化。
  * 5. 【QRセーブ・ロード簡易テスト版】SaveManagerの初期化、発行・読込ハンドラ登録、HUD即時上書きを実装。
  * 6. 【改善】セーブデータ発行時に実時間タイムスタンプ（HH:mm:ss）およびゲーム内年月をUIManagerに渡してバッジ表示。
+ * 7. 【改善】セーブ画像自体に進行度・所持金・機体数・実時刻を焼き込むメタ情報をSaveManagerへ受け渡し。
  */
 
 import { CONFIG } from './Config.js';
@@ -118,15 +119,31 @@ export class GameManager {
                     year: this.economyManager.year,
                     month: this.economyManager.month
                 };
-                const dataUrl = await this.saveManager.generateQR(testData);
 
-                // 発行実時刻（HH:mm:ss）とゲーム進行度（X年目-Y月）
+                // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
                 const d = new Date();
+                const yyyy = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const da = String(d.getDate()).padStart(2, '0');
                 const hh = String(d.getHours()).padStart(2, '0');
                 const mm = String(d.getMinutes()).padStart(2, '0');
                 const ss = String(d.getSeconds()).padStart(2, '0');
                 const timeStr = `${hh}:${mm}:${ss}`;
+                const fullTimeStr = `${yyyy}/${mo}/${da} ${hh}:${mm}:${ss}`;
                 const gameInfoStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
+
+                // 保有機体数と資金短縮表示
+                const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
+                const fundsDisplay = this.uiManager._formatMoneyShort(this.economyManager.funds);
+
+                // 画像合成用メタ情報
+                const metaInfo = {
+                    yearTitle: `【 ${gameInfoStr} 】`,
+                    statusText: `💰 資金: ${fundsDisplay}   ✈️ 機体: ${playerPlanes.length}機`,
+                    timeText: `🕒 発行: ${fullTimeStr}`
+                };
+
+                const dataUrl = await this.saveManager.generateQR(testData, metaInfo);
 
                 this.uiManager.showSaveQR(dataUrl, timeStr, gameInfoStr);
                 this.uiManager.showToast('セーブデータ(QR)を発行しました！', 'success');
