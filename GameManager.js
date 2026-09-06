@@ -10,6 +10,7 @@
  * 5. 【QRセーブ・ロード簡易テスト版】SaveManagerの初期化、発行・読込ハンドラ登録、HUD即時上書きを実装。
  * 6. 【改善】セーブデータ発行時に実時間タイムスタンプ（HH:mm:ss）およびゲーム内年月をUIManagerに渡してバッジ表示。
  * 7. 【改善】セーブ画像自体に進行度・所持金・機体数・実時刻を焼き込むメタ情報をSaveManagerへ受け渡し。
+ * 8. 【Step 2追加】プレイヤーの「機体」「客数（累計・年間・最高）」「アップグレード全10項目」の完全保存・復元と各種UI連動。
  */
 
 import { CONFIG } from './Config.js';
@@ -109,15 +110,26 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★QRセーブ・ロード（簡易テスト版）: セーブデータ発行ハンドラ
+        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 2 拡張版）
         this.uiManager.onIssueSaveRequested = async () => {
             try {
-                const testData = {
-                    v: 1,
-                    type: 'test',
+                const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
+                const planeCounts = this.planeManager.getPlaneCounts('player');
+                const upgradeData = this.upgradeManager.getProgressData();
+
+                const saveData = {
+                    v: 2,
+                    type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
-                    month: this.economyManager.month
+                    month: this.economyManager.month,
+                    passengers: {
+                        total: Math.floor(this.economyManager.totalPassengers || 0),
+                        yearly: Math.floor(this.economyManager.yearlyPassengers || 0),
+                        best: Math.floor(this.economyManager.bestYearlyPassengers || 0)
+                    },
+                    planes: planeCounts,
+                    upgrades: upgradeData
                 };
 
                 // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
@@ -133,7 +145,6 @@ export class GameManager {
                 const gameInfoStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
 
                 // 保有機体数と資金短縮表示
-                const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
                 const fundsDisplay = this.uiManager._formatMoneyShort(this.economyManager.funds);
 
                 // 画像合成用メタ情報
@@ -143,7 +154,7 @@ export class GameManager {
                     timeText: `🕒 発行: ${fullTimeStr}`
                 };
 
-                const dataUrl = await this.saveManager.generateQR(testData, metaInfo);
+                const dataUrl = await this.saveManager.generateQR(saveData, metaInfo);
 
                 this.uiManager.showSaveQR(dataUrl, timeStr, gameInfoStr);
                 this.uiManager.showToast('セーブデータ(QR)を発行しました！', 'success');
@@ -154,17 +165,36 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード（簡易テスト版）: セーブデータ読込ハンドラ
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 2 拡張版）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
                 if (data && data.funds !== undefined) {
-                    // 最小テストデータの即時反映
+                    // 1. 資金・年月の復元
                     this.economyManager.funds = data.funds;
                     if (data.year !== undefined) this.economyManager.year = data.year;
                     if (data.month !== undefined) this.economyManager.month = data.month;
 
-                    // HUDの即時書き換え
+                    // 2. 客数データの復元（Step 2）
+                    if (data.passengers) {
+                        if (data.passengers.total !== undefined) this.economyManager.totalPassengers = data.passengers.total;
+                        if (data.passengers.yearly !== undefined) this.economyManager.yearlyPassengers = data.passengers.yearly;
+                        if (data.passengers.best !== undefined) this.economyManager.bestYearlyPassengers = data.passengers.best;
+                    }
+
+                    // 3. アップグレード進捗の復元（Step 2）
+                    if (data.upgrades && this.upgradeManager.restoreProgressData) {
+                        this.upgradeManager.restoreProgressData(data.upgrades);
+                    }
+                    const currentBonuses = this.upgradeManager.getBonuses();
+                    this.economyManager.maxPlanes = currentBonuses.maxPlanes;
+
+                    // 4. 機体の復元（Step 2）
+                    if (data.planes && this.planeManager.restorePlanes) {
+                        this.planeManager.restorePlanes(data.planes, 'player');
+                    }
+
+                    // 5. 各種UI・パネルの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
                     const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.economyManager.displayIncome));
@@ -192,6 +222,13 @@ export class GameManager {
                         passengersStr,
                         shareStr
                     );
+
+                    // 機体購入パネルとアップグレードパネルを開いた時と同じように最新データで更新
+                    const counts = this.planeManager.getPlaneCounts('player');
+                    this.uiManager.updateFleetPanel(counts);
+                    if (this.uiManager.isUpgradePanelOpen && this.uiManager.isUpgradePanelOpen()) {
+                        this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
+                    }
 
                     this.uiManager.hideAll();
                     this.uiManager.showToast('セーブデータを復元しました！', 'success');

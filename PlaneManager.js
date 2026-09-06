@@ -8,6 +8,7 @@
  *    弾丸型エンジン翼形状、遊休機体優先売却、機体追従、カメラ距離別スケーリング等は100%完全保持。
  * 3. 【追加】就航アクティブ制に基づき、機体がフライト・割り当てられた路線の就航フラグを有効化。
  * 4. 【追加】到着時に次便が見つからない場合の「折り返し反転（リバース）」安全フォールバックを追加。
+ * 5. 【Step 2追加】セーブデータ復元用メソッド（restorePlanes）を新設。
  */
 
 import { CONFIG } from './Config.js';
@@ -151,6 +152,23 @@ export class PlaneManager {
                 this.planes.splice(i, 1);
             }
         }
+    }
+
+    /**
+     * 【Step 2追加】指定会社の既存機体を全削除し、指定された機体数通りに再生成・配属する
+     * @param {Object} counts - { small, medium, large, super }
+     * @param {string} companyId - 対象会社ID（デフォルト 'player'）
+     */
+    restorePlanes(counts, companyId = 'player') {
+        this.removeAllPlanes(companyId);
+        if (!counts) return;
+
+        ['small', 'medium', 'large', 'super'].forEach(sizeType => {
+            const count = counts[sizeType] || 0;
+            for (let i = 0; i < count; i++) {
+                this.addPlane(sizeType, companyId);
+            }
+        });
     }
 
     // 航路を持たない「遊休状態」の機体を特定して売却・削除するメソッド

@@ -3,6 +3,7 @@
  * 【創業時の基礎顧客満足度（初期値: 100）＆ レベルアップ判定完全保持】
  * 1. 創業時の標準サービス水準として `satisfaction` の基本初期値 100 を維持。
  * 2. 5回目の投資による昇格レベルアップ判定（p.step >= 5）およびその他のアップグレード計算は100%完全保持しています。
+ * 3. 【Step 2追加】全10項目のアップグレード進捗と満足度ボーナスのエクスポート（getProgressData）および復元（restoreProgressData）を実装。
  */
 
 import { UPGRADE_DATA } from './Data_Upgrades.js';
@@ -92,5 +93,37 @@ export class UpgradeManager {
         }
 
         return bonuses;
+    }
+
+    /**
+     * 【Step 2追加】全アップグレード進捗データを抽出
+     * @returns {Object} { progress, eventSatisfactionBonus }
+     */
+    getProgressData() {
+        return {
+            progress: JSON.parse(JSON.stringify(this.progress)),
+            eventSatisfactionBonus: this.eventSatisfactionBonus
+        };
+    }
+
+    /**
+     * 【Step 2追加】セーブデータから全アップグレード進捗を上書き復元
+     * @param {Object} data - { progress, eventSatisfactionBonus }
+     */
+    restoreProgressData(data) {
+        if (!data) return;
+        if (data.progress) {
+            for (const key in UPGRADE_DATA) {
+                if (data.progress[key]) {
+                    this.progress[key] = {
+                        level: data.progress[key].level !== undefined ? data.progress[key].level : 0,
+                        step: data.progress[key].step !== undefined ? data.progress[key].step : 0
+                    };
+                }
+            }
+        }
+        if (data.eventSatisfactionBonus !== undefined) {
+            this.eventSatisfactionBonus = data.eventSatisfactionBonus;
+        }
     }
 }

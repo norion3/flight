@@ -1,6 +1,6 @@
 /**
- * QRセーブ・ロードマネージャー（簡易テスト版）
- * LZStringによる圧縮と、QRious/jsQRライブラリを仲介して画像との相互変換を行う
+ * QRセーブ・ロードマネージャー（簡易テスト版 ➔ Step 2 拡張版）
+ * LZStringによる極小圧縮と、QRious/jsQRライブラリを仲介して画像との相互変換を行う
  */
 
 export class SaveManager {
