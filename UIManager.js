@@ -9,6 +9,7 @@
  * 6. 【QRセーブ・ロード簡易テスト版】セーブ・読込ボトムシート開閉、QR画像表示、写真選択input連携を追加。
  * 7. 【改善】セーブ画面を閉じた時・開いた時の古いQR自動クリア機能、および発行時刻・ゲーム情報のバッジ表示（resetSaveQRView / showSaveQR拡張）を実装。
  * 8. 【5大対策仕様】イベント選択肢描画で、報酬（cost < 0）を「+金額（緑色）」、無料（cost === 0）を「出費なし（緑色）」として明快に描画。
+ * 9. 【方針B：エレクトリック・サファイア完全一致】ライバル情報パネルの丸バッジ色を CONFIG の routeColor と動的連動。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -1477,13 +1478,11 @@ export class UIManager {
             const titleColor = isPlayer ? 'text-emerald-400' : 'text-slate-200';
             const shortName = isPlayer ? '自' : stat.id.replace('rival_', '').toUpperCase();
             
-            // ★案A: アジア（rival_as）をピンク、アフリカ（rival_af）をアンバーに反映
-            let rivalColorClass = 'bg-blue-500';
-            if (stat.id === 'rival_as') rivalColorClass = 'bg-pink-500';
-            if (stat.id === 'rival_af') rivalColorClass = 'bg-amber-500'; // ★琥珀・アンバー
-            if (stat.id === 'rival_am') rivalColorClass = 'bg-red-500';
-            if (stat.id === 'rival_oc') rivalColorClass = 'bg-purple-500';
-            const iconBg = isPlayer ? 'bg-emerald-600' : rivalColorClass;
+            // ★方針B: ライバルのアイコン背景色を CONFIG.COMPANIES の routeColor と動的連動し100%完全一致
+            const comp = CONFIG.COMPANIES.find(c => c.id === stat.id);
+            const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#2b7fff';
+            const iconBg = isPlayer ? 'bg-emerald-600' : '';
+            const iconStyle = isPlayer ? '' : `style="background-color: ${hexColor};"`;
 
             const isOpen = (this._openedRivalId === stat.id);
             const contentClass = isOpen ? '' : 'hidden';
@@ -1498,7 +1497,7 @@ export class UIManager {
                 <button class="rival-accordion-btn w-full flex items-center justify-between p-3 active:bg-slate-700/50 transition-colors">
                     <div class="flex items-center gap-2">
                         <div class="w-6 text-center text-sm flex items-center justify-center">${rankIcon}</div>
-                        <div class="w-7 h-7 rounded-full ${iconBg} flex items-center justify-center font-bold text-white text-[10px] shadow">${shortName}</div>
+                        <div class="w-7 h-7 rounded-full ${iconBg} flex items-center justify-center font-bold text-white text-[10px] shadow" ${iconStyle}>${shortName}</div>
                         <div class="text-left ml-1">
                             <div class="text-sm font-bold ${titleColor} leading-tight">${stat.name} ${isPlayer ? '★' : ''}</div>
                             <div class="text-[10px] text-slate-400 mt-0.5">業界シェア <span class="font-mono text-slate-300">${shareStr}</span> / 資産 <span class="font-mono text-slate-300">${assetStr}</span></div>

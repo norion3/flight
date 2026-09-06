@@ -1,9 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【案A: 補色コントラスト最強スワップ（アフリカ ⇄ アジア）適用 ＆ 全機能完全保持】
- * 1. 南半球（インド洋〜東南アジア）での視認性向上・補色化のため、
+ * 【欧州カラー：エレクトリック・サファイア適用 ＆ 案Aカラースワップ ＆ 全機能完全保持】
+ * 1. 欧州ライバル（Euro Wings）の航路色・機体色を「エレクトリック・サファイア（0x2b7fff）」へ改修。
+ *    暗黒海面（0x0f172a）における知覚輝度を約1.76倍に向上させ、大西洋・地中海での視認性を劇的に改善。
+ * 2. 南半球（インド洋〜東南アジア）での視認性向上・補色化のため、
  *    Asia Orient（rival_as）をピンク（0xff1493）、Africa Star（rival_af）を琥珀・アンバー（0xf59e0b）に設定。
- * 2. プレイヤー初期資金100M（100,000,000）、AI初期資金30M、機体パラメータ、距離別コスト設定等は100%完全保持。
+ * 3. プレイヤー初期資金100M（100,000,000）、AI初期資金30M、機体パラメータ、距離別コスト設定等は100%完全保持。
  */
 
 export const CONFIG = {
@@ -17,7 +19,7 @@ export const CONFIG = {
     
     COMPANIES: [
         { id: 'player', name: 'Player Airlines', routeColor: 0x34d399, planeColor: 0x34d399 }, 
-        { id: 'rival_eu', name: 'Euro Wings',    routeColor: 0x0044ff, planeColor: 0x0044ff }, 
+        { id: 'rival_eu', name: 'Euro Wings',    routeColor: 0x2b7fff, planeColor: 0x2b7fff }, // ★エレクトリック・サファイア（暗海視認性最適化）
         { id: 'rival_as', name: 'Asia Orient',   routeColor: 0xff1493, planeColor: 0xff1493 }, // ★案A: ピンク
         { id: 'rival_af', name: 'Africa Star',   routeColor: 0xf59e0b, planeColor: 0xf59e0b }, // ★琥珀・アンバー色に調整（主要空港リングとの干渉防止）
         { id: 'rival_am', name: 'Americas Air',  routeColor: 0xff0000, planeColor: 0xff0000 }, 
