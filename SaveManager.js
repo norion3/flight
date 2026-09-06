@@ -1,5 +1,5 @@
 /**
- * QRセーブ・ロードマネージャー（簡易テスト版 ➔ Step 4 完全版 ➔ 高精細シンプル化版）
+ * QRセーブ・ロードマネージャー（簡易テスト版 ➔ Step 4 完全版 ➔ 高精細シンプル化版 ➔ v6 エラーガード強化版）
  * LZStringによる極小圧縮と、QRious/jsQRライブラリを仲介して画像との相互変換を行う
  */
 
@@ -121,8 +121,9 @@ export class SaveManager {
                         }
 
                         let decompressed = window.LZString.decompressFromEncodedURIComponent(code.data);
+                        // ★エラーガード強化: 解凍に失敗した場合は圧縮文字列をそのまま渡さず、明確に拒否して横長赤帯エラーを防止
                         if (!decompressed) {
-                            decompressed = code.data;
+                            return reject(new Error('セーブデータの解凍に失敗しました（QRコードが不鮮明です）'));
                         }
                         const parsedData = JSON.parse(decompressed);
                         resolve(parsedData);

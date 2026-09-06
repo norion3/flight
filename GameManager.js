@@ -12,8 +12,9 @@
  * 7. 【改善】セーブ画像自体に進行度・所持金・機体数・実時刻を焼き込むメタ情報をSaveManagerへ受け渡し。
  * 8. 【Step 2追加】プレイヤーの「機体」「客数（累計・年間・最高）」「アップグレード全10項目」の完全保存・復元と各種UI連動。
  * 9. 【Step 3追加】空路ネットワークのBase62極小圧縮・保存と、3D空間への完全再構築（順序制御の徹底）を実装。
- * 10.【Step 4追加】ライバルAI4社の経営状況（路線・機体・資金・思考状態）および直近24ヶ月グラフ推移履歴の完全保存・復元を統合。
+ * 10.【Step 4追加】ライバルAI4社の経営状況（路線・機体・資金）の完全保存・復元を統合。
  * 11.【直近6ヶ月限定軽量化】セーブデータバージョンを v: 5 に更新。
+ * 12.【QR極限軽量化仕様】セーブデータから `rivalState`（AIタイマー・撤退カウンター）と `history`（推移履歴）を完全除外（v: 6 に更新）。
  */
 
 import { CONFIG } from './Config.js';
@@ -113,7 +114,7 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版）
+        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版）
         this.uiManager.onIssueSaveRequested = async () => {
             try {
                 const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
@@ -135,8 +136,9 @@ export class GameManager {
                     }
                 });
 
+                // ★QR極限軽量化仕様: rivalState（タイマー・カウンター）と history（推移ログ）を完全除外
                 const saveData = {
-                    v: 5, // ★直近6ヶ月限定軽量版 (v: 5)
+                    v: 6, // ★極限軽量版 (v: 6)
                     type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
@@ -149,11 +151,8 @@ export class GameManager {
                     planes: planeCounts,
                     upgrades: upgradeData,
                     routes: routesStr,
-                    // ★Step 4追加項目
                     rivals: rivalsData,
-                    aiEconomy: this.economyManager.getAiEconomyData(),
-                    rivalState: this.rivalManager.getRivalState(),
-                    history: this.economyManager.exportHistoryData()
+                    aiEconomy: this.economyManager.getAiEconomyData()
                 };
 
                 // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
@@ -189,7 +188,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版 ➔ v6 極限軽量版）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -245,17 +244,9 @@ export class GameManager {
                         });
                     }
 
-                    // 8. AI思考タイマー・撤退カウンターの同期（★Step 4）
-                    if (data.rivalState && this.rivalManager.restoreRivalState) {
-                        this.rivalManager.restoreRivalState(data.rivalState);
-                    }
+                    // ★QR極限軽量化仕様: AIタイマー/撤退カウンターおよび過去推移履歴は復元せず、読込時点から通常動作・蓄積を開始
 
-                    // 9. 直近24ヶ月のグラフ推移履歴の復元（★Step 4）
-                    if (data.history && this.economyManager.restoreHistoryData) {
-                        this.economyManager.restoreHistoryData(data.history);
-                    }
-
-                    // 10. 各種UI・パネル・ランキングの即時更新
+                    // 8. 各種UI・パネル・ランキングの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
                     const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.displayIncome));
