@@ -8,6 +8,7 @@
  * 3. 【追加】決算モーダルの「終了・送信」誤操作を防ぐ安全確認と、キャンセル時のフリーズ回避を実装。
  * 4. 【追加】スターター機体の初期就航フラグ（setRouteOperational）を明示的に有効化。
  * 5. 【QRセーブ・ロード簡易テスト版】SaveManagerの初期化、発行・読込ハンドラ登録、HUD即時上書きを実装。
+ * 6. 【改善】セーブデータ発行時に実時間タイムスタンプ（HH:mm:ss）およびゲーム内年月をUIManagerに渡してバッジ表示。
  */
 
 import { CONFIG } from './Config.js';
@@ -118,11 +119,19 @@ export class GameManager {
                     month: this.economyManager.month
                 };
                 const dataUrl = await this.saveManager.generateQR(testData);
-                this.uiManager.showSaveQR(dataUrl);
+
+                // 発行実時刻（HH:mm:ss）とゲーム進行度（X年目-Y月）
+                const d = new Date();
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                const ss = String(d.getSeconds()).padStart(2, '0');
+                const timeStr = `${hh}:${mm}:${ss}`;
+                const gameInfoStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
+
+                this.uiManager.showSaveQR(dataUrl, timeStr, gameInfoStr);
                 this.uiManager.showToast('セーブデータ(QR)を発行しました！', 'success');
             } catch (err) {
                 console.error('[GameManager] Save Issue Error:', err);
-                // ★修正: エラーの具体的理由をトーストに表示して原因を可視化
                 const msg = err.message ? err.message : '不明なエラー';
                 this.uiManager.showToast(`発行失敗: ${msg}`, 'error');
             }

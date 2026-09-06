@@ -514,11 +514,18 @@
                     <span>セーブデータ発行 (QR)</span>
                 </button>
 
-                <!-- QR表示領域（発行後に表示） -->
+                <!-- ★QR表示領域（発行後に表示・発行情報バッジ付き） -->
                 <div id="qr-display-container" class="hidden flex-col items-center bg-slate-800/90 rounded-xl p-3 border border-cyan-500/30">
                     <p class="text-[11px] font-bold text-cyan-300 mb-2">画像を長押しして保存してください</p>
                     <div class="bg-white p-2 rounded-lg shadow-inner">
                         <img id="save-qr-image" src="" alt="Save QR" class="w-44 h-44 block" />
+                    </div>
+                    <!-- ★新設: 発行日時＆データ内容バッジ -->
+                    <div class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/70 text-[10px] shadow-sm">
+                        <span class="text-slate-400">発行:</span>
+                        <span id="qr-timestamp" class="font-mono text-cyan-300 font-bold">--:--:--</span>
+                        <span class="text-slate-600">|</span>
+                        <span id="qr-game-info" class="font-mono text-amber-300 font-bold">-年目--月</span>
                     </div>
                 </div>
 

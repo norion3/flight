@@ -7,6 +7,7 @@
  * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: 琥珀・アンバー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
  * 5. 【追加】決算モーダルからの「終了・送信」誤操作を防ぐための `showExitConfirm()` および `onExitCanceled` を実装。
  * 6. 【QRセーブ・ロード簡易テスト版】セーブ・読込ボトムシート開閉、QR画像表示、写真選択input連携を追加。
+ * 7. 【改善】セーブ画面を閉じた時・開いた時の古いQR自動クリア機能、および発行時刻・ゲーム情報のバッジ表示（resetSaveQRView / showSaveQR拡張）を実装。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -34,6 +35,8 @@ export class UIManager {
         this.saveLoadMenu = document.getElementById('save-load-menu');
         this.qrDisplayContainer = document.getElementById('qr-display-container');
         this.saveQrImage = document.getElementById('save-qr-image');
+        this.qrTimestamp = document.getElementById('qr-timestamp');
+        this.qrGameInfo = document.getElementById('qr-game-info');
         this.qrFileInput = document.getElementById('qr-file-input');
         
         this.btnZoomIn = document.getElementById('btn-zoom-in');
@@ -145,12 +148,31 @@ export class UIManager {
         }
     }
 
-    // ★QR画像の表示メソッド
-    showSaveQR(dataUrl) {
+    // ★QR画像の表示メソッド（発行日時・ゲーム進行度バッジを同時更新）
+    showSaveQR(dataUrl, timeStr = '', gameInfoStr = '') {
         if (this.saveQrImage && this.qrDisplayContainer) {
             this.saveQrImage.src = dataUrl;
+            if (this.qrTimestamp && timeStr) this.qrTimestamp.innerText = timeStr;
+            if (this.qrGameInfo && gameInfoStr) this.qrGameInfo.innerText = gameInfoStr;
             this.qrDisplayContainer.classList.remove('hidden');
             this.qrDisplayContainer.classList.add('flex');
+        }
+    }
+
+    // ★古いQR表示を完全に初期化・非表示に戻すメソッド
+    resetSaveQRView() {
+        if (this.qrDisplayContainer) {
+            this.qrDisplayContainer.classList.remove('flex');
+            this.qrDisplayContainer.classList.add('hidden');
+        }
+        if (this.saveQrImage) {
+            this.saveQrImage.src = '';
+        }
+        if (this.qrTimestamp) {
+            this.qrTimestamp.innerText = '--:--:--';
+        }
+        if (this.qrGameInfo) {
+            this.qrGameInfo.innerText = '-年目--月';
         }
     }
 
@@ -197,11 +219,12 @@ export class UIManager {
             this._toggleMainButtons(true);
         });
 
-        // ★セーブ・読込FABボタンのイベント
+        // ★セーブ・読込FABボタンのイベント（開く際もクリーンアップ）
         if (this.fabSaveLoad) {
             this.fabSaveLoad.addEventListener('click', () => {
                 this.soundManager.playTapSound();
                 this.hideAll();
+                this.resetSaveQRView(); // 開き直した時は常に古いQRを消去
                 if (this.saveLoadMenu) {
                     this.saveLoadMenu.classList.add('show');
                     this._isSaveLoadOpen = true;
@@ -219,6 +242,7 @@ export class UIManager {
                     this._isSaveLoadOpen = false;
                     this._toggleMainButtons(true);
                 }
+                this.resetSaveQRView(); // 閉じた時に古いQRをクリア
             });
         }
 
@@ -928,7 +952,10 @@ export class UIManager {
         this.buyMenu.classList.remove('show');
         this.connectingCard.classList.remove('show');
         
-        if (this.saveLoadMenu) this.saveLoadMenu.classList.remove('show');
+        if (this.saveLoadMenu) {
+            this.saveLoadMenu.classList.remove('show');
+            this.resetSaveQRView(); // パネル閉じ時に確実にクリア
+        }
         this._isSaveLoadOpen = false;
 
         if (this.controlCenter && this.controlCenter.classList.contains('show')) {
