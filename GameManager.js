@@ -15,6 +15,7 @@
  * 10.【Step 4追加】ライバルAI4社の経営状況（路線・機体・資金）の完全保存・復元を統合。
  * 11.【直近6ヶ月限定軽量化】セーブデータバージョンを v: 5 に更新。
  * 12.【QR極限軽量化仕様】セーブデータから `rivalState`（AIタイマー・撤退カウンター）と `history`（推移履歴）を完全除外（v: 6 に更新）。
+ * 13.【バグ修正】セーブデータ読込時の displayIncome スコープ未定義によるクラッシュを解消。
  */
 
 import { CONFIG } from './Config.js';
@@ -249,7 +250,7 @@ export class GameManager {
                     // 8. 各種UI・パネル・ランキングの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
-                    const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.displayIncome));
+                    const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.economyManager.displayIncome));
                     const yearlyPassengersStr = this.economyManager._formatNumber(this.economyManager.yearlyPassengers);
                     
                     let passengersStr = '';
