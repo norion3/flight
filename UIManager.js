@@ -10,6 +10,7 @@
  * 7. 【改善】セーブ画面を閉じた時・開いた時の古いQR自動クリア機能、および発行時刻・ゲーム情報のバッジ表示（resetSaveQRView / showSaveQR拡張）を実装。
  * 8. 【5大対策仕様】イベント選択肢描画で、報酬（cost < 0）を「+金額（緑色）」、無料（cost === 0）を「出費なし（緑色）」として明快に描画。
  * 9. 【方針B：エレクトリック・サファイア完全一致】ライバル情報パネルの丸バッジ色を CONFIG の routeColor と動的連動。
+ * 10.【グラフバグ修正】2位以下のライバルプロット点の cy 属性設定コードを追加し、最新値への上下連動を完全同期。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -1371,6 +1372,7 @@ export class UIManager {
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
+                    point.setAttribute('cy', lastP[1]); // ★追加: Y座標を最新値に更新！
                     point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
