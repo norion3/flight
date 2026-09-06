@@ -11,6 +11,7 @@
  * 6. 【改善】セーブデータ発行時に実時間タイムスタンプ（HH:mm:ss）およびゲーム内年月をUIManagerに渡してバッジ表示。
  * 7. 【改善】セーブ画像自体に進行度・所持金・機体数・実時刻を焼き込むメタ情報をSaveManagerへ受け渡し。
  * 8. 【Step 2追加】プレイヤーの「機体」「客数（累計・年間・最高）」「アップグレード全10項目」の完全保存・復元と各種UI連動。
+ * 9. 【Step 3追加】空路ネットワークのBase62極小圧縮・保存と、3D空間への完全再構築（順序制御の徹底）を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -110,15 +111,19 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 2 拡張版）
+        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 3 拡張版）
         this.uiManager.onIssueSaveRequested = async () => {
             try {
                 const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
                 const planeCounts = this.planeManager.getPlaneCounts('player');
                 const upgradeData = this.upgradeManager.getProgressData();
+                
+                // ★Step 3追加: 路線の極小文字列化（Base62圧縮）
+                const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
+                const routesStr = this.networkManager.exportRoutes('player', airportsData);
 
                 const saveData = {
-                    v: 2,
+                    v: 3, // ★Step 3に拡張
                     type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
@@ -129,7 +134,8 @@ export class GameManager {
                         best: Math.floor(this.economyManager.bestYearlyPassengers || 0)
                     },
                     planes: planeCounts,
-                    upgrades: upgradeData
+                    upgrades: upgradeData,
+                    routes: routesStr // ★路線データを統合
                 };
 
                 // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
@@ -165,7 +171,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 2 拡張版）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 3 拡張版）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -189,12 +195,18 @@ export class GameManager {
                     const currentBonuses = this.upgradeManager.getBonuses();
                     this.economyManager.maxPlanes = currentBonuses.maxPlanes;
 
-                    // 4. 機体の復元（Step 2）
+                    // 4. 空路ネットワークの復元（★Step 3: 機体配置の前に必ず実行！）
+                    if (data.routes !== undefined && this.networkManager.restoreRoutes) {
+                        const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
+                        this.networkManager.restoreRoutes(data.routes, 'player', airportsData);
+                    }
+
+                    // 5. 機体の復元（Step 2）
                     if (data.planes && this.planeManager.restorePlanes) {
                         this.planeManager.restorePlanes(data.planes, 'player');
                     }
 
-                    // 5. 各種UI・パネルの即時更新
+                    // 6. 各種UI・パネルの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
                     const incomeStr = (this.economyManager.displayIncome >= 0 ? "+$" : "-$") + this.economyManager._formatMoneyNumber(Math.abs(this.economyManager.displayIncome));

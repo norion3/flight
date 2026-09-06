@@ -8,6 +8,7 @@
  * 4. 【リソース破棄メソッド】撤退時やリセット時にメモリリークを防ぐ `removeAllRoutesForAirport` / `clearAllRoutes` を新設。
  * 5. 機体飛行用 `{ id, curve, length, data }` 構造、ベジェ制御点計算、距離キャッシュ等は100%完全保持。
  * 6. 【追加】就航アクティブ制のための内部実績フラグ（`isOperational`）および開拓タイムスタンプ（`createdAt`）、`setRouteOperational` を実装。
+ * 7. 【Step 3追加】空路ネットワークのBase62極小圧縮・抽出（exportRoutes）および3D空間への完全再構築（restoreRoutes）を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -45,6 +46,103 @@ export class NetworkManager {
         });
     }
 
+    // ★Step 3追加: Base62エンコーダー（0〜3843 の数値を2文字の英数字に圧縮）
+    _toBase62(num) {
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        if (num === 0) return '00';
+        let str = '';
+        while (num > 0) {
+            str = chars[num % 62] + str;
+            num = Math.floor(num / 62);
+        }
+        return str.padStart(2, '0');
+    }
+
+    // ★Step 3追加: Base62デコーダー（2文字の英数字を数値に復元）
+    _fromBase62(str) {
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        let num = 0;
+        for (let i = 0; i < str.length; i++) {
+            num = num * 62 + chars.indexOf(str[i]);
+        }
+        return num;
+    }
+
+    /**
+     * 【Step 3追加】指定会社の全路線を極小文字列（Base62圧縮）として抽出する
+     * @param {string} companyId - 対象会社ID
+     * @param {Array} airportsData - 全空港データの配列（安定インデックス生成用）
+     * @returns {string} - 圧縮された路線データ文字列（例: "0A3F1B2C..."）
+     */
+    exportRoutes(companyId, airportsData) {
+        if (!this.network[companyId]) return "";
+        
+        // 全空港IDをアルファベット順にソートし、絶対ズレない安定したインデックス（0〜305）を生成
+        const sortedIds = airportsData.map(a => a.id).sort();
+        
+        const routes = [];
+        const processed = new Set();
+        
+        for (const fromId in this.network[companyId]) {
+            this.network[companyId][fromId].forEach(route => {
+                const toId = route.id;
+                // 双方向重複を防ぐキー
+                const key1 = `${fromId}-${toId}`;
+                const key2 = `${toId}-${fromId}`;
+                
+                if (!processed.has(key1) && !processed.has(key2)) {
+                    const fromIdx = sortedIds.indexOf(fromId);
+                    const toIdx = sortedIds.indexOf(toId);
+                    
+                    if (fromIdx >= 0 && toIdx >= 0) {
+                        // 出発地(2文字) + 目的地(2文字) = 1路線4文字に圧縮
+                        routes.push(this._toBase62(fromIdx) + this._toBase62(toIdx));
+                    }
+                    processed.add(key1);
+                }
+            });
+        }
+        // 文字列として結合（LZStringでさらに極小化される）
+        return routes.join('');
+    }
+
+    /**
+     * 【Step 3追加】極小文字列を解読し、3D空間上の路線網を完全に再構築する
+     * @param {string} dataString - exportRoutesで生成された圧縮文字列
+     * @param {string} companyId - 対象会社ID
+     * @param {Array} airportsData - 全空港データの配列
+     */
+    restoreRoutes(dataString, companyId, airportsData) {
+        // 既存の路線メッシュを安全に全破棄（メモリリーク・二重描画防止）
+        this.clearAllRoutes(companyId);
+        
+        if (!dataString || dataString.length % 4 !== 0) return;
+        
+        const sortedIds = airportsData.map(a => a.id).sort();
+        
+        // 4文字（1路線）ずつ切り出して復元
+        for (let i = 0; i < dataString.length; i += 4) {
+            const chunk = dataString.slice(i, i + 4);
+            const fromIdx = this._fromBase62(chunk.slice(0, 2));
+            const toIdx = this._fromBase62(chunk.slice(2, 4));
+            
+            if (fromIdx >= 0 && fromIdx < sortedIds.length && toIdx >= 0 && toIdx < sortedIds.length) {
+                const fromId = sortedIds[fromIdx];
+                const toId = sortedIds[toIdx];
+                
+                const fromData = airportsData.find(a => a.id === fromId);
+                const toData = airportsData.find(a => a.id === toId);
+                
+                if (fromData && toData) {
+                    // 3Dメッシュとして再構築
+                    this.addRoute(fromData, toData, companyId);
+                    // 復元された路線は即座に就航済みに設定し、フライトを許可
+                    this.setRouteOperational(fromId, toId, companyId);
+                }
+            }
+        }
+    }
+
     getConnectionCount(airportId, companyId = 'player') {
         if (!this.network[companyId]) return 0;
         return this.network[companyId][airportId] ? this.network[companyId][airportId].length : 0;
@@ -72,7 +170,6 @@ export class NetworkManager {
         return true;
     }
 
-    // ★追加: 路線を実際に飛行機が飛んだ際に就航フラグを両方向有効化するメソッド
     setRouteOperational(fromId, toId, companyId = 'player') {
         if (!this.network[companyId]) return;
         if (this.network[companyId][fromId]) {
@@ -92,13 +189,11 @@ export class NetworkManager {
         const comp = compIndex >= 0 ? CONFIG.COMPANIES[compIndex] : null;
         const routeColor = comp ? comp.routeColor : 0x0ea5e9;
         
-        // 陣営ごとのZファイティング防止オフセット
         const offset = Math.max(0, compIndex) * 0.0003;
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
         const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
 
-        // 大円上の真中点を厳密に通過するベジェ曲線の制御点計算
         const chordMid = posA.clone().lerp(posB, 0.5);
         const distance = posA.distanceTo(posB);
 
@@ -109,11 +204,9 @@ export class NetworkManager {
             midDir.copy(posA).normalize();
         }
 
-        // アーチ最高点（ピーク）の高度
         const peakAltitude = CONFIG.GLOBE_RADIUS + 0.02 + offset + (distance * 0.20) + 0.03;
         const peakPoint = midDir.multiplyScalar(peakAltitude);
 
-        // 2次ベジェ曲線が t=0.5 で peakPoint を通過する制御点を逆算
         const midPoint = peakPoint.clone().multiplyScalar(2).sub(chordMid);
 
         const curve = new THREE.QuadraticBezierCurve3(posA, midPoint, posB);
@@ -121,7 +214,6 @@ export class NetworkManager {
 
         const points = curve.getPoints(50);
         
-        // ★拡大時にネオン帯として美しく視認できる最適な幅（0.005）
         const halfWidth = 0.005; 
         const vertices = [];
         const indices = [];
@@ -166,13 +258,11 @@ export class NetworkManager {
         const baseColor = new THREE.Color(routeColor);
         const neonColor = baseColor.clone();
         
-        // 暗い色味の場合は純白をブレンドして発色を確保
         const luminance = 0.299 * baseColor.r + 0.587 * baseColor.g + 0.114 * baseColor.b;
         if (luminance < 0.5) {
             neonColor.lerp(new THREE.Color(0xffffff), 0.25); 
         }
         
-        // ① 拡大時の存在感を担当するリボンメッシュ（depthWrite: false でZファイティング防止）
         const ribbonMaterial = new THREE.MeshBasicMaterial({ 
             color: neonColor, 
             side: THREE.DoubleSide,
@@ -186,7 +276,6 @@ export class NetworkManager {
         ribbonMesh.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(ribbonMesh);
 
-        // ② 縮小時の1px実線描画を保証する芯ライン（depthWrite: false & 最前面描画）
         const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
         const lineMaterial = new THREE.LineBasicMaterial({
             color: neonColor,
@@ -203,7 +292,6 @@ export class NetworkManager {
         if (!this.network[companyId][fromData.id]) this.network[companyId][fromData.id] = [];
         if (!this.network[companyId][toData.id]) this.network[companyId][toData.id] = [];
 
-        // 飛行移動に必要な curve, length, data を格納（★isOperational: false, 開拓時刻 createdAt を記録）
         const now = Date.now();
         this.network[companyId][fromData.id].push({ id: toData.id, curve: curve, length: curveLength, data: toData, isOperational: false, createdAt: now });
         
@@ -233,7 +321,6 @@ export class NetworkManager {
             this.network[companyId][toId] = this.network[companyId][toId].filter(r => r.id !== fromId);
         }
 
-        // リボンメッシュと芯ラインの両方を一括回収・破棄
         const objectsToRemove = [];
         this.routeGroup.children.forEach(child => {
             if (child.userData && child.userData.companyId === companyId) {
@@ -259,9 +346,6 @@ export class NetworkManager {
         return true;
     }
 
-    /**
-     * 指定された空港に接続する全路線を一括削除（撤退処理用）
-     */
     removeAllRoutesForAirport(airportId, companyId = 'player') {
         if (!this.network[companyId] || !this.network[companyId][airportId]) return;
 
@@ -271,9 +355,6 @@ export class NetworkManager {
         });
     }
 
-    /**
-     * 指定会社の全路線を破棄（リセット・全滅時用）
-     */
     clearAllRoutes(companyId = 'player') {
         if (!this.network[companyId]) return;
 
@@ -315,19 +396,16 @@ export class NetworkManager {
         return connectedIds[Math.floor(Math.random() * connectedIds.length)];
     }
 
-    // プレイヤー用キャッシュ更新
     _updateCachedTotalLength() {
         this.cachedTotalLength = this._calculateTotalNetworkLength('player');
     }
 
-    // AI用キャッシュ更新
     _updateAiCachedTotalLength(companyId) {
         if (companyId !== 'player') {
             this.aiCachedTotalLengths[companyId] = this._calculateTotalNetworkLength(companyId);
         }
     }
 
-    // 距離集計
     _calculateTotalNetworkLength(companyId) {
         let totalLength = 0;
         const compNetwork = this.network[companyId];
