@@ -652,9 +652,6 @@ export class GameManager {
         if (success) {
             this.globe.buildCoastlines(this.mapData.coastlinePoints);
             this.airportManager.buildAirportMarkers();
-
-            // ★Phase 4: テスト表示を解除し、全主要空港を初期状態（Lv 0）へリセット
-            this.airportManager.markers.forEach(m => this.airportManager.setAirportDevLevel(m, 0));
             
             this.initStarterPack();
             this.rivalManager.init();

@@ -114,12 +114,6 @@ export class AirportManager {
 
             markerGroup.add(visualGroup);
 
-            // ★Phase 1 テスト表示設定: 日本周辺の初期視界で Lv 1〜3 を一斉比較
-            let initialDevLevel = 0;
-            if (airport.id === 'HND') initialDevLevel = 1;      // 羽田: Lv 1（低層ベース）
-            else if (airport.id === 'NRT') initialDevLevel = 2; // 成田: Lv 2（中層タワー）
-            else if (airport.id === 'ICN') initialDevLevel = 3; // 仁川: Lv 3（完成・高層尖塔）
-
             markerGroup.userData = { 
                 airportData: airport, 
                 targetMesh: highlightTarget,
@@ -135,10 +129,6 @@ export class AirportManager {
 
             this.airportGroup.add(markerGroup);
             this.markers.push(markerGroup);
-
-            if (initialDevLevel > 0) {
-                this.setAirportDevLevel(markerGroup, initialDevLevel);
-            }
         });
     }
 

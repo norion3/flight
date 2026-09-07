@@ -94,6 +94,14 @@ export class SoundManager {
     }
 
     /**
+     * ⚠️ エラー・無効操作音
+     * 既存の警告音（playWarningSound）と完全に統一
+     */
+    playErrorSound() {
+        this.playWarningSound();
+    }
+
+    /**
      * 🔔 イベント・空港選択音（ポップアップなど）
      * 「トンッ」という 0.1秒 で消える上品なアタック音
      */
