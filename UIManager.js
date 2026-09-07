@@ -1,11 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 3: 主要空港開発ボタン（#btn-develop-airport）のUI制御 & リアルタイム資金連動】
- * 1. 主要空港（type === 'major'）選択時のみ開発ボタンを表示し、地方・中継空港では非表示化。
- * 2. 開発レベルに応じたデバッグ価格（Lv 0->1: $500K / Lv 1->2: $1.5M / Lv 2->3: $3.5M）と文言の動的切替。
- * 3. Lv 3到達時の「★ 最大開発完了 (Lv 3)」非活性バッジ化。
- * 4. 所持金に応じたボタンのリアルタイム点灯（琥珀色・active可能）/ 消灯（グレーアウト・非活性）判定。
- * 5. ボタン押下時のコールバック（onDevelopAirportRequested）を新設。
+ * 【主要空港 施設解体（ダウングレード）横並びUI制御 & 50%返金連動】
+ * 1. 開発ボタンと解体ボタンを同一行（#airport-dev-container）に横並び配置。
+ * 2. Lv 0: 解体ボタンを完全非表示化し、開発ボタンが全幅（w-full）で表示。
+ * 3. Lv 1〜2: 開発（約62%）＋ 解体（約38%）の横並び。返金額（+$250K / +$750K）を明示。
+ * 4. Lv 3: 開発ボタンをクレーンマーク付き「🏗️ 最大開発完了 (Lv 3)」として非活性化。
+ *    右側の解体ボタン（活性・+$1.75M返金）から1段階戻す操作をサポート。
+ * 5. ボタン押下時のコールバック `onDowngradeAirportRequested` を新設。
  * 6. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
  */
 
@@ -29,8 +30,10 @@ export class UIManager {
         this.eventBackdrop = document.getElementById('event-modal-backdrop');
         this.settlementBackdrop = document.getElementById('settlement-modal-backdrop');
 
-        // ★新設: 空港開発サブボタン要素
+        // ★新設: 空港開発・解体ボタンコンテナおよび各ボタン要素
+        this.airportDevContainer = document.getElementById('airport-dev-container');
         this.btnDevelopAirport = document.getElementById('btn-develop-airport');
+        this.btnDowngradeAirport = document.getElementById('btn-downgrade-airport');
         this.currentAirportData = null;
         this.currentAirportDevLevel = 0;
 
@@ -68,8 +71,9 @@ export class UIManager {
         this.onZoomOut = null;
         this.onUpgradeRequested = null;
         
-        // ★新設: 空港開発リクエストコールバック
+        // ★新設: 空港開発および解体リクエストコールバック
         this.onDevelopAirportRequested = null;
+        this.onDowngradeAirportRequested = null;
 
         this.onGraphTabChanged = null; 
         this.onPanelOpened = null; 
@@ -196,6 +200,20 @@ export class UIManager {
                 this.soundManager.playSuccessSound();
                 if (this.onDevelopAirportRequested) {
                     this.onDevelopAirportRequested(this.currentAirportData, this.currentAirportDevLevel);
+                }
+            });
+        }
+
+        // ★新設: 空港解体（ダウングレード）ボタンのクリックイベント
+        if (this.btnDowngradeAirport) {
+            this.btnDowngradeAirport.addEventListener('click', () => {
+                if (this.btnDowngradeAirport.disabled) {
+                    this.soundManager.playErrorSound();
+                    return;
+                }
+                this.soundManager.playSuccessSound();
+                if (this.onDowngradeAirportRequested) {
+                    this.onDowngradeAirportRequested(this.currentAirportData, this.currentAirportDevLevel);
                 }
             });
         }
@@ -891,35 +909,58 @@ export class UIManager {
             btnConnect.innerText = window.APP_LANG.btnConnect;
         }
 
-        // ★新設: 主要空港時のみ開発ボタンを表示・初期化
-        if (data.type === 'major' && this.btnDevelopAirport) {
+        // ★新設: 主要空港時のみ開発・解体コンテナを表示・初期化
+        if (data.type === 'major' && this.airportDevContainer) {
             this.updateAirportDevelopButton(devLevel, currentFunds);
-        } else if (this.btnDevelopAirport) {
-            this.btnDevelopAirport.classList.add('hidden');
+        } else if (this.airportDevContainer) {
+            this.airportDevContainer.classList.add('hidden');
         }
 
         this.infoCard.classList.add('show');
         this._toggleMainButtons(false);
     }
 
-    // ★新設: 空港開発ボタンの表示・活性状態の更新
+    // ★改訂: 空港開発＆解体ボタンの横並び表示・活性状態の更新
     updateAirportDevelopButton(devLevel = 0, currentFunds = null) {
         this.currentAirportDevLevel = devLevel;
-        if (!this.btnDevelopAirport) return;
+        if (!this.airportDevContainer || !this.btnDevelopAirport) return;
         if (!this.currentAirportData || this.currentAirportData.type !== 'major') {
-            this.btnDevelopAirport.classList.add('hidden');
+            this.airportDevContainer.classList.add('hidden');
             return;
         }
 
-        this.btnDevelopAirport.classList.remove('hidden');
+        this.airportDevContainer.classList.remove('hidden');
         const textEl = document.getElementById('btn-develop-text');
         const costEl = document.getElementById('btn-develop-cost');
-        const costs = [500000, 1500000, 3500000]; // デバッグ価格（Lv 1: $500K / Lv 2: $1.5M / Lv 3: $3.5M）
+        const refundEl = document.getElementById('btn-downgrade-refund');
 
+        const costs = [500000, 1500000, 3500000]; // 建設費用（Lv 1: $500K / Lv 2: $1.5M / Lv 3: $3.5M）
+        const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
+
+        // 解体ボタンの制御（Lv 0時は非表示、Lv 1〜3時は活性表示）
+        if (devLevel <= 0) {
+            if (this.btnDowngradeAirport) {
+                this.btnDowngradeAirport.classList.add('hidden');
+                this.btnDowngradeAirport.disabled = true;
+            }
+            // Lv 0時は開発ボタンが横幅100%全幅化
+            this.btnDevelopAirport.className = 'w-full py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ';
+        } else {
+            if (this.btnDowngradeAirport) {
+                this.btnDowngradeAirport.classList.remove('hidden');
+                this.btnDowngradeAirport.disabled = false;
+                const refundAmount = refunds[devLevel] || 250000;
+                if (refundEl) refundEl.innerText = `+${this._formatMoneyShort(refundAmount)}`;
+            }
+            // Lv 1以上は開発（約62%）＋解体（約38%）の横並び比率
+            this.btnDevelopAirport.className = 'flex-[62] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ';
+        }
+
+        // 開発ボタンの制御（Lv 3時は「🏗️ 最大開発完了 (Lv 3)」非活性表示）
         if (devLevel >= 3) {
             this.btnDevelopAirport.disabled = true;
-            this.btnDevelopAirport.className = 'w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-slate-800 text-amber-400 border border-amber-500/40 shadow-inner cursor-default';
-            if (textEl) textEl.innerText = '★ 最大開発完了 (Lv 3)';
+            this.btnDevelopAirport.className += 'bg-slate-800 text-slate-400 border border-slate-700/60 shadow-inner cursor-default';
+            if (textEl) textEl.innerText = '🏗️ 最大開発完了 (Lv 3)';
             if (costEl) costEl.innerText = '';
             return;
         }
@@ -928,17 +969,21 @@ export class UIManager {
         const cost = costs[devLevel] || 500000;
         const costStr = `-${this._formatMoneyShort(cost)}`;
 
-        if (textEl) textEl.innerText = `空港開発 Lv ${nextLevel}へ`;
+        if (devLevel === 0) {
+            if (textEl) textEl.innerText = '空港開発 Lv 1へ';
+        } else {
+            if (textEl) textEl.innerText = `開発 Lv ${nextLevel}へ`;
+        }
         if (costEl) costEl.innerText = costStr;
 
         const canAfford = (currentFunds !== null) ? (currentFunds >= cost) : true;
         this.btnDevelopAirport.disabled = !canAfford;
 
         if (canAfford) {
-            this.btnDevelopAirport.className = 'w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-amber-600 active:bg-amber-500 text-white border border-amber-400/50 shadow-lg shadow-amber-950/40 active:scale-[0.99] cursor-pointer';
+            this.btnDevelopAirport.className += 'bg-amber-600 active:bg-amber-500 text-white border border-amber-400/50 shadow-lg shadow-amber-950/40 active:scale-[0.99] cursor-pointer';
             if (costEl) costEl.className = 'font-mono text-amber-200';
         } else {
-            this.btnDevelopAirport.className = 'w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border border-slate-700/60 opacity-70 cursor-not-allowed';
+            this.btnDevelopAirport.className += 'bg-slate-800 text-slate-400 border border-slate-700/60 opacity-70 cursor-not-allowed';
             if (costEl) costEl.className = 'font-mono text-slate-400';
         }
     }
@@ -952,7 +997,7 @@ export class UIManager {
 
     setConnectingMode() {
         this.infoCard.classList.remove('show');
-        if (this.btnDevelopAirport) this.btnDevelopAirport.classList.add('hidden');
+        if (this.airportDevContainer) this.airportDevContainer.classList.add('hidden');
         this.connectingCard.classList.add('show');
         this._toggleMainButtons(false);
     }
@@ -1026,7 +1071,7 @@ export class UIManager {
         if (this._isEventModalOpen || this._isSettlementModalOpen) return;
 
         this.infoCard.classList.remove('show');
-        if (this.btnDevelopAirport) this.btnDevelopAirport.classList.add('hidden');
+        if (this.airportDevContainer) this.airportDevContainer.classList.add('hidden');
         this.currentAirportData = null;
         this.currentAirportDevLevel = 0;
 

@@ -1,16 +1,18 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 5: 主要空港開発（全80空港）2ビット・ビットマップ極小QRセーブ＆完全復元】
- * 1. 【v7極小セーブ発行】`saveData.dev` に `airportManager.exportDevLevels()`（わずか20数文字）を格納し、
- *    セーブデータバージョンを `v: 7` に更新。
- * 2. 【タワー完全一括復元】ロード時（onLoadSaveRequested）に `data.dev` を `airportManager.restoreDevLevels()` へ渡し、
+ * 【Phase 5: 主要空港開発（全80空港）2ビット・ビットマップ極小QRセーブ＆完全復元 ＆ 施設解体・50%返金連動】
+ * 1. 【解体リクエスト処理】`onDowngradeAirportRequested` を実装。直前建設費の50%（Lv3->2: $1.75M / Lv2->1: $750K / Lv1->0: $250K）を
+ *    即時返金（addFunds）し、3Dタワーを1段階低い造形へダウングレード（Lv 0到達時は黄金リングへ復帰）。
+ * 2. 【v7極小セーブ発行】`saveData.dev` に `airportManager.exportDevLevels()`（わずか20数文字）を格納し、
+ *    解体後のレベル状態もセーブデータバージョン `v: 7` として完全記録。
+ * 3. 【タワー完全一括復元】ロード時（onLoadSaveRequested）に `data.dev` を `airportManager.restoreDevLevels()` へ渡し、
  *    地球儀上の全主要空港の3Dタワーを一瞬で再構築。
- * 3. 【動的開発処理】開発ボタン押下時（onDevelopAirportRequested）にデバッグ価格（$500K / $1.5M / $3.5M）を
+ * 4. 【動的開発処理】開発ボタン押下時（onDevelopAirportRequested）にデバッグ価格（$500K / $1.5M / $3.5M）を
  *    所持金から引き落とし、該当空港の3Dタワーを動的にレベルアップ（Lv 0 ➔ 1 ➔ 2 ➔ 3）して即時反映。
- * 4. 【初期化リセット】Phase 1の固定テスト表示を起動時に初期化し、全空港Lv 0の真っ新な状態から開発可能に。
- * 5. 【情報連動】空港選択時（handleTap）に現在の開発レベルと所持金を UIManager へ伝達。
- * 6. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
- * 7. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
+ * 5. 【初期化リセット】全空港Lv 0の真っ新な状態から開発可能。
+ * 6. 【情報連動】空港選択時（handleTap）に現在の開発レベルと所持金を UIManager へ伝達。
+ * 7. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
+ * 8. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -139,6 +141,33 @@ export class GameManager {
             // ボタン表示と価格・文言の即時更新
             this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
             this.uiManager.showToast(`${airportData.name} を Lv ${nextLevel} へ開発しました！`, 'success');
+        };
+
+        // ★新設: 主要空港解体（ダウングレード）リクエストハンドラ（50%即時返金＆タワー降格）
+        this.uiManager.onDowngradeAirportRequested = (airportData, currentDevLevel) => {
+            if (!airportData || airportData.type !== 'major') return;
+            if (currentDevLevel <= 0) return;
+
+            const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
+            const refund = refunds[currentDevLevel] || 0;
+
+            // 資金返還加算
+            this.economyManager.addFunds(refund);
+
+            // 該当空港マーカーを特定して3Dタワーを1段階降格
+            const marker = this.selectedHitMesh && this.selectedHitMesh.userData.airportData.id === airportData.id
+                ? this.selectedHitMesh
+                : this.airportManager.markers.find(m => m.userData.airportData.id === airportData.id);
+
+            const nextLevel = currentDevLevel - 1;
+            if (marker) {
+                this.airportManager.setAirportDevLevel(marker, nextLevel);
+            }
+
+            // ボタン表示と価格・文言の即時更新
+            this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
+            const refundStr = this.uiManager._formatMoneyShort(refund);
+            this.uiManager.showToast(`${airportData.name} の施設を解体し、+${refundStr} が返金されました！`, 'info');
         };
 
         // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
