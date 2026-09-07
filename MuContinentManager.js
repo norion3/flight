@@ -1,12 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（ビジュアル洗練・黄金比率・整流化版）】
- * 1. 【全体スケール拡大】太平洋の航路安全マージンを保ちつつ、scaleFactor を 0.114 ➔ 0.140（約1.23倍）へ拡大。堂々たる第7大陸のスケールを確立。
- * 2. 【不要ワイヤー線の根絶】EdgesGeometry に閾値角度（thresholdAngle: 28°）を指定し、平面ポリゴンの斜め分割ワイヤー線を100%消去。
- * 3. 【海岸線のスプライン平滑化】Catmull-Rom スプライン曲線補間（SplineCurve）を導入し、岬や湾入の角張ったカクつきを自然界の流麗な海岸線へ整流化。
- * 4. 【内陸島の黄金調和】マダガスカル島のスケールを 0.098 ➔ 0.138（約1.41倍）へ拡大し、外周リング・内海・中央聖地の黄金比率（4:3:3）を完成。
- * 5. 【完全球面追従＆半透明クリスタル調】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および半透明マテリアル設定は完全保持。
- * 6. 0〜21段階の浮上ロジック、デバッグ用ループ関数（stepStageDebug）は完全保持。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（中央聖域島・縦長非等方拡大＆サンライトゴールド版）】
+ * 1. 【中央聖域島の縦長・非等方拡大】外周内海の長楕円形状に合わせ、横向き配置を縦向き（南北長）へと是正。
+ *    東西スケールを 0.120（安全マージン確保）、南北スケールを 0.185（約1.35〜1.4倍延伸）とし、東西の緑の陸地との衝突を100%防止しつつ南北の空隙を贅沢に活用。
+ * 2. 【等幅環状運河（コンセントリック・カナル）の確立】中央島と外周リングの間の水路幅を全周均一化し、次フェーズのツインモニュメント神聖軸線を獲得。
+ * 3. 【神聖サンライト・ゴールド】中央島マテリアルを古代サンライト・ゴールド（#f59e0b, opacity: 0.35）、
+ *    エッジラインをシャイニーゴールド（#fde047, opacity: 0.85）へ刷新し、エメラルド外周との神聖な色彩コントラストを確立。
+ * 4. 【高精細スプライン＆不要線根絶】オーストラリア本土高精細海岸線、Catmull-Rom スプライン平滑化、EdgesGeometry(thresholdAngle: 28°)は完全保持。
+ * 5. 【完全球面追従】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジックは完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -95,8 +96,8 @@ export class MuContinentManager {
     }
 
     /**
-     * マダガスカル島リアルデータに基づく古代赤土荒野台地
-     * 拡大（madaScale: 0.138） ＆ スプライン平滑化
+     * マダガスカル島リアルデータに基づく中央聖域島
+     * 縦長・非等方拡大（東西 0.120 / 南北 0.185） ＆ スプライン平滑化
      */
     _getInnerPlateauPoints() {
         const realMadagascarPoints = [
@@ -122,12 +123,14 @@ export class MuContinentManager {
             [1.4, 5.5], [1.6, 5.7], [2.1, 6.8]
         ];
 
-        // 拡大スケール（0.138）と内海中央への配置オフセット
-        const madaScale = 0.138;
+        // 【縦長・非等方拡大】東西の緑壁との衝突を防ぐ幅（0.120）＆ 南北空隙を埋める延伸（0.185）
+        const scaleX = 0.120;
+        const scaleY = 0.185;
         const plateauPoints = realMadagascarPoints.map(([dx, dy]) => {
-            const rotX = (dy * madaScale) + 0.05;
-            const rotY = (-dx * madaScale) - 0.02;
-            return new THREE.Vector2(rotX, rotY);
+            // 縦向き配置（dxが東西X軸、dyが南北Y軸） ＆ 内海中央アライメント
+            const posX = (dx * scaleX) + 0.02;
+            const posY = (dy * scaleY) + 0.04;
+            return new THREE.Vector2(posX, posY);
         });
 
         // スプライン補間で台地の輪郭を滑らかに整流化
@@ -174,7 +177,7 @@ export class MuContinentManager {
     }
 
     /**
-     * 3D大陸メッシュ（半透明クリスタル沿岸緑 ＋ 古代アンバー荒野 ＋ 繊細なネオン海岸線）を構築
+     * 3D大陸メッシュ（半透明クリスタル沿岸緑 ＋ 古代サンライトゴールド聖域 ＋ 繊細なネオン海岸線）を構築
      */
     _buildContinentGeometry() {
         // --- 1. 外周沿岸部（半透明サイバー・クリスタル調の神秘のエメラルド） ---
@@ -216,7 +219,7 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（マダガスカル島リアルデータによる古代アンバー・テラコッタ薄層） ---
+        // --- 2. 内陸部（古代サンライト・ゴールドの聖域台地：縦長非等方拡大） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
         if (innerPoints.length > 0) {
@@ -240,29 +243,29 @@ export class MuContinentManager {
         // 球面射影：沿岸部よりわずかに一段せり上がった球面台地
         this._projectGeometryToSphere(innerGeo, 0.016);
 
-        // 内陸部：古代のオーカー・アンバーゴールド薄層（opacity: 0.28）
+        // 内陸部：古代サンライト・ゴールド（#f59e0b / opacity: 0.35）
         const innerMat = new THREE.MeshBasicMaterial({
-            color: 0xd97706,
+            color: 0xf59e0b,
             transparent: true,
-            opacity: 0.28,
+            opacity: 0.35,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        innerMat._baseOpacity = 0.28;
+        innerMat._baseOpacity = 0.35;
         this.materials.push(innerMat);
 
         const innerMesh = new THREE.Mesh(innerGeo, innerMat);
         this.landMesh.add(innerMesh);
 
-        // 内陸荒野のエッジライン（不要な斜め線を根絶する thresholdAngle: 28° 指定）
+        // 内陸聖域のエッジライン（シャイニーゴールド #fde047, opacity: 0.85）
         const innerEdgesGeo = new THREE.EdgesGeometry(innerGeo, 28);
         const innerEdgesMat = new THREE.LineBasicMaterial({
-            color: 0xfbbf24,
+            color: 0xfde047,
             transparent: true,
-            opacity: 0.45,
+            opacity: 0.85,
             depthWrite: false
         });
-        innerEdgesMat._baseOpacity = 0.45;
+        innerEdgesMat._baseOpacity = 0.85;
         this.materials.push(innerEdgesMat);
         const innerEdgeLines = new THREE.LineSegments(innerEdgesGeo, innerEdgesMat);
         this.landMesh.add(innerEdgeLines);
