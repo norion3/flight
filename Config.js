@@ -6,6 +6,7 @@
  * 2. 南半球（インド洋〜東南アジア）での視認性向上・補色化のため、
  *    Asia Orient（rival_as）をピンク（0xff1493）、Africa Star（rival_af）を琥珀・アンバー（0xf59e0b）に設定。
  * 3. プレイヤー初期資金100M（100,000,000）、AI初期資金30M、機体パラメータ、距離別コスト設定等は100%完全保持。
+ * 4. 【v3 収益バランス改善】Super機の維持費を大型国際線仕様（3,500 ➔ 9,000）へ適正化。
  */
 
 export const CONFIG = {
@@ -36,7 +37,7 @@ export const CONFIG = {
             small:  { cost: 5000000,   sellRate: 0.70, upkeep: 250,  baseDemand: 30,  incomeBase: 1200 },
             medium: { cost: 25000000,  sellRate: 0.60, upkeep: 600,  baseDemand: 90,  incomeBase: 4500 },
             large:  { cost: 60000000,  sellRate: 0.50, upkeep: 1500, baseDemand: 220, incomeBase: 14000 },
-            super:  { cost: 150000000, sellRate: 0.40, upkeep: 3500, baseDemand: 500, incomeBase: 36000 }
+            super:  { cost: 150000000, sellRate: 0.40, upkeep: 9000, baseDemand: 500, incomeBase: 36000 } // ★維持費を適正化（3500 ➔ 9000）
         },
 
         ROUTE_TIERS: [

@@ -8,6 +8,7 @@
  * 5. 【Step 4追加】AI資金・客数および直近24ヶ月グラフ推移履歴の超軽量パック（exportHistoryData/getAiEconomyData）と完全復元を実装。
  * 6. 【直近6ヶ月限定軽量化】セーブデータ容量の肥大化・QRクラッシュを恒久的に防ぐため、履歴抽出を直近最大6件（.slice(-6)）に限定。
  * 7. 【5大対策仕様】飛行速度（flight_speed）アップグレードの回転率向上ボーナス（speedIncomeBonus / speedPassengerBonus）を収益・客数計算に適用。
+ * 8. 【v3 収益バランス改善】Lv 0〜3（満足度500以下）の挙動を100%完全維持し、Lv 4以降の満足度超過分に平方根ソフトキャップおよび運賃・速度の加算整理を適用。
  */
 
 import { CONFIG } from './Config.js';
@@ -105,6 +106,12 @@ export class EconomyManager {
         const speedIncomeBonus = 1.0 + (speedMult - 1.0) * 0.35;
         const speedPassengerBonus = 1.0 + (speedMult - 1.0) * 0.25;
 
+        // ★v3改善: 満足度ソフトキャップ（Lv 3完了水準の500までは100%線形維持、超過分に平方根カーブ適用）
+        const rawSat = bonuses.satisfaction || 0;
+        const satBonus = rawSat <= 500
+            ? (1.0 + rawSat * 0.005)
+            : (1.0 + (500 * 0.005) + Math.sqrt(rawSat - 500) * 0.02);
+
         this.incomeTimer += delta;
         this.monthTimer += delta;
 
@@ -146,15 +153,16 @@ export class EconomyManager {
                 const avgShare = (originShare + destShare) / 2;
 
                 const baseInc = conf.incomeBase;
-                const satBonus = 1.0 + (bonuses.satisfaction * 0.005);
-                // ★5大対策仕様: 高速回転ボーナスを収益に乗算
-                const grossIncome = baseInc * satBonus * (1.0 + distBonus) * finalIncomeRate * (0.6 + avgShare * 0.8) * speedIncomeBonus;
+                
+                // ★v3改善: 運賃倍率と速度回転率の乗算連鎖を加算整理し、指数関数的暴走を防止
+                const efficiencyMult = finalIncomeRate + (speedIncomeBonus - 1.0);
+                const grossIncome = baseInc * satBonus * (1.0 + distBonus) * efficiencyMult * (0.6 + avgShare * 0.8);
 
                 currentGrossPerSec += grossIncome;
 
                 const baseDemand = conf.baseDemand || 50;
-                // ★5大対策仕様: 高速回転ボーナスを客数に乗算
-                const passengers = (baseDemand * (1.0 + bonuses.satisfaction * 0.005) * avgShare * finalPassengersRate * speedPassengerBonus) * delta;
+                // ★5大対策仕様 & v3改善: ソフトキャップ連動満足度と高速回転ボーナスを客数に乗算
+                const passengers = (baseDemand * satBonus * avgShare * finalPassengersRate * speedPassengerBonus) * delta;
                 
                 this.totalPassengers += passengers;
                 this.yearlyPassengers += passengers;
