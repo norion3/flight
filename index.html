@@ -379,6 +379,10 @@
             <button id="btn-connect" class="w-full py-3 rounded-xl text-white font-bold shadow-lg transition-colors bg-cyan-600 active:bg-cyan-500 shadow-cyan-900/50">
                 Connect
             </button>
+            <!-- ★新設: 主要空港開発ボタン（開拓ボタン下にスリムなサブ枠として配置） -->
+            <button id="btn-develop-airport" class="hidden w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border border-slate-700/60 shadow-md">
+                <span>🏗️</span> <span id="btn-develop-text">空港開発 Lv 1へ</span> <span id="btn-develop-cost" class="font-mono text-amber-300">-$500K</span>
+            </button>
         </div>
 
         <button id="btn-help" class="interactive-ui absolute left-4 w-12 h-12 bg-slate-800 rounded-full shadow-lg shadow-slate-900/50 border border-slate-600/50 flex items-center justify-center text-slate-300 active:bg-slate-700 transition-transform origin-center z-20" style="bottom: var(--ui-bottom);">

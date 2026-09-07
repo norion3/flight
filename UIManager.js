@@ -1,16 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【トースト視認性向上・最小12px統一・フォントサイズ遷移ブレ防止・成功色エメラルド化 ＆ 全機能完全保持】
- * 1. トースト最小サイズを 12px (text-xs) に統一（11px廃止）。パディングを最適化し、iPhone SE等でも1行で美しく収まるよう調整。
- * 2. `transition-all` によるフォントサイズ補間（一瞬大きく出て縮む現象）を排除するため、`transition-[opacity,transform] duration-200` に限定。
- * 3. イベント結果等で呼ばれる `type === 'success'` に鮮やかなエメラルドグリーン（bg-emerald-600）を適用し、地味なグレー化を解消。
- * 4. 案Aカラースワップ連動（アジア: ピンク / アフリカ: 琥珀・アンバー）、期末決算モーダル、イベントモーダル、上部HUD等は100%完全保持。
- * 5. 【追加】決算モーダルからの「終了・送信」誤操作を防ぐための `showExitConfirm()` および `onExitCanceled` を実装。
- * 6. 【QRセーブ・ロード簡易テスト版】セーブ・読込ボトムシート開閉、QR画像表示、写真選択input連携を追加。
- * 7. 【改善】セーブ画面を閉じた時・開いた時の古いQR自動クリア機能、および発行時刻・ゲーム情報のバッジ表示（resetSaveQRView / showSaveQR拡張）を実装。
- * 8. 【5大対策仕様】イベント選択肢描画で、報酬（cost < 0）を「+金額（緑色）」、無料（cost === 0）を「出費なし（緑色）」として明快に描画。
- * 9. 【方針B：エレクトリック・サファイア完全一致】ライバル情報パネルの丸バッジ色を CONFIG の routeColor と動的連動。
- * 10.【グラフバグ修正】2位以下のライバルプロット点の cy 属性設定コードを追加し、最新値への上下連動を完全同期。
+ * 【Phase 3: 主要空港開発ボタン（#btn-develop-airport）のUI制御 & リアルタイム資金連動】
+ * 1. 主要空港（type === 'major'）選択時のみ開発ボタンを表示し、地方・中継空港では非表示化。
+ * 2. 開発レベルに応じたデバッグ価格（Lv 0->1: $500K / Lv 1->2: $1.5M / Lv 2->3: $3.5M）と文言の動的切替。
+ * 3. Lv 3到達時の「★ 最大開発完了 (Lv 3)」非活性バッジ化。
+ * 4. 所持金に応じたボタンのリアルタイム点灯（琥珀色・active可能）/ 消灯（グレーアウト・非活性）判定。
+ * 5. ボタン押下時のコールバック（onDevelopAirportRequested）を新設。
+ * 6. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -32,6 +28,11 @@ export class UIManager {
         this.helpMenu = document.getElementById('help-menu');
         this.eventBackdrop = document.getElementById('event-modal-backdrop');
         this.settlementBackdrop = document.getElementById('settlement-modal-backdrop');
+
+        // ★新設: 空港開発サブボタン要素
+        this.btnDevelopAirport = document.getElementById('btn-develop-airport');
+        this.currentAirportData = null;
+        this.currentAirportDevLevel = 0;
 
         // ★QRセーブ・ロードUI要素
         this.fabSaveLoad = document.getElementById('fab-save-load');
@@ -67,9 +68,12 @@ export class UIManager {
         this.onZoomOut = null;
         this.onUpgradeRequested = null;
         
+        // ★新設: 空港開発リクエストコールバック
+        this.onDevelopAirportRequested = null;
+
         this.onGraphTabChanged = null; 
         this.onPanelOpened = null; 
-        this.onExitCanceled = null; // ★追加: 終了確認キャンセル時のフリーズ回避用コールバック
+        this.onExitCanceled = null; 
 
         // ★QRセーブ・ロード用コールバック
         this.onIssueSaveRequested = null;
@@ -138,7 +142,6 @@ export class UIManager {
         });
     }
 
-    // ★追加: 誤操作を防ぐ安全な終了確認モーダル呼び出し
     showExitConfirm() {
         if (this._isSettlementModalOpen) {
             this.hideSettlementModal();
@@ -151,7 +154,6 @@ export class UIManager {
         }
     }
 
-    // ★QR画像の表示メソッド（発行日時・ゲーム進行度バッジを同時更新）
     showSaveQR(dataUrl, timeStr = '', gameInfoStr = '') {
         if (this.saveQrImage && this.qrDisplayContainer) {
             this.saveQrImage.src = dataUrl;
@@ -162,7 +164,6 @@ export class UIManager {
         }
     }
 
-    // ★古いQR表示を完全に初期化・非表示に戻すメソッド
     resetSaveQRView() {
         if (this.qrDisplayContainer) {
             this.qrDisplayContainer.classList.remove('flex');
@@ -184,6 +185,20 @@ export class UIManager {
             this.soundManager.playTapSound();
             if (this.onConnectRequested) this.onConnectRequested();
         });
+
+        // ★新設: 空港開発ボタンのクリックイベント
+        if (this.btnDevelopAirport) {
+            this.btnDevelopAirport.addEventListener('click', () => {
+                if (this.btnDevelopAirport.disabled) {
+                    this.soundManager.playErrorSound();
+                    return;
+                }
+                this.soundManager.playSuccessSound();
+                if (this.onDevelopAirportRequested) {
+                    this.onDevelopAirportRequested(this.currentAirportData, this.currentAirportDevLevel);
+                }
+            });
+        }
 
         const cancelRoute = () => {
             this.soundManager.playTapSound();
@@ -222,12 +237,11 @@ export class UIManager {
             this._toggleMainButtons(true);
         });
 
-        // ★セーブ・読込FABボタンのイベント（開く際もクリーンアップ）
         if (this.fabSaveLoad) {
             this.fabSaveLoad.addEventListener('click', () => {
                 this.soundManager.playTapSound();
                 this.hideAll();
-                this.resetSaveQRView(); // 開き直した時は常に古いQRを消去
+                this.resetSaveQRView(); 
                 if (this.saveLoadMenu) {
                     this.saveLoadMenu.classList.add('show');
                     this._isSaveLoadOpen = true;
@@ -245,11 +259,10 @@ export class UIManager {
                     this._isSaveLoadOpen = false;
                     this._toggleMainButtons(true);
                 }
-                this.resetSaveQRView(); // 閉じた時に古いQRをクリア
+                this.resetSaveQRView(); 
             });
         }
 
-        // ★セーブデータ発行ボタン
         const btnIssueSave = document.getElementById('btn-issue-save-qr');
         if (btnIssueSave) {
             btnIssueSave.addEventListener('click', () => {
@@ -260,7 +273,6 @@ export class UIManager {
             });
         }
 
-        // ★セーブデータ読込ボタン（写真ファイル選択を起動）
         const btnLoadSave = document.getElementById('btn-load-save-qr');
         if (btnLoadSave && this.qrFileInput) {
             btnLoadSave.addEventListener('click', () => {
@@ -273,7 +285,7 @@ export class UIManager {
                 if (file && this.onLoadSaveRequested) {
                     this.onLoadSaveRequested(file);
                 }
-                e.target.value = ''; // 連続同一ファイル選択を可能にするためリセット
+                e.target.value = ''; 
             });
         }
 
@@ -500,7 +512,6 @@ export class UIManager {
                 this.soundManager.playTapSound();
                 this.exitCard.classList.remove('show');
                 this._toggleMainButtons(true);
-                // ★追加: 確認画面がキャンセルされた場合のフォールバック（フリーズ回避）
                 if (this.onExitCanceled) this.onExitCanceled();
             });
         }
@@ -570,7 +581,6 @@ export class UIManager {
             let optionsHtml = '';
             eventData.options.forEach((opt, idx) => {
                 const cost = opt.getCost(context);
-                // ★5大対策仕様: 利益（cost < 0）は「+金額（エメラルド緑）」、無料（cost === 0）は「出費なし」、出費（cost > 0）は「-金額（アンバー色）」と描画
                 let costStr = '出費なし';
                 let costClass = 'text-emerald-300 font-bold';
                 if (cost > 0) {
@@ -739,13 +749,11 @@ export class UIManager {
             charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
         }
 
-        // 最小フォントサイズを 13px (text-[13px]) に設定し視認性を向上
         let sizeClasses = "text-sm px-4 py-2"; 
         if (charLen > 22) {
             sizeClasses = "text-[13px] px-3.5 py-1.5"; 
         }
 
-        // transition-all を排除し、透明度と位置のみのアニメーションに限定（フォントサイズの補間ブレを防止）
         const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         if (type === 'error') {
@@ -848,9 +856,13 @@ export class UIManager {
         }, 3500); 
     }
 
-    showAirportInfo(data, currentConnections, maxConnections) {
+    showAirportInfo(data, currentConnections, maxConnections, devLevel = 0, currentFunds = null) {
         this.soundManager.playEventSound();
         this.hideAll();
+        
+        this.currentAirportData = data;
+        this.currentAirportDevLevel = devLevel;
+
         document.getElementById('airport-name').innerText = data.name;
         document.getElementById('airport-code').innerText = data.id;
         document.getElementById('airport-country').innerText = data.country;
@@ -879,12 +891,68 @@ export class UIManager {
             btnConnect.innerText = window.APP_LANG.btnConnect;
         }
 
+        // ★新設: 主要空港時のみ開発ボタンを表示・初期化
+        if (data.type === 'major' && this.btnDevelopAirport) {
+            this.updateAirportDevelopButton(devLevel, currentFunds);
+        } else if (this.btnDevelopAirport) {
+            this.btnDevelopAirport.classList.add('hidden');
+        }
+
         this.infoCard.classList.add('show');
         this._toggleMainButtons(false);
     }
 
+    // ★新設: 空港開発ボタンの表示・活性状態の更新
+    updateAirportDevelopButton(devLevel = 0, currentFunds = null) {
+        this.currentAirportDevLevel = devLevel;
+        if (!this.btnDevelopAirport) return;
+        if (!this.currentAirportData || this.currentAirportData.type !== 'major') {
+            this.btnDevelopAirport.classList.add('hidden');
+            return;
+        }
+
+        this.btnDevelopAirport.classList.remove('hidden');
+        const textEl = document.getElementById('btn-develop-text');
+        const costEl = document.getElementById('btn-develop-cost');
+        const costs = [500000, 1500000, 3500000]; // デバッグ価格（Lv 1: $500K / Lv 2: $1.5M / Lv 3: $3.5M）
+
+        if (devLevel >= 3) {
+            this.btnDevelopAirport.disabled = true;
+            this.btnDevelopAirport.className = 'w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-slate-800 text-amber-400 border border-amber-500/40 shadow-inner cursor-default';
+            if (textEl) textEl.innerText = '★ 最大開発完了 (Lv 3)';
+            if (costEl) costEl.innerText = '';
+            return;
+        }
+
+        const nextLevel = devLevel + 1;
+        const cost = costs[devLevel] || 500000;
+        const costStr = `-${this._formatMoneyShort(cost)}`;
+
+        if (textEl) textEl.innerText = `空港開発 Lv ${nextLevel}へ`;
+        if (costEl) costEl.innerText = costStr;
+
+        const canAfford = (currentFunds !== null) ? (currentFunds >= cost) : true;
+        this.btnDevelopAirport.disabled = !canAfford;
+
+        if (canAfford) {
+            this.btnDevelopAirport.className = 'w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-amber-600 active:bg-amber-500 text-white border border-amber-400/50 shadow-lg shadow-amber-950/40 active:scale-[0.99] cursor-pointer';
+            if (costEl) costEl.className = 'font-mono text-amber-200';
+        } else {
+            this.btnDevelopAirport.className = 'w-full mt-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border border-slate-700/60 opacity-70 cursor-not-allowed';
+            if (costEl) costEl.className = 'font-mono text-slate-400';
+        }
+    }
+
+    // ★新設: 毎秒の資金変動時に開発ボタンの点灯・消灯をリアルタイム同期
+    checkAirportDevelopButton(currentFunds) {
+        if (!this.infoCard || !this.infoCard.classList.contains('show')) return;
+        if (!this.currentAirportData || this.currentAirportData.type !== 'major') return;
+        this.updateAirportDevelopButton(this.currentAirportDevLevel, currentFunds);
+    }
+
     setConnectingMode() {
         this.infoCard.classList.remove('show');
+        if (this.btnDevelopAirport) this.btnDevelopAirport.classList.add('hidden');
         this.connectingCard.classList.add('show');
         this._toggleMainButtons(false);
     }
@@ -958,6 +1026,10 @@ export class UIManager {
         if (this._isEventModalOpen || this._isSettlementModalOpen) return;
 
         this.infoCard.classList.remove('show');
+        if (this.btnDevelopAirport) this.btnDevelopAirport.classList.add('hidden');
+        this.currentAirportData = null;
+        this.currentAirportDevLevel = 0;
+
         this.routeCard.classList.remove('show');
         this._isRouteConfirmOpen = false;
         this.buyMenu.classList.remove('show');
@@ -965,7 +1037,7 @@ export class UIManager {
         
         if (this.saveLoadMenu) {
             this.saveLoadMenu.classList.remove('show');
-            this.resetSaveQRView(); // パネル閉じ時に確実にクリア
+            this.resetSaveQRView(); 
         }
         this._isSaveLoadOpen = false;
 
@@ -1372,7 +1444,7 @@ export class UIManager {
                 }
                 if (point) {
                     point.setAttribute('cx', lastP[0]);
-                    point.setAttribute('cy', lastP[1]); // ★追加: Y座標を最新値に更新！
+                    point.setAttribute('cy', lastP[1]); 
                     point.setAttribute('r', '3.5');
                     point.setAttribute('fill', hexColor);
                     point.classList.remove('opacity-0');
@@ -1480,7 +1552,6 @@ export class UIManager {
             const titleColor = isPlayer ? 'text-emerald-400' : 'text-slate-200';
             const shortName = isPlayer ? '自' : stat.id.replace('rival_', '').toUpperCase();
             
-            // ★方針B: ライバルのアイコン背景色を CONFIG.COMPANIES の routeColor と動的連動し100%完全一致
             const comp = CONFIG.COMPANIES.find(c => c.id === stat.id);
             const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#2b7fff';
             const iconBg = isPlayer ? 'bg-emerald-600' : '';

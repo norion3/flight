@@ -1,21 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【再起トースト通知コールバック（onRevive）の登録 ＆ 全機能完全保持】
- * 1. `this.rivalManager.onRevive` を新設・登録し、ライバル企業が新拠点で復活した際に
- *    専用の `showReviveToast` が確実に画面上にポップアップするよう修正。
- * 2. 撤退通知（onWithdraw）、動的rotateSpeedスケーリング、ズームボタン安全ガード、
- *    期末決算モーダル、イベント連携等は100%完全保持。
- * 3. 【追加】決算モーダルの「終了・送信」誤操作を防ぐ安全確認と、キャンセル時のフリーズ回避を実装。
- * 4. 【追加】スターター機体の初期就航フラグ（setRouteOperational）を明示的に有効化。
- * 5. 【QRセーブ・ロード簡易テスト版】SaveManagerの初期化、発行・読込ハンドラ登録、HUD即時上書きを実装。
- * 6. 【改善】セーブデータ発行時に実時間タイムスタンプ（HH:mm:ss）およびゲーム内年月をUIManagerに渡してバッジ表示。
- * 7. 【改善】セーブ画像自体に進行度・所持金・機体数・実時刻を焼き込むメタ情報をSaveManagerへ受け渡し。
- * 8. 【Step 2追加】プレイヤーの「機体」「客数（累計・年間・最高）」「アップグレード全10項目」の完全保存・復元と各種UI連動。
- * 9. 【Step 3追加】空路ネットワークのBase62極小圧縮・保存と、3D空間への完全再構築（順序制御の徹底）を実装。
- * 10.【Step 4追加】ライバルAI4社の経営状況（路線・機体・資金）の完全保存・復元を統合。
- * 11.【直近6ヶ月限定軽量化】セーブデータバージョンを v: 5 に更新。
- * 12.【QR極限軽量化仕様】セーブデータから `rivalState`（AIタイマー・撤退カウンター）と `history`（推移履歴）を完全除外（v: 6 に更新）。
- * 13.【バグ修正】セーブデータ読込時の displayIncome スコープ未定義によるクラッシュを解消。
+ * 【Phase 4: 主要空港開発の本番統合 & 動的レベルアップ & リアルタイム資金連動】
+ * 1. 【動的開発処理】開発ボタン押下時（onDevelopAirportRequested）にデバッグ価格（$500K / $1.5M / $3.5M）を
+ *    所持金から引き落とし、該当空港の3Dタワーを動的にレベルアップ（Lv 0 ➔ 1 ➔ 2 ➔ 3）して即時反映。
+ * 2. 【初期化リセット】Phase 1の固定テスト表示を起動時に初期化し、全空港Lv 0の真っ新な状態から開発可能に。
+ * 3. 【情報連動】空港選択時（handleTap）に現在の開発レベルと所持金を UIManager へ伝達。
+ * 4. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
+ * 5. カプセル判定などの不要な複雑化は行わず、既存の軽快な45pxタップ判定を100%維持。
+ * 6. QRセーブ・ロード、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -113,6 +105,37 @@ export class GameManager {
         // ★追加: 終了確認画面でキャンセルされた場合、停止した時間を再開させる
         this.uiManager.onExitCanceled = () => {
             this.isPaused = false;
+        };
+
+        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし）
+        this.uiManager.onDevelopAirportRequested = (airportData, currentDevLevel) => {
+            if (!airportData || airportData.type !== 'major') return;
+            if (currentDevLevel >= 3) return;
+
+            const costs = [500000, 1500000, 3500000]; // デバッグ価格（Lv 0->1: $500K / Lv 1->2: $1.5M / Lv 2->3: $3.5M）
+            const cost = costs[currentDevLevel] || 500000;
+
+            if (!this.economyManager.canAfford(cost)) {
+                this.uiManager.showToast(window.APP_LANG.toastNoFunds);
+                return;
+            }
+
+            // 資金引き落とし
+            this.economyManager.deductFunds(cost);
+
+            // 該当空港マーカーを特定して3Dタワーをレベルアップ
+            const marker = this.selectedHitMesh && this.selectedHitMesh.userData.airportData.id === airportData.id
+                ? this.selectedHitMesh
+                : this.airportManager.markers.find(m => m.userData.airportData.id === airportData.id);
+
+            const nextLevel = currentDevLevel + 1;
+            if (marker) {
+                this.airportManager.setAirportDevLevel(marker, nextLevel);
+            }
+
+            // ボタン表示と価格・文言の即時更新
+            this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
+            this.uiManager.showToast(`${airportData.name} を Lv ${nextLevel} へ開発しました！`, 'success');
         };
 
         // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版）
@@ -588,6 +611,9 @@ export class GameManager {
         if (success) {
             this.globe.buildCoastlines(this.mapData.coastlinePoints);
             this.airportManager.buildAirportMarkers();
+
+            // ★Phase 4: テスト表示を解除し、全主要空港を初期状態（Lv 0）へリセット
+            this.airportManager.markers.forEach(m => this.airportManager.setAirportDevLevel(m, 0));
             
             this.initStarterPack();
             this.rivalManager.init();
@@ -679,8 +705,10 @@ export class GameManager {
                 
                 const currConns = this.networkManager.getConnectionCount(data.id);
                 const maxConns = this.networkManager.MAX_CONNECTIONS[data.type];
+                const devLevel = bestHit.userData.devLevel || 0;
                 
-                this.uiManager.showAirportInfo(data, currConns, maxConns);
+                // ★Phase 4: 開発レベルと所持金をUIに渡して開発ボタンを表示
+                this.uiManager.showAirportInfo(data, currConns, maxConns, devLevel, this.economyManager.funds);
             } else {
                 this.resetState();
             }
@@ -796,6 +824,8 @@ export class GameManager {
         }
 
         this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
+        // ★Phase 4: 毎秒の資金変動に合わせて空港開発ボタンの点灯・消灯をリアルタイム同期
+        this.uiManager.checkAirportDevelopButton(this.economyManager.funds);
 
         this.rivalUiTimer += delta;
         if (this.rivalUiTimer > 1.0) {
