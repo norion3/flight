@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（リアル地理データ統合・高精細フラクタル造形版）】
- * 1. 【外周海岸線の高精細化】手作業プロットを完全撤廃し、オーストラリア本土のリアル地理海岸線（約60地点の高密度ベクター）を採用。
- *    カーペンタリア湾、アーネムランド、シャーク湾、グレートオーストラリア湾、エアー半島、ウィルソンズプロモントリー等の本物の湾入・岬美を90度回転で完全再現。
- * 2. 【内陸赤土台地のリアル地形化】実在するマダガスカル島のリアル海岸線ベクターを独立抽出・配置。自然界の奇跡的な非対称（アシンメトリー）なうねりを持つ古代オーカー荒野を形成。
- * 3. 【真の大陸スケール】前回のベストなサイズ感を厳格に継承し、周囲の既存ノードと干渉しない安全海域（南緯22.5度, 西経112.5度）に黄金配置。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（完全球面追従 ＆ 半透明サイバー・クリスタル調版）】
+ * 1. 【完全な球面追従（幾何学改善）】平面メッシュの宇宙への突き刺さりを根絶。全頂点を地球中心からの球面へ射影（_projectGeometryToSphere）し、
+ *    大陸の端から端まで地球儀の曲面（R=5.0）へ100%ピタッと密着する自然な湾曲地殻を構築。
+ * 2. 【半透明サイバー・クリスタル調（色彩改善）】ゲーム全体のダークネオン航空図と調和させるため、重いベタ塗りを廃止。
+ *    沿岸部（エメラルド緑: opacity 0.32）および内陸部（古代アンバー: opacity 0.28）に深海が透けるトランスルーセント質感を導入。
+ * 3. 【リアル高精細地形の継承】オーストラリア本土リアル海岸線（外周）とマダガスカル島リアル輪郭（内陸荒野）のフラクタル美・サイズ感を完全保持。
  * 4. 0〜21段階（0: 完全水没、1: 薄い島影、21: 100%完全浮上）の滑らかなスケーリング＆海面浮上ロジックは完全保持。
  * 5. デバッグ用伸縮ループ関数（stepStageDebug）を備え、画面上のテストボタンから手動で段階変化を確認可能。
  */
@@ -130,10 +131,48 @@ export class MuContinentManager {
     }
 
     /**
-     * 3D大陸メッシュ（沿岸深緑 ＋ 内陸古代荒野 ＋ ネオン発光海岸線）を構築
+     * 【幾何学改善】平面押し出しジオメトリの全頂点を地球儀の球面に沿って射影・湾曲させる
+     * これにより、大陸端が宇宙へ突き出さず、地球の丸み（R=5.0）に100%吸い付くように密着する
+     */
+    _projectGeometryToSphere(geometry, altitudeOffset = 0) {
+        const R = CONFIG.GLOBE_RADIUS;
+        const posAttr = geometry.attributes.position;
+        if (!posAttr) return;
+
+        for (let i = 0; i < posAttr.count; i++) {
+            const x = posAttr.getX(i);
+            const y = posAttr.getY(i);
+            const z = posAttr.getZ(i);
+
+            // muGroup のローカル座標系では、地球中心は (0, 0, -R)
+            const dx = x;
+            const dy = y;
+            const dz = z + R;
+
+            const currentDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (currentDist > 0.00001) {
+                // 目標とする球半径：地球表面 + 微小標高 + 押し出し厚みz
+                const targetRadius = R + altitudeOffset + (z * 0.5);
+                const factor = targetRadius / currentDist;
+
+                posAttr.setXYZ(
+                    i,
+                    dx * factor,
+                    dy * factor,
+                    (dz * factor) - R
+                );
+            }
+        }
+
+        posAttr.needsUpdate = true;
+        geometry.computeVertexNormals();
+    }
+
+    /**
+     * 3D大陸メッシュ（半透明クリスタル沿岸緑 ＋ 古代アンバー荒野 ＋ 繊細なネオン海岸線）を構築
      */
     _buildContinentGeometry() {
-        // --- 1. 外周沿岸部（高精細リアルデータによる神秘の深緑大地） ---
+        // --- 1. 外周沿岸部（半透明サイバー・クリスタル調の神秘のエメラルド） ---
         const shapePoints = this._getRotatedAustraliaPoints();
         const shape = new THREE.Shape();
         
@@ -146,30 +185,33 @@ export class MuContinentManager {
         }
 
         const extrudeSettings = {
-            depth: 0.025,
+            depth: 0.015,
             bevelEnabled: true,
             bevelSegments: 2,
-            steps: 1,
-            bevelSize: 0.008,
-            bevelThickness: 0.008
+            steps: 2,
+            bevelSize: 0.006,
+            bevelThickness: 0.006
         };
         const landGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
         landGeo.center();
+        // ★球面射影：地球の丸みにピタッと吸い付かせる
+        this._projectGeometryToSphere(landGeo, 0.008);
 
-        // 沿岸部：深いエメラルドスレート（密林・沿岸の緑）
+        // 沿岸部：重いベタ塗りを廃止し、深海が透ける半透明サイバーエメラルド（opacity: 0.32）
         const landMat = new THREE.MeshBasicMaterial({
-            color: 0x064e3b,
+            color: 0x059669, // 澄んだエメラルドグリーン
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.32,
             side: THREE.DoubleSide,
             depthWrite: false
         });
+        landMat._baseOpacity = 0.32;
         this.materials.push(landMat);
 
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（マダガスカル島リアルデータによる古代テラコッタ・赤土荒野台地） ---
+        // --- 2. 内陸部（マダガスカル島リアルデータによる古代アンバー・テラコッタ薄層） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
         if (innerPoints.length > 0) {
@@ -181,52 +223,54 @@ export class MuContinentManager {
         }
 
         const innerExtrudeSettings = {
-            depth: 0.012,
+            depth: 0.008,
             bevelEnabled: true,
             bevelSegments: 2,
-            steps: 1,
-            bevelSize: 0.005,
-            bevelThickness: 0.005
+            steps: 2,
+            bevelSize: 0.004,
+            bevelThickness: 0.004
         };
         const innerGeo = new THREE.ExtrudeGeometry(innerShape, innerExtrudeSettings);
         innerGeo.center();
+        // ★球面射影：沿岸部よりわずかに一段せり上がった球面台地
+        this._projectGeometryToSphere(innerGeo, 0.016);
 
-        // 内陸部：オーストラリアの赤土（ウルル・古代オーカー）を彷彿とさせる荒野色
+        // 内陸部：泥土色を脱し、古代のオーカー・アンバーゴールド薄層（opacity: 0.28）
         const innerMat = new THREE.MeshBasicMaterial({
-            color: 0x9a3412, // 深みのあるテラコッタ・赤土荒野
+            color: 0xd97706, // 温かみのあるアンバーテラコッタ
             transparent: true,
-            opacity: 0.82,
+            opacity: 0.28,
             side: THREE.DoubleSide,
             depthWrite: false
         });
+        innerMat._baseOpacity = 0.28;
         this.materials.push(innerMat);
 
         const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-        // 沿岸メッシュの上にわずかに載せる（Zファイティング防止）
-        innerMesh.position.z = 0.010;
         this.landMesh.add(innerMesh);
 
-        // 内陸荒野のエッジライン（砂金色の境界線）
+        // 内陸荒野のエッジライン（繊細なアンバーゴールド境界）
         const innerEdgesGeo = new THREE.EdgesGeometry(innerGeo);
         const innerEdgesMat = new THREE.LineBasicMaterial({
-            color: 0xd97706, // アンバーゴールド
+            color: 0xfbbf24,
             transparent: true,
-            opacity: 0.60,
+            opacity: 0.45,
             depthWrite: false
         });
+        innerEdgesMat._baseOpacity = 0.45;
         this.materials.push(innerEdgesMat);
         const innerEdgeLines = new THREE.LineSegments(innerEdgesGeo, innerEdgesMat);
-        innerEdgeLines.position.z = 0.010;
         this.landMesh.add(innerEdgeLines);
 
-        // --- 3. 外周ネオン発光海岸線（プレイヤーと調和するエメラルド） ---
+        // --- 3. 外周ネオン発光海岸線（球面追従エッジライン） ---
         const edgesGeo = new THREE.EdgesGeometry(landGeo);
         const edgesMat = new THREE.LineBasicMaterial({
             color: 0x34d399,
             transparent: true,
-            opacity: 0.90,
+            opacity: 0.80,
             depthWrite: false
         });
+        edgesMat._baseOpacity = 0.80;
         this.materials.push(edgesMat);
 
         const edgeLines = new THREE.LineSegments(edgesGeo, edgesMat);
@@ -260,16 +304,17 @@ export class MuContinentManager {
         const baseScale = 0.35 + (progress * 0.65);
         this.muGroup.scale.set(baseScale, baseScale, baseScale);
 
-        // ② 浮上高度：第1段階では海面直下スレスレ（-0.015）、段階が進むごとに海面上（+0.012）へ隆起
-        const heightZ = -0.015 + (progress * 0.027);
+        // ② 浮上高度：第1段階では海面直下スレスレ（-0.015）、段階が進むごとに海面上（+0.008）へ隆起
+        const heightZ = -0.015 + (progress * 0.023);
         if (this.landMesh) {
             this.landMesh.position.z = heightZ;
         }
 
-        // ③ 透明度・輝度変化：第1段階では神秘的な半透明の島影、完全浮上で濃密な実体化
-        const alpha = 0.35 + (progress * 0.60);
+        // ③ 透明度・輝度変化：マテリアル本来の基準透明度（_baseOpacity）と連動し、のっぺり感を防ぎつつ実体化
+        const alphaRatio = 0.25 + (progress * 0.75);
         this.materials.forEach(mat => {
-            mat.opacity = Math.min(0.95, alpha);
+            const base = mat._baseOpacity !== undefined ? mat._baseOpacity : 0.5;
+            mat.opacity = base * alphaRatio;
         });
     }
 
