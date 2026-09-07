@@ -1,13 +1,16 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 4: 主要空港開発の本番統合 & 動的レベルアップ & リアルタイム資金連動】
- * 1. 【動的開発処理】開発ボタン押下時（onDevelopAirportRequested）にデバッグ価格（$500K / $1.5M / $3.5M）を
+ * 【Phase 5: 主要空港開発（全80空港）2ビット・ビットマップ極小QRセーブ＆完全復元】
+ * 1. 【v7極小セーブ発行】`saveData.dev` に `airportManager.exportDevLevels()`（わずか20数文字）を格納し、
+ *    セーブデータバージョンを `v: 7` に更新。
+ * 2. 【タワー完全一括復元】ロード時（onLoadSaveRequested）に `data.dev` を `airportManager.restoreDevLevels()` へ渡し、
+ *    地球儀上の全主要空港の3Dタワーを一瞬で再構築。
+ * 3. 【動的開発処理】開発ボタン押下時（onDevelopAirportRequested）にデバッグ価格（$500K / $1.5M / $3.5M）を
  *    所持金から引き落とし、該当空港の3Dタワーを動的にレベルアップ（Lv 0 ➔ 1 ➔ 2 ➔ 3）して即時反映。
- * 2. 【初期化リセット】Phase 1の固定テスト表示を起動時に初期化し、全空港Lv 0の真っ新な状態から開発可能に。
- * 3. 【情報連動】空港選択時（handleTap）に現在の開発レベルと所持金を UIManager へ伝達。
- * 4. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
- * 5. カプセル判定などの不要な複雑化は行わず、既存の軽快な45pxタップ判定を100%維持。
- * 6. QRセーブ・ロード、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
+ * 4. 【初期化リセット】Phase 1の固定テスト表示を起動時に初期化し、全空港Lv 0の真っ新な状態から開発可能に。
+ * 5. 【情報連動】空港選択時（handleTap）に現在の開発レベルと所持金を UIManager へ伝達。
+ * 6. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
+ * 7. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -138,7 +141,7 @@ export class GameManager {
             this.uiManager.showToast(`${airportData.name} を Lv ${nextLevel} へ開発しました！`, 'success');
         };
 
-        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版）
+        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
         this.uiManager.onIssueSaveRequested = async () => {
             try {
                 const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
@@ -160,9 +163,12 @@ export class GameManager {
                     }
                 });
 
+                // ★Phase 5追加: 主要空港全80箇所のLv0〜3をわずか20数文字（約20バイト）でパック
+                const devLevelsStr = this.airportManager.exportDevLevels ? this.airportManager.exportDevLevels() : '';
+
                 // ★QR極限軽量化仕様: rivalState（タイマー・カウンター）と history（推移ログ）を完全除外
                 const saveData = {
-                    v: 6, // ★極限軽量版 (v: 6)
+                    v: 7, // ★極限軽量・主要空港開発対応版 (v: 7)
                     type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
@@ -176,7 +182,8 @@ export class GameManager {
                     upgrades: upgradeData,
                     routes: routesStr,
                     rivals: rivalsData,
-                    aiEconomy: this.economyManager.getAiEconomyData()
+                    aiEconomy: this.economyManager.getAiEconomyData(),
+                    dev: devLevelsStr // ★Phase 5: 極小ビットマップ文字列
                 };
 
                 // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
@@ -212,7 +219,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版 ➔ v6 極限軽量版）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -266,6 +273,11 @@ export class GameManager {
                                 this.planeManager.restorePlanes(data.rivals[comp.id].planes, comp.id);
                             }
                         });
+                    }
+
+                    // ★Phase 5追加: 主要空港開発（全80箇所）の3Dタワー・自社エメラルドマテリアルを一括完全復元
+                    if (this.airportManager.restoreDevLevels) {
+                        this.airportManager.restoreDevLevels(data.dev);
                     }
 
                     // ★QR極限軽量化仕様: AIタイマー/撤退カウンターおよび過去推移履歴は復元せず、読込時点から通常動作・蓄積を開始

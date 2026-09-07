@@ -1,10 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 1: 3Dタワー造形ブラッシュアップ & 日本周辺テスト表示（HND: Lv 1 / NRT: Lv 2 / ICN: Lv 3）】
- * 1. 【スリム＆シャープ化】底面半径を 0.06 ➔ 0.038（約37%スリム化）へ絞り、重たい土管感を解消。
- * 2. 【先細りテーパー強化】頂点半径を底面比 70% ➔ 55% へ鋭角化し、天に向かって伸びる洗練されたオベリスク尖塔へ改良。
- * 3. 【透明感・ホログラム感向上】胴体シリンダーの透明度適正化（0.35 ➔ 0.22）および側面ネオンエッジの整理・間引き（opacity 0.75 ➔ 0.45、分割数 16 ➔ 8）により、羽田・成田などの過密地域での重なり・ゴチャつきを劇的に解消。
- * 4. 既存の実在空港リスト（activeAirports）、近接除外フィルター、起点・終点ハイライト等は100%完全保持。
+ * 【Phase 5: 主要空港開発（全80空港）2ビット・ビットマップ極小QRセーブ＆完全復元】
+ * 1. 【2ビット圧縮保存（exportDevLevels）】画面上の全主要空港（type === 'major'）のLv 0〜3を
+ *    2ビットずつパック（4空港/1バイト）し、わずか27文字（約20バイト）のBase64文字列として極小出力。
+ * 2. 【一括完全復元（restoreDevLevels）】読み込んだ極小ビット文字列をデコードし、
+ *    全主要空港の3Dタワー（Lv 0〜3）と自社エメラルドマテリアルを一瞬で再構築。
+ * 3. 3Dタワー造形（スリム・先細り・透明感）、地平線ディゾルブ、ハイライト等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -253,6 +254,60 @@ export class AirportManager {
         u.towerGroup = towerGroup;
         u.fadeMaterials = fadeMats;
         u.visualGroup.add(towerGroup);
+    }
+
+    /**
+     * ★Phase 5: 全主要空港（約80箇所）のLv0〜3を2ビットずつパックし極小Base64文字列（約27文字）で出力
+     */
+    exportDevLevels() {
+        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major');
+        if (majors.length === 0) return '';
+
+        // すべて未開発（Lv 0）なら空文字を返してQR容量を節約
+        const hasAnyDev = majors.some(m => (m.userData.devLevel || 0) > 0);
+        if (!hasAnyDev) return '';
+
+        let chars = [];
+        for (let i = 0; i < majors.length; i += 4) {
+            let b = 0;
+            for (let j = 0; j < 4; j++) {
+                if (i + j < majors.length) {
+                    const lvl = (majors[i + j].userData.devLevel || 0) & 0x03;
+                    b |= (lvl << (j * 2));
+                }
+            }
+            chars.push(String.fromCharCode(b));
+        }
+        return btoa(chars.join(''));
+    }
+
+    /**
+     * ★Phase 5: 極小Base64文字列から全主要空港の3Dタワーを完全一括復元
+     */
+    restoreDevLevels(str) {
+        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major');
+        if (majors.length === 0) return;
+
+        // 文字列がない場合は全主要空港を Lv 0 にリセット
+        if (!str) {
+            majors.forEach(m => this.setAirportDevLevel(m, 0));
+            return;
+        }
+
+        try {
+            const bin = atob(str);
+            let airportIdx = 0;
+            for (let i = 0; i < bin.length && airportIdx < majors.length; i++) {
+                const b = bin.charCodeAt(i);
+                for (let j = 0; j < 4 && airportIdx < majors.length; j++) {
+                    const lvl = (b >> (j * 2)) & 0x03;
+                    this.setAirportDevLevel(majors[airportIdx], lvl);
+                    airportIdx++;
+                }
+            }
+        } catch (e) {
+            console.error('[AirportManager] restoreDevLevels error:', e);
+        }
     }
 
     clearHighlight(type = 'all') {
