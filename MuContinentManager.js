@@ -1,12 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（中央聖域島・縦長非等方拡大＆サンライトゴールド版）】
- * 1. 【中央聖域島の縦長・非等方拡大】外周内海の長楕円形状に合わせ、横向き配置を縦向き（南北長）へと是正。
- *    東西スケールを 0.120（安全マージン確保）、南北スケールを 0.185（約1.35〜1.4倍延伸）とし、東西の緑の陸地との衝突を100%防止しつつ南北の空隙を贅沢に活用。
- * 2. 【等幅環状運河（コンセントリック・カナル）の確立】中央島と外周リングの間の水路幅を全周均一化し、次フェーズのツインモニュメント神聖軸線を獲得。
- * 3. 【神聖サンライト・ゴールド】中央島マテリアルを古代サンライト・ゴールド（#f59e0b, opacity: 0.35）、
- *    エッジラインをシャイニーゴールド（#fde047, opacity: 0.85）へ刷新し、エメラルド外周との神聖な色彩コントラストを確立。
- * 4. 【高精細スプライン＆不要線根絶】オーストラリア本土高精細海岸線、Catmull-Rom スプライン平滑化、EdgesGeometry(thresholdAngle: 28°)は完全保持。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（聖なるカルデラ湖定着 ＆ 内部ワイヤー線完全根絶版）】
+ * 1. 【内部斜めワイヤー線の完全根絶】ベベルによる面歪みを排除（bevelEnabled: false）し、
+ *    EdgesGeometry の閾値角度を 42° へ最適化。球面湾曲に伴う内部の三角形分割線を100%消去し、他の大陸と同じく純粋な外枠・輪郭線のみを描画。
+ * 2. 【中央聖域カルデラ湖の定着】中央島内部の神秘的な穴（カルデラ湖）を最高のビジュアルアクセントとして完全維持。
+ *    内部を横切る邪魔な斜め線だけを消し去り、黄金の外枠とカルデラ湖岸線がノイズレスに輝く神聖な二重環状構造を確立。
+ * 3. 【中央聖域島の縦長非等方拡大】外周内海の長楕円形状に合わせた縦長配置（東西 0.120 / 南北 0.185）を完全保持。
+ * 4. 【神聖サンライト・ゴールド】中央島マテリアル（#f59e0b, opacity: 0.35）およびシャイニーゴールド輪郭線（#fde047, opacity: 0.85）を完全保持。
  * 5. 【完全球面追従】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジックは完全保持。
  */
 
@@ -192,13 +192,11 @@ export class MuContinentManager {
             shape.closePath();
         }
 
+        // 面取り（ベベル）を排除し、上面と側面の境界（90°エッジ）のみを美しく保つ
         const extrudeSettings = {
-            depth: 0.015,
-            bevelEnabled: true,
-            bevelSegments: 2,
-            steps: 2,
-            bevelSize: 0.006,
-            bevelThickness: 0.006
+            depth: 0.012,
+            bevelEnabled: false,
+            steps: 1
         };
         const landGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
         landGeo.center();
@@ -219,7 +217,7 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（古代サンライト・ゴールドの聖域台地：縦長非等方拡大） ---
+        // --- 2. 内陸部（古代サンライト・ゴールドの聖域台地：カルデラ湖穴保持 ＆ 縦長非等方拡大） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
         if (innerPoints.length > 0) {
@@ -230,13 +228,11 @@ export class MuContinentManager {
             innerShape.closePath();
         }
 
+        // 面取り（ベベル）を排除し、聖なるカルデラ湖穴を綺麗に開口
         const innerExtrudeSettings = {
             depth: 0.008,
-            bevelEnabled: true,
-            bevelSegments: 2,
-            steps: 2,
-            bevelSize: 0.004,
-            bevelThickness: 0.004
+            bevelEnabled: false,
+            steps: 1
         };
         const innerGeo = new THREE.ExtrudeGeometry(innerShape, innerExtrudeSettings);
         innerGeo.center();
@@ -257,8 +253,8 @@ export class MuContinentManager {
         const innerMesh = new THREE.Mesh(innerGeo, innerMat);
         this.landMesh.add(innerMesh);
 
-        // 内陸聖域のエッジライン（シャイニーゴールド #fde047, opacity: 0.85）
-        const innerEdgesGeo = new THREE.EdgesGeometry(innerGeo, 28);
+        // 内陸聖域のエッジライン（内部斜め線を完全排除する thresholdAngle: 42° 指定：カルデラ湖岸線と外枠のみ発光）
+        const innerEdgesGeo = new THREE.EdgesGeometry(innerGeo, 42);
         const innerEdgesMat = new THREE.LineBasicMaterial({
             color: 0xfde047,
             transparent: true,
@@ -270,8 +266,8 @@ export class MuContinentManager {
         const innerEdgeLines = new THREE.LineSegments(innerEdgesGeo, innerEdgesMat);
         this.landMesh.add(innerEdgeLines);
 
-        // --- 3. 外周ネオン発光海岸線（不要な斜め線を根絶する thresholdAngle: 28° 指定） ---
-        const edgesGeo = new THREE.EdgesGeometry(landGeo, 28);
+        // --- 3. 外周ネオン発光海岸線（内部斜め線を完全排除する thresholdAngle: 42° 指定：純粋な海岸線のみ発光） ---
+        const edgesGeo = new THREE.EdgesGeometry(landGeo, 42);
         const edgesMat = new THREE.LineBasicMaterial({
             color: 0x34d399,
             transparent: true,
