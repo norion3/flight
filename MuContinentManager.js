@@ -1,15 +1,16 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（内部ワイヤー線100%完全根絶 ＆ 聖なるカルデラ湖完全維持版）】
- * 1. 【内部斜めワイヤー線の完全根絶（LineLoop直接描画方式）】
- *    球面湾曲によって内部ポリゴンに角度差が生じ線を誤認描画してしまう EdgesGeometry を完全撤廃。
- *    外周海岸線はスプライン点群から直接 LineLoop を生成し、内部に線が引かれる可能性を物理的に 0% に根絶。
- * 2. 【神聖カルデラ湖の完全維持（境界エッジ抽出方式）】
- *    中央聖域島は ShapeGeometry のトポロジー解析により「共有されていない境界エッジ（Count===1）」のみを直接抽出。
- *    内部の三角形分割線（Count===2）を100%除外することで、島を斜めに横切る邪魔な線を完全消去し、
- *    「黄金の外枠」と「神秘のカルデラ湖岸線」の二重環状線だけがノイズレスに輝く神聖構造を確立。
- * 3. 【中央聖域島の縦長非等方拡大】外周内海の長楕円形状に合わせた縦長配置（東西 0.120 / 南北 0.185）を完全保持。
- * 4. 【神聖サンライト・ゴールド】中央島マテリアル（#f59e0b, opacity: 0.35）およびシャイニーゴールド輪郭線（#fde047, opacity: 0.85）を完全保持。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（色彩調和・薄層トランスルーセント完全洗練版）】
+ * 1. 【極薄トランスルーセント調和（世界観との完全融合）】
+ *    面をくっきり濃く塗るのではなく、深海の濃紺が上品に透き通る極薄ベールへと調整。
+ *    - 外周リング（面）: #059669 / opacity: 0.22（深海を透かすサイバーエメラルド）
+ *    - 中央聖域島（面）: #fbbf24 / opacity: 0.20（下地の青と混ざっても濁らない極薄シャンパンゴールド）
+ * 2. 【ネオン光彩ラインによるエッジ強調（品格ある存在感）】
+ *    目立たせる役割を「面」ではなく「澄んだ光の輪郭線」に担わせ、航空管制図の世界観と完全調和。
+ *    - 外周海岸線（線）: #34d399 / opacity: 0.85（LineLoop直接描画）
+ *    - カルデラ湖岸線（線）: #fef08a / opacity: 0.90（神聖な金糸の二重環状線）
+ * 3. 【内部ワイヤー線100%根絶 ＆ 聖なるカルデラ湖完全維持】LineLoop直接描画および境界エッジ抽出ロジックは完全保持。
+ * 4. 【中央聖域島の縦長非等方拡大】外周内海の長楕円形状に合わせた縦長配置（東西 0.120 / 南北 0.185）を完全保持。
  * 5. 【完全球面追従】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジックは完全保持。
  */
 
@@ -220,10 +221,10 @@ export class MuContinentManager {
     }
 
     /**
-     * 3D大陸メッシュ（半透明クリスタル沿岸緑 ＋ 古代サンライトゴールド聖域 ＋ ノイズレス境界線）を構築
+     * 3D大陸メッシュ（極薄透光クリスタル沿岸緑 ＋ 極薄シャンパンゴールド聖域 ＋ ノイズレス境界線）を構築
      */
     _buildContinentGeometry() {
-        // --- 1. 外周沿岸部（半透明サイバー・クリスタル調の神秘のエメラルド） ---
+        // --- 1. 外周沿岸部（深海が透き通る極薄サイバーエメラルド・ベール） ---
         const shapePoints = this._getRotatedAustraliaPoints();
         const shape = new THREE.Shape();
         
@@ -246,21 +247,21 @@ export class MuContinentManager {
         // 球面射影：地球の丸みにピタッと吸い付かせる
         this._projectGeometryToSphere(landGeo, 0.008);
 
-        // 沿岸部：深海が透ける半透明サイバーエメラルド（opacity: 0.32）
+        // 沿岸部：深海が透ける極薄サイバーエメラルド（#059669 / opacity: 0.22）
         const landMat = new THREE.MeshBasicMaterial({
             color: 0x059669,
             transparent: true,
-            opacity: 0.32,
+            opacity: 0.22,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        landMat._baseOpacity = 0.32;
+        landMat._baseOpacity = 0.22;
         this.materials.push(landMat);
 
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（古代サンライト・ゴールドの聖域台地：カルデラ湖穴保持 ＆ 縦長非等方拡大） ---
+        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：カルデラ湖穴保持 ＆ 縦長非等方拡大） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
         if (innerPoints.length > 0) {
@@ -282,21 +283,21 @@ export class MuContinentManager {
         // 球面射影：沿岸部よりわずかに一段せり上がった球面台地
         this._projectGeometryToSphere(innerGeo, 0.016);
 
-        // 内陸部：古代サンライト・ゴールド（#f59e0b / opacity: 0.35）
+        // 内陸部：極薄シャンパン・トパーズゴールド（#fbbf24 / opacity: 0.20）
         const innerMat = new THREE.MeshBasicMaterial({
-            color: 0xf59e0b,
+            color: 0xfbbf24,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.20,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        innerMat._baseOpacity = 0.35;
+        innerMat._baseOpacity = 0.20;
         this.materials.push(innerMat);
 
         const innerMesh = new THREE.Mesh(innerGeo, innerMat);
         this.landMesh.add(innerMesh);
 
-        // 内陸聖域の境界エッジライン（内部斜め線を100%排除：カルデラ湖岸線と外枠のみ発光）
+        // 内陸聖域の境界エッジライン（澄んだ金糸発光 #fef08a, opacity: 0.90）
         const innerBox = new THREE.Box2().setFromPoints(innerPoints);
         const innerCenter = new THREE.Vector2();
         innerBox.getCenter(innerCenter);
@@ -308,17 +309,17 @@ export class MuContinentManager {
         this._projectGeometryToSphere(innerBoundaryGeo, 0.016);
 
         const innerEdgesMat = new THREE.LineBasicMaterial({
-            color: 0xfde047,
+            color: 0xfef08a,
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.90,
             depthWrite: false
         });
-        innerEdgesMat._baseOpacity = 0.85;
+        innerEdgesMat._baseOpacity = 0.90;
         this.materials.push(innerEdgesMat);
         const innerEdgeLines = new THREE.LineSegments(innerBoundaryGeo, innerEdgesMat);
         this.landMesh.add(innerEdgeLines);
 
-        // --- 3. 外周ネオン発光海岸線（LineLoop 直接描画：内部斜め線を 100% 物理的根絶） ---
+        // --- 3. 外周ネオン発光海岸線（澄んだ光の輪郭 #34d399, opacity: 0.85） ---
         const shapeBox = new THREE.Box2().setFromPoints(shapePoints);
         const shapeCenter = new THREE.Vector2();
         shapeBox.getCenter(shapeCenter);
@@ -330,10 +331,10 @@ export class MuContinentManager {
         const edgesMat = new THREE.LineBasicMaterial({
             color: 0x34d399,
             transparent: true,
-            opacity: 0.80,
+            opacity: 0.85,
             depthWrite: false
         });
-        edgesMat._baseOpacity = 0.80;
+        edgesMat._baseOpacity = 0.85;
         this.materials.push(edgesMat);
 
         const edgeLines = new THREE.LineLoop(coastLineGeo, edgesMat);
