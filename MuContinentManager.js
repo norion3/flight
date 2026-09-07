@@ -1,13 +1,12 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（完全球面追従 ＆ 半透明サイバー・クリスタル調版）】
- * 1. 【完全な球面追従（幾何学改善）】平面メッシュの宇宙への突き刺さりを根絶。全頂点を地球中心からの球面へ射影（_projectGeometryToSphere）し、
- *    大陸の端から端まで地球儀の曲面（R=5.0）へ100%ピタッと密着する自然な湾曲地殻を構築。
- * 2. 【半透明サイバー・クリスタル調（色彩改善）】ゲーム全体のダークネオン航空図と調和させるため、重いベタ塗りを廃止。
- *    沿岸部（エメラルド緑: opacity 0.32）および内陸部（古代アンバー: opacity 0.28）に深海が透けるトランスルーセント質感を導入。
- * 3. 【リアル高精細地形の継承】オーストラリア本土リアル海岸線（外周）とマダガスカル島リアル輪郭（内陸荒野）のフラクタル美・サイズ感を完全保持。
- * 4. 0〜21段階（0: 完全水没、1: 薄い島影、21: 100%完全浮上）の滑らかなスケーリング＆海面浮上ロジックは完全保持。
- * 5. デバッグ用伸縮ループ関数（stepStageDebug）を備え、画面上のテストボタンから手動で段階変化を確認可能。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（ビジュアル洗練・黄金比率・整流化版）】
+ * 1. 【全体スケール拡大】太平洋の航路安全マージンを保ちつつ、scaleFactor を 0.114 ➔ 0.140（約1.23倍）へ拡大。堂々たる第7大陸のスケールを確立。
+ * 2. 【不要ワイヤー線の根絶】EdgesGeometry に閾値角度（thresholdAngle: 28°）を指定し、平面ポリゴンの斜め分割ワイヤー線を100%消去。
+ * 3. 【海岸線のスプライン平滑化】Catmull-Rom スプライン曲線補間（SplineCurve）を導入し、岬や湾入の角張ったカクつきを自然界の流麗な海岸線へ整流化。
+ * 4. 【内陸島の黄金調和】マダガスカル島のスケールを 0.098 ➔ 0.138（約1.41倍）へ拡大し、外周リング・内海・中央聖地の黄金比率（4:3:3）を完成。
+ * 5. 【完全球面追従＆半透明クリスタル調】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および半透明マテリアル設定は完全保持。
+ * 6. 0〜21段階の浮上ロジック、デバッグ用ループ関数（stepStageDebug）は完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -40,11 +39,10 @@ export class MuContinentManager {
     }
 
     /**
-     * オーストラリア本土の実在リアル地理データに基づく高精細海岸線（90度時計回り回転）
-     * 自然界のフラクタルな微細起伏・湾入を余すところなく再現
+     * オーストラリア本土の実在リアル地理データに基づく高精細海岸線
+     * 90度時計回り回転 ＆ 拡大（scaleFactor: 0.140） ＆ スプライン平滑化
      */
     _getRotatedAustraliaPoints() {
-        // オーストラリア本土の精密な地理ベクター座標（中心経度 133.5°E, 南緯 25.5°S からの相対角）
         const realAussiePoints = [
             // ヨーク岬半島先端〜カーペンタリア湾東岸
             [9.0, 14.8], [8.0, 12.5], [8.2, 10.5], [6.5, 8.5], [5.0, 8.0],
@@ -82,21 +80,25 @@ export class MuContinentManager {
             [9.7, 13.5], [9.2, 14.2]
         ];
 
-        // 90度時計回り回転 (x' = dy * s, y' = -dx * s) および真の大陸スケール調整 (0.114)
-        const scaleFactor = 0.114;
-        return realAussiePoints.map(([dx, dy]) => {
+        // 90度時計回り回転 (x' = dy * s, y' = -dx * s) および拡大スケール (0.140)
+        const scaleFactor = 0.140;
+        const rotatedPoints = realAussiePoints.map(([dx, dy]) => {
             const rotX = dy * scaleFactor;
             const rotY = -dx * scaleFactor;
             return new THREE.Vector2(rotX, rotY);
         });
+
+        // スプライン曲線（Catmull-Rom スムージング）でトゲやカクつきを流麗な海岸線へ補間
+        const closedPoints = [...rotatedPoints, rotatedPoints[0]];
+        const spline = new THREE.SplineCurve(closedPoints);
+        return spline.getPoints(rotatedPoints.length * 3);
     }
 
     /**
-     * 実在するマダガスカル島の高精細リアル地理ベクターに基づく古代赤土荒野台地
-     * 自然界が生んだ完全非対称の起伏により、人工的な相似形（作り物感）を完全根絶
+     * マダガスカル島リアルデータに基づく古代赤土荒野台地
+     * 拡大（madaScale: 0.138） ＆ スプライン平滑化
      */
     _getInnerPlateauPoints() {
-        // マダガスカル島の精密な地理ベクター座標（中心 47.0°E, 19.0°S からの相対角）
         const realMadagascarPoints = [
             // 北端アンブル岬〜アンツィラナナ
             [2.3, 7.0], [2.3, 6.7], [2.6, 5.5],
@@ -120,19 +122,22 @@ export class MuContinentManager {
             [1.4, 5.5], [1.6, 5.7], [2.1, 6.8]
         ];
 
-        // 90度回転＆ムー大陸内陸部に美しく調和するスケール（0.098）と位置オフセット
-        const madaScale = 0.098;
-        return realMadagascarPoints.map(([dx, dy]) => {
-            // 自然界の地形のうねりを生かした90度回転配置
+        // 拡大スケール（0.138）と内海中央への配置オフセット
+        const madaScale = 0.138;
+        const plateauPoints = realMadagascarPoints.map(([dx, dy]) => {
             const rotX = (dy * madaScale) + 0.05;
             const rotY = (-dx * madaScale) - 0.02;
             return new THREE.Vector2(rotX, rotY);
         });
+
+        // スプライン補間で台地の輪郭を滑らかに整流化
+        const closedPoints = [...plateauPoints, plateauPoints[0]];
+        const spline = new THREE.SplineCurve(closedPoints);
+        return spline.getPoints(plateauPoints.length * 3);
     }
 
     /**
-     * 【幾何学改善】平面押し出しジオメトリの全頂点を地球儀の球面に沿って射影・湾曲させる
-     * これにより、大陸端が宇宙へ突き出さず、地球の丸み（R=5.0）に100%吸い付くように密着する
+     * 平面押し出しジオメトリの全頂点を地球儀の球面に沿って射影・湾曲させる
      */
     _projectGeometryToSphere(geometry, altitudeOffset = 0) {
         const R = CONFIG.GLOBE_RADIUS;
@@ -194,12 +199,12 @@ export class MuContinentManager {
         };
         const landGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
         landGeo.center();
-        // ★球面射影：地球の丸みにピタッと吸い付かせる
+        // 球面射影：地球の丸みにピタッと吸い付かせる
         this._projectGeometryToSphere(landGeo, 0.008);
 
-        // 沿岸部：重いベタ塗りを廃止し、深海が透ける半透明サイバーエメラルド（opacity: 0.32）
+        // 沿岸部：深海が透ける半透明サイバーエメラルド（opacity: 0.32）
         const landMat = new THREE.MeshBasicMaterial({
-            color: 0x059669, // 澄んだエメラルドグリーン
+            color: 0x059669,
             transparent: true,
             opacity: 0.32,
             side: THREE.DoubleSide,
@@ -232,12 +237,12 @@ export class MuContinentManager {
         };
         const innerGeo = new THREE.ExtrudeGeometry(innerShape, innerExtrudeSettings);
         innerGeo.center();
-        // ★球面射影：沿岸部よりわずかに一段せり上がった球面台地
+        // 球面射影：沿岸部よりわずかに一段せり上がった球面台地
         this._projectGeometryToSphere(innerGeo, 0.016);
 
-        // 内陸部：泥土色を脱し、古代のオーカー・アンバーゴールド薄層（opacity: 0.28）
+        // 内陸部：古代のオーカー・アンバーゴールド薄層（opacity: 0.28）
         const innerMat = new THREE.MeshBasicMaterial({
-            color: 0xd97706, // 温かみのあるアンバーテラコッタ
+            color: 0xd97706,
             transparent: true,
             opacity: 0.28,
             side: THREE.DoubleSide,
@@ -249,8 +254,8 @@ export class MuContinentManager {
         const innerMesh = new THREE.Mesh(innerGeo, innerMat);
         this.landMesh.add(innerMesh);
 
-        // 内陸荒野のエッジライン（繊細なアンバーゴールド境界）
-        const innerEdgesGeo = new THREE.EdgesGeometry(innerGeo);
+        // 内陸荒野のエッジライン（不要な斜め線を根絶する thresholdAngle: 28° 指定）
+        const innerEdgesGeo = new THREE.EdgesGeometry(innerGeo, 28);
         const innerEdgesMat = new THREE.LineBasicMaterial({
             color: 0xfbbf24,
             transparent: true,
@@ -262,8 +267,8 @@ export class MuContinentManager {
         const innerEdgeLines = new THREE.LineSegments(innerEdgesGeo, innerEdgesMat);
         this.landMesh.add(innerEdgeLines);
 
-        // --- 3. 外周ネオン発光海岸線（球面追従エッジライン） ---
-        const edgesGeo = new THREE.EdgesGeometry(landGeo);
+        // --- 3. 外周ネオン発光海岸線（不要な斜め線を根絶する thresholdAngle: 28° 指定） ---
+        const edgesGeo = new THREE.EdgesGeometry(landGeo, 28);
         const edgesMat = new THREE.LineBasicMaterial({
             color: 0x34d399,
             transparent: true,
