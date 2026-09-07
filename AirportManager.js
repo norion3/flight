@@ -1,9 +1,9 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【Phase 1: 3Dタワー造形 & 日本周辺テスト表示（HND: Lv 1 / NRT: Lv 2 / ICN: Lv 3）】
- * 1. オベリスク・テーパー光柱（先細りシリンダー）、頂点リング、自社エメラルドマテリアルの生成。
- * 2. 地平線付近での先端浮遊を防ぐカメラ角度連動フェード（ホライゾン・ディゾルブ）の実装。
- * 3. 初期カメラ（日本周辺）で3段階のデザイン（Lv 1〜3）を即時比較できるテスト表示を配置。
+ * 【Phase 1: 3Dタワー造形ブラッシュアップ & 日本周辺テスト表示（HND: Lv 1 / NRT: Lv 2 / ICN: Lv 3）】
+ * 1. 【スリム＆シャープ化】底面半径を 0.06 ➔ 0.038（約37%スリム化）へ絞り、重たい土管感を解消。
+ * 2. 【先細りテーパー強化】頂点半径を底面比 70% ➔ 55% へ鋭角化し、天に向かって伸びる洗練されたオベリスク尖塔へ改良。
+ * 3. 【透明感・ホログラム感向上】胴体シリンダーの透明度適正化（0.35 ➔ 0.22）および側面ネオンエッジの整理・間引き（opacity 0.75 ➔ 0.45、分割数 16 ➔ 8）により、羽田・成田などの過密地域での重なり・ゴチャつきを劇的に解消。
  * 4. 既存の実在空港リスト（activeAirports）、近接除外フィルター、起点・終点ハイライト等は100%完全保持。
  */
 
@@ -188,15 +188,17 @@ export class AirportManager {
         // 黄金比率寸法: Lv 1: 0.08 / Lv 2: 0.16 / Lv 3: 0.24 (地球半径5.0比 1.6%〜4.8%)
         const heights = [0, 0.08, 0.16, 0.24];
         const h = heights[level] || 0.08;
-        const radiusBottom = 0.06;
-        const radiusTop = radiusBottom * 0.70; // 30%先細りテーパー
+        
+        // ★デザインブラッシュアップ: 太さを約37%スリム化（0.06 ➔ 0.038）し、先細りテーパーを鋭角化（55%）
+        const radiusBottom = 0.038;
+        const radiusTop = radiusBottom * 0.55; 
 
-        // 1. 半透明オベリスク・シリンダー光柱
-        const cylinderGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, h, 16, 1, true);
+        // 1. 半透明オベリスク・シリンダー光柱（ワイヤー感を減らし8角形で透明度0.22のホログラムガラス調へ）
+        const cylinderGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, h, 8, 1, true);
         const cylinderMat = new THREE.MeshBasicMaterial({
             color: playerEmeraldHex,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.22,
             side: THREE.DoubleSide,
             depthWrite: false
         });
@@ -207,12 +209,12 @@ export class AirportManager {
         towerGroup.add(cylinderMesh);
         fadeMats.push(cylinderMat);
 
-        // 2. タワー四隅のネオンエッジライン
+        // 2. タワー四隅のネオンエッジライン（透明度を控えめにして密集地でのゴチャつきを抑制）
         const edgesGeo = new THREE.EdgesGeometry(cylinderGeo);
         const edgesMat = new THREE.LineBasicMaterial({
             color: 0x6ee7b7,
             transparent: true,
-            opacity: 0.75,
+            opacity: 0.45,
             depthWrite: false
         });
         const edgesLines = new THREE.LineSegments(edgesGeo, edgesMat);
@@ -221,13 +223,13 @@ export class AirportManager {
         towerGroup.add(edgesLines);
         fadeMats.push(edgesMat);
 
-        // 3. 頂点リング（真上から見た時に底面リングと同心二重リングを形成）
-        const topRingGeo = new THREE.RingGeometry(radiusTop * 0.75, radiusTop, 24);
+        // 3. 頂点リング（スリムな先細り形状に合わせて繊細な二重リングを形成）
+        const topRingGeo = new THREE.RingGeometry(radiusTop * 0.65, radiusTop, 24);
         const topRingMat = new THREE.MeshBasicMaterial({
             color: 0xa7f3d0,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.95,
+            opacity: 0.90,
             depthWrite: false
         });
         const topRingMesh = new THREE.Mesh(topRingGeo, topRingMat);
@@ -235,8 +237,8 @@ export class AirportManager {
         towerGroup.add(topRingMesh);
         fadeMats.push(topRingMat);
 
-        // 4. 頂点ビーコン光点（管制シグナル）
-        const beaconGeo = new THREE.SphereGeometry(0.012, 8, 8);
+        // 4. 頂点ビーコン光点（管制シグナル・プロポーションに合わせて繊細化）
+        const beaconGeo = new THREE.SphereGeometry(0.008, 8, 8);
         const beaconMat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
@@ -244,7 +246,7 @@ export class AirportManager {
             depthWrite: false
         });
         const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
-        beaconMesh.position.z = h + 0.005;
+        beaconMesh.position.z = h + 0.004;
         towerGroup.add(beaconMesh);
         fadeMats.push(beaconMat);
 
