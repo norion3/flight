@@ -1,13 +1,13 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【主要空港 施設解体（ダウングレード）横並びUI制御 & 50%返金連動】
- * 1. 開発ボタンと解体ボタンを同一行（#airport-dev-container）に横並び配置。
- * 2. Lv 0: 解体ボタンを完全非表示化し、開発ボタンが全幅（w-full）で表示。
- * 3. Lv 1〜2: 開発（約62%）＋ 解体（約38%）の横並び。返金額（+$250K / +$750K）を明示。
- * 4. Lv 3: 開発ボタンを「最大開発完了 (Lv 3)」として非活性化（先頭アイコンと合わせてクレーン1つ表示）。
- *    右側の解体ボタン（活性・+$1.75M返金）から1段階戻す操作をサポート。
- * 5. ボタン押下時のコールバック `onDowngradeAirportRequested` を新設。
- * 6. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
+ * 【主要空港 施設解体（ダウングレード）常時表示・固定レイアウト & レベル連動有効化】
+ * 1. 解体ボタン（#btn-downgrade-airport）の hidden 操作を廃止し、最初から常に表示。
+ * 2. 開発ボタン（flex-[62]）と解体ボタン（flex-[38]）の横並び比率を常に固定維持。ボタン位置のブレを完全解消。
+ * 3. Lv 0: 解体ボタンを disabled = true かつグレーアウト（opacity-50 cursor-not-allowed）にして非活性化。
+ * 4. Lv 1〜3: 解体ボタンを disabled = false かつローズレッド色（bg-rose-700）にして活性化。返金額（+$250K / +$750K / +$1.75M）を明示。
+ * 5. Lv 3: 開発ボタンを「最大開発完了 (Lv 3)」として非活性化（HTML側アイコンと合わせてクレーン1つ表示）。
+ * 6. ボタン押下時のコールバック onDowngradeAirportRequested を完全保持。
+ * 7. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -920,7 +920,7 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    // ★改訂: 空港開発＆解体ボタンの横並び表示・活性状態の更新
+    // ★改訂: 空港開発＆解体ボタンの常時表示・固定レイアウトおよび活性状態制御
     updateAirportDevelopButton(devLevel = 0, currentFunds = null) {
         this.currentAirportDevLevel = devLevel;
         if (!this.airportDevContainer || !this.btnDevelopAirport) return;
@@ -937,24 +937,27 @@ export class UIManager {
         const costs = [500000, 1500000, 3500000]; // 建設費用（Lv 1: $500K / Lv 2: $1.5M / Lv 3: $3.5M）
         const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
 
-        // 解体ボタンの制御（Lv 0時は非表示、Lv 1〜3時は活性表示）
-        if (devLevel <= 0) {
-            if (this.btnDowngradeAirport) {
-                this.btnDowngradeAirport.classList.add('hidden');
+        // 1. 解体ボタンの制御（常時固定表示：Lv 0は無効化、Lv 1以上は活性化）
+        if (this.btnDowngradeAirport) {
+            this.btnDowngradeAirport.classList.remove('hidden');
+            const refundAmount = refunds[devLevel] || 250000;
+            if (refundEl) refundEl.innerText = `+${this._formatMoneyShort(refundAmount)}`;
+
+            if (devLevel <= 0) {
+                // Lv 0：非活性（グレーアウト・クリック不可）
                 this.btnDowngradeAirport.disabled = true;
-            }
-            // Lv 0時は開発ボタンが横幅100%全幅化
-            this.btnDevelopAirport.className = 'w-full py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ';
-        } else {
-            if (this.btnDowngradeAirport) {
-                this.btnDowngradeAirport.classList.remove('hidden');
+                this.btnDowngradeAirport.className = 'flex-[38] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 bg-slate-800 text-slate-500 border border-slate-700/50 opacity-50 cursor-not-allowed shadow-inner';
+                if (refundEl) refundEl.className = 'font-mono text-slate-500';
+            } else {
+                // Lv 1〜3：活性（ローズレッド色・クリック可能）
                 this.btnDowngradeAirport.disabled = false;
-                const refundAmount = refunds[devLevel] || 250000;
-                if (refundEl) refundEl.innerText = `+${this._formatMoneyShort(refundAmount)}`;
+                this.btnDowngradeAirport.className = 'flex-[38] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 bg-rose-700 active:bg-rose-600 text-white border border-rose-500/50 shadow-md cursor-pointer active:scale-[0.99]';
+                if (refundEl) refundEl.className = 'font-mono text-emerald-300';
             }
-            // Lv 1以上は開発（約62%）＋解体（約38%）の横並び比率
-            this.btnDevelopAirport.className = 'flex-[62] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ';
         }
+
+        // 2. 開発ボタン側（全幅 w-full にせず、常に flex-[62] を固定維持）
+        this.btnDevelopAirport.className = 'flex-[62] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ';
 
         // 開発ボタンの制御（Lv 3時は「最大開発完了 (Lv 3)」非活性表示・先頭アイコンと合わせてクレーン1つ）
         if (devLevel >= 3) {
