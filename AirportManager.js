@@ -1,10 +1,10 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【実在空港リスト（activeAirports）の新設 ＆ 幽霊空港へのAI接続防止 ＆ 全機能完全保持】
- * 1. 近接除外フィルター（EXCLUDE_DIST）を通過し、実際に画面上に3Dマーカーが生成された空港のみを
- *    `this.activeAirports` に格納して公開。
- *    これにより、画面外に除外された不可視空港（ガトウィックやオルリー等）にAIだけが接続してしまう非対称性バグを解消。
- * 2. 起点（純白）・目的地（ゴールド）の独立ハイライト、地平線カリング、マーカースケール計算等は100%完全保持。
+ * 【Phase 1: 3Dタワー造形 & 日本周辺テスト表示（HND: Lv 1 / NRT: Lv 2 / ICN: Lv 3）】
+ * 1. オベリスク・テーパー光柱（先細りシリンダー）、頂点リング、自社エメラルドマテリアルの生成。
+ * 2. 地平線付近での先端浮遊を防ぐカメラ角度連動フェード（ホライゾン・ディゾルブ）の実装。
+ * 3. 初期カメラ（日本周辺）で3段階のデザイン（Lv 1〜3）を即時比較できるテスト表示を配置。
+ * 4. 既存の実在空港リスト（activeAirports）、近接除外フィルター、起点・終点ハイライト等は100%完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -90,11 +90,18 @@ export class AirportManager {
             markerGroup.lookAt(pos.clone().multiplyScalar(2));
 
             let highlightTarget;
+            let majorRings = [];
+
             if (airport.type === 'major') {
-                visualGroup.add(new THREE.Mesh(majorCoreGeo, majorCoreMat));
-                visualGroup.add(new THREE.Mesh(majorRingGeo1, majorRingMat.clone()));
+                const coreMesh = new THREE.Mesh(majorCoreGeo, majorCoreMat);
+                const r1 = new THREE.Mesh(majorRingGeo1, majorRingMat.clone());
                 highlightTarget = new THREE.Mesh(majorRingGeo2, majorRingMat.clone());
+                
+                visualGroup.add(coreMesh);
+                visualGroup.add(r1);
                 visualGroup.add(highlightTarget);
+                
+                majorRings = [r1, highlightTarget];
             } else if (airport.type === 'local') {
                 visualGroup.add(new THREE.Mesh(localCoreGeo, localCoreMat));
                 highlightTarget = new THREE.Mesh(localRingGeo, localRingMat.clone());
@@ -106,18 +113,144 @@ export class AirportManager {
 
             markerGroup.add(visualGroup);
 
+            // ★Phase 1 テスト表示設定: 日本周辺の初期視界で Lv 1〜3 を一斉比較
+            let initialDevLevel = 0;
+            if (airport.id === 'HND') initialDevLevel = 1;      // 羽田: Lv 1（低層ベース）
+            else if (airport.id === 'NRT') initialDevLevel = 2; // 成田: Lv 2（中層タワー）
+            else if (airport.id === 'ICN') initialDevLevel = 3; // 仁川: Lv 3（完成・高層尖塔）
+
             markerGroup.userData = { 
                 airportData: airport, 
                 targetMesh: highlightTarget,
                 originalColor: highlightTarget.material.color.getHex(),
                 isOrigin: false,
                 isDest: false,
-                visualGroup: visualGroup
+                visualGroup: visualGroup,
+                majorRings: majorRings,
+                devLevel: 0,
+                towerGroup: null,
+                fadeMaterials: []
             };
 
             this.airportGroup.add(markerGroup);
             this.markers.push(markerGroup);
+
+            if (initialDevLevel > 0) {
+                this.setAirportDevLevel(markerGroup, initialDevLevel);
+            }
         });
+    }
+
+    /**
+     * 空港の3Dタワー造形（オベリスク・テーパー先細り光柱 ＋ 頂点リング ＋ 自社エメラルドマテリアル）
+     */
+    setAirportDevLevel(markerGroup, level) {
+        if (!markerGroup || !markerGroup.userData) return;
+        const u = markerGroup.userData;
+        u.devLevel = level;
+
+        // 既存タワーの消去
+        if (u.towerGroup) {
+            u.visualGroup.remove(u.towerGroup);
+            u.towerGroup.traverse(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            u.towerGroup = null;
+            u.fadeMaterials = [];
+        }
+
+        if (level <= 0) {
+            // Lv 0: 通常の黄金二重リングへ復帰
+            if (u.majorRings && u.majorRings.length > 0) {
+                u.majorRings.forEach(r => {
+                    r.material.color.setHex(0xfde047);
+                    r.material.opacity = 0.9;
+                });
+            }
+            u.originalColor = 0xfde047;
+            return;
+        }
+
+        // Lv 1〜3: 地表リングを自社カラー（エメラルド 0x34d399）へ染める
+        const playerEmeraldHex = 0x34d399;
+        if (u.majorRings && u.majorRings.length > 0) {
+            u.majorRings.forEach(r => {
+                r.material.color.setHex(playerEmeraldHex);
+                r.material.opacity = 0.95;
+            });
+        }
+        u.originalColor = playerEmeraldHex;
+
+        const towerGroup = new THREE.Group();
+        const fadeMats = [];
+
+        // 黄金比率寸法: Lv 1: 0.08 / Lv 2: 0.16 / Lv 3: 0.24 (地球半径5.0比 1.6%〜4.8%)
+        const heights = [0, 0.08, 0.16, 0.24];
+        const h = heights[level] || 0.08;
+        const radiusBottom = 0.06;
+        const radiusTop = radiusBottom * 0.70; // 30%先細りテーパー
+
+        // 1. 半透明オベリスク・シリンダー光柱
+        const cylinderGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, h, 16, 1, true);
+        const cylinderMat = new THREE.MeshBasicMaterial({
+            color: playerEmeraldHex,
+            transparent: true,
+            opacity: 0.35,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const cylinderMesh = new THREE.Mesh(cylinderGeo, cylinderMat);
+        // markerGroupは法線方向を向いているため、Z+方向へ向けて配置
+        cylinderMesh.rotation.x = Math.PI / 2;
+        cylinderMesh.position.z = h / 2;
+        towerGroup.add(cylinderMesh);
+        fadeMats.push(cylinderMat);
+
+        // 2. タワー四隅のネオンエッジライン
+        const edgesGeo = new THREE.EdgesGeometry(cylinderGeo);
+        const edgesMat = new THREE.LineBasicMaterial({
+            color: 0x6ee7b7,
+            transparent: true,
+            opacity: 0.75,
+            depthWrite: false
+        });
+        const edgesLines = new THREE.LineSegments(edgesGeo, edgesMat);
+        edgesLines.rotation.x = Math.PI / 2;
+        edgesLines.position.z = h / 2;
+        towerGroup.add(edgesLines);
+        fadeMats.push(edgesMat);
+
+        // 3. 頂点リング（真上から見た時に底面リングと同心二重リングを形成）
+        const topRingGeo = new THREE.RingGeometry(radiusTop * 0.75, radiusTop, 24);
+        const topRingMat = new THREE.MeshBasicMaterial({
+            color: 0xa7f3d0,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false
+        });
+        const topRingMesh = new THREE.Mesh(topRingGeo, topRingMat);
+        topRingMesh.position.z = h;
+        towerGroup.add(topRingMesh);
+        fadeMats.push(topRingMat);
+
+        // 4. 頂点ビーコン光点（管制シグナル）
+        const beaconGeo = new THREE.SphereGeometry(0.012, 8, 8);
+        const beaconMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 1.0,
+            depthWrite: false
+        });
+        const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
+        beaconMesh.position.z = h + 0.005;
+        towerGroup.add(beaconMesh);
+        fadeMats.push(beaconMat);
+
+        u.towerGroup = towerGroup;
+        u.fadeMaterials = fadeMats;
+        u.visualGroup.add(towerGroup);
     }
 
     clearHighlight(type = 'all') {
@@ -160,12 +293,26 @@ export class AirportManager {
             hitMesh.getWorldPosition(markerWorldPos);
             
             const dirP = markerWorldPos.clone().normalize();
+            const cosTheta = dirC.dot(dirP);
             
-            if (dirC.dot(dirP) < horizonCos - 0.05) {
+            if (cosTheta < horizonCos - 0.05) {
                 hitMesh.visible = false;
                 return; 
             } else {
                 hitMesh.visible = true;
+            }
+
+            // ★ホライゾン・ディゾルブ: 地平線の境目でタワー先端だけが宇宙に浮遊するのを防ぐフェード処理
+            if (hitMesh.userData.fadeMaterials && hitMesh.userData.fadeMaterials.length > 0) {
+                const diff = cosTheta - horizonCos;
+                let fadeFactor = 1.0;
+                if (diff < 0.15) {
+                    fadeFactor = Math.max(0, diff / 0.15);
+                }
+                hitMesh.userData.fadeMaterials.forEach(mat => {
+                    if (mat._baseOpacity === undefined) mat._baseOpacity = mat.opacity;
+                    mat.opacity = mat._baseOpacity * fadeFactor;
+                });
             }
 
             const distance = camera.position.distanceTo(markerWorldPos);
