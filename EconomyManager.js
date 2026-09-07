@@ -9,6 +9,7 @@
  * 6. 【直近6ヶ月限定軽量化】セーブデータ容量の肥大化・QRクラッシュを恒久的に防ぐため、履歴抽出を直近最大6件（.slice(-6)）に限定。
  * 7. 【5大対策仕様】飛行速度（flight_speed）アップグレードの回転率向上ボーナス（speedIncomeBonus / speedPassengerBonus）を収益・客数計算に適用。
  * 8. 【v3 収益バランス改善】Lv 0〜3（満足度500以下）の挙動を100%完全維持し、Lv 4以降の満足度超過分に平方根ソフトキャップおよび運賃・速度の加算整理を適用。
+ * 9. 【AI満足度ソフトキャップ適正化】AIの満足度超過分（500超）に係数0.008のソフトキャップ（上限約3.85倍）を導入し、プレイヤー（最大約5.0倍）を下回る適正倍率を収益・客数の両方に適用。
  */
 
 import { CONFIG } from './Config.js';
@@ -402,6 +403,12 @@ export class EconomyManager {
                 totalLength = totalLength / 2;
             }
 
+            // ★AI満足度ソフトキャップ（500までは線形維持、500超過分は係数0.008で最大約3.85倍に収束）
+            const rawAiSat = competitionManager ? competitionManager.getAiSatisfaction(comp.id) : 150;
+            const satBonus = rawAiSat <= 500
+                ? (1.0 + rawAiSat * 0.005)
+                : (1.0 + (500 * 0.005) + Math.sqrt(rawAiSat - 500) * 0.008);
+
             let activeFlyingPlanes = 0;
             let totalAiGrossMod = 0; // ★追加: 収益算出用に飛んでいる機体の平均バフを計算
 
@@ -420,7 +427,8 @@ export class EconomyManager {
                     const destShare = competitionManager ? competitionManager.getShare(plane.currentRoute.id, comp.id) : 0.2;
                     const avgShare = (originShare + destShare) / 2;
 
-                    const pass = baseDemand * (1.0 + (competitionManager.getAiSatisfaction(comp.id) || 150) * 0.005) * Math.max(0.05, avgShare) * finalPassengersRate * delta;
+                    // ★AI客数計算にソフトキャップ後のsatBonusを適用
+                    const pass = baseDemand * satBonus * Math.max(0.05, avgShare) * finalPassengersRate * delta;
                     
                     this.aiTotalPassengers[comp.id] += pass;
                     this.aiYearlyPassengers[comp.id] += pass;
@@ -430,8 +438,6 @@ export class EconomyManager {
             // 稼働機体の平均グローバル収益バフを適用
             const avgGlobalIncomeRate = activeFlyingPlanes > 0 ? totalAiGrossMod / activeFlyingPlanes : 0;
 
-            const sat = competitionManager ? competitionManager.getAiSatisfaction(comp.id) : 150;
-            const satBonus = 1.0 + (sat * 0.005);
             const distBonus = Math.min(1.5, totalLength / 20.0);
             const globalShare = competitionManager ? competitionManager.getGlobalShare(comp.id) : 0.2;
             const shareMult = 0.5 + (globalShare * 1.2);
@@ -443,6 +449,7 @@ export class EconomyManager {
             });
 
             let baseIncome = (routeCount * 1200) + (activeFlyingPlanes * 3500) + (planeCount * 600) + basePlaneIncome; 
+            // ★AI収益計算にソフトキャップ後のsatBonus（上限約3.85倍）を適用
             let grossIncome = baseIncome * satBonus * (1.0 + distBonus) * shareMult * (1.0 + avgGlobalIncomeRate);
             
             let totalAiUpkeep = 0;

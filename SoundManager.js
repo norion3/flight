@@ -1,14 +1,37 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【イベント発生時「ピロリン♪」チャイム音の新設】
- * 1. イベント発生を上品に知らせる3音上昇アルペジオの澄んだ通知音 `playNoticeSound` を追加。
+ * 【イベント発生時「ピロリン♪」チャイム音の新設 ＆ 画面復帰時・音量ボタントグル時の音声エンジン自動再開】
+ * 1. イベント発生を上品に知らせる3音上昇アルペジオの澄んだ通知音 `playNoticeSound` を保持。
  * 2. 既存のタップ音、サクセス音、警告音、イベントポップ音のタイトなウッドブロック特性は完全に保持しています。
+ * 3. 【画面復帰時自動再開】別画面・別アプリから復帰した際の AudioContext 中断（suspended/interrupted）を検知し自動 resume 復帰。
+ * 4. 【音量ボタントグル復帰】toggleMute 実行時に無条件で _initContext を呼び、消音解除・ボタン操作での元栓再起動を保証。
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
         this.isMuted = true; 
+        this._bindLifecycleEvents();
+    }
+
+    _bindLifecycleEvents() {
+        const resumeAudio = () => {
+            if (this.ctx && this.ctx.state !== 'running') {
+                this.ctx.resume().catch(() => {});
+            }
+        };
+
+        // 画面復帰（別タブ・別アプリから戻った瞬間）の検知
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                resumeAudio();
+            }
+        });
+        window.addEventListener('focus', resumeAudio);
+
+        // 画面復帰後のユーザー操作コンテキストでの再開セーフガード
+        window.addEventListener('pointerdown', resumeAudio, { passive: true });
+        window.addEventListener('touchstart', resumeAudio, { passive: true });
     }
 
     _initContext() {
@@ -18,15 +41,15 @@ export class SoundManager {
                 this.ctx = new AudioContext();
             }
         }
-        if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
+        if (this.ctx && this.ctx.state !== 'running') {
+            this.ctx.resume().catch(() => {});
         }
     }
 
     toggleMute() {
         this.isMuted = !this.isMuted;
+        this._initContext();
         if (!this.isMuted) {
-            this._initContext();
             this.playTapSound(); 
         }
         return this.isMuted;
