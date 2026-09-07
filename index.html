@@ -320,11 +320,13 @@
 
     <div id="ui-layer" class="pb-4 px-4 relative overflow-hidden flex flex-col items-center">
 
+        <!-- 接続モード案内バー（案1：三点リーダー削除・拡大・高輝度イエロー太字化） -->
         <div id="connecting-mode-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-cyan-500/50 rounded-full py-2 px-5 backdrop-blur-md shadow-lg shadow-cyan-900/40 absolute flex items-center justify-between space-x-4">
-            <p class="text-xs text-yellow-400 font-bold animate-pulse whitespace-nowrap">行先の空港をタップ...</p>
+            <p class="text-sm text-amber-300 font-extrabold animate-pulse whitespace-nowrap">行先の空港をタップ</p>
             <button id="btn-cancel-connect" class="px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-xs font-bold active:bg-slate-700 whitespace-nowrap">キャンセル</button>
         </div>
 
+        <!-- 空路開拓・廃止確認カード（下部に記号なし・左揃えの連続操作ガイドを追加） -->
         <div id="route-confirm-card" class="interactive-ui bottom-sheet bg-slate-900/95 border border-slate-500/50 rounded-2xl p-4 backdrop-blur-md shadow-lg shadow-slate-900/20 absolute">
             <h3 id="route-action-title" class="text-xs font-bold tracking-wider mb-2">---</h3>
             <div class="flex justify-between items-center text-lg font-bold mb-4">
@@ -335,6 +337,12 @@
             <div class="flex space-x-3">
                 <button id="btn-cancel-route" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold active:bg-slate-700">キャンセル</button>
                 <button id="btn-action-route" class="flex-1 py-3 rounded-xl text-white font-bold shadow-lg">---</button>
+            </div>
+            <div class="mt-3 flex justify-center">
+                <div class="text-[11px] text-slate-400 text-left leading-relaxed">
+                    <div>他の空港をタップすると行先を続けて開拓・廃止できます</div>
+                    <div>出発元の空港を変える時は「キャンセル」で選び直してください</div>
+                </div>
             </div>
         </div>
 
