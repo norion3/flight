@@ -4,7 +4,7 @@
  * 1. 開発ボタンと解体ボタンを同一行（#airport-dev-container）に横並び配置。
  * 2. Lv 0: 解体ボタンを完全非表示化し、開発ボタンが全幅（w-full）で表示。
  * 3. Lv 1〜2: 開発（約62%）＋ 解体（約38%）の横並び。返金額（+$250K / +$750K）を明示。
- * 4. Lv 3: 開発ボタンをクレーンマーク付き「🏗️ 最大開発完了 (Lv 3)」として非活性化。
+ * 4. Lv 3: 開発ボタンを「最大開発完了 (Lv 3)」として非活性化（先頭アイコンと合わせてクレーン1つ表示）。
  *    右側の解体ボタン（活性・+$1.75M返金）から1段階戻す操作をサポート。
  * 5. ボタン押下時のコールバック `onDowngradeAirportRequested` を新設。
  * 6. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
@@ -956,11 +956,11 @@ export class UIManager {
             this.btnDevelopAirport.className = 'flex-[62] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ';
         }
 
-        // 開発ボタンの制御（Lv 3時は「🏗️ 最大開発完了 (Lv 3)」非活性表示）
+        // 開発ボタンの制御（Lv 3時は「最大開発完了 (Lv 3)」非活性表示・先頭アイコンと合わせてクレーン1つ）
         if (devLevel >= 3) {
             this.btnDevelopAirport.disabled = true;
             this.btnDevelopAirport.className += 'bg-slate-800 text-slate-400 border border-slate-700/60 shadow-inner cursor-default';
-            if (textEl) textEl.innerText = '🏗️ 最大開発完了 (Lv 3)';
+            if (textEl) textEl.innerText = '最大開発完了 (Lv 3)';
             if (costEl) costEl.innerText = '';
             return;
         }
