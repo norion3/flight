@@ -13,6 +13,10 @@
  * 6. 【情報連動】空港選択時（handleTap）に現在の開発レベルと所持金を UIManager へ伝達。
  * 7. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
  * 8. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1】
+ * 9. `MuContinentManager` を初期化し、地球儀グループ（globe.group）へ接続。
+ * 10. 画面右上に「🏝️ ムー段階 [0/21]」デバッグボタンを設置し、タップごとに 0〜21 段階のループ動作を即時検証可能に連携。
  */
 
 import { CONFIG } from './Config.js';
@@ -29,6 +33,7 @@ import { CompetitionManager } from './CompetitionManager.js';
 import { EventManager } from './EventManager.js';
 import { Utils } from './Utils.js';
 import { SaveManager } from './SaveManager.js';
+import { MuContinentManager } from './MuContinentManager.js'; // ★ムー大陸 Phase 1
 
 const STATE_IDLE = 0;
 const STATE_CONNECTING = 1;
@@ -51,6 +56,9 @@ export class GameManager {
         this.planeManager = new PlaneManager(this.scene, this.globe.group, this.networkManager);
         this.uiManager = new UIManager();
         
+        // ★ムー大陸 Phase 1: マネージャー初期化
+        this.muManager = new MuContinentManager(this.scene, this.globe.group);
+
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
         this.saveManager = new SaveManager();
@@ -506,6 +514,35 @@ export class GameManager {
         window.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
+    /**
+     * ★ムー大陸 Phase 1: 0〜21段階伸縮テストボタンを画面に設置
+     */
+    _initMuDebugButton() {
+        if (document.getElementById('btn-mu-debug-step')) return;
+
+        const btn = document.createElement('button');
+        btn.id = 'btn-mu-debug-step';
+        btn.className = 'interactive-ui absolute top-24 right-4 z-40 bg-slate-900/90 text-emerald-400 border border-emerald-500/60 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg shadow-emerald-950/50 active:scale-95 transition-all flex items-center gap-1.5';
+        btn.innerHTML = `<span>🏝️ ムー段階 [0/21]</span>`;
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.uiManager && this.uiManager.soundManager) {
+                this.uiManager.soundManager.playTapSound();
+            }
+            if (this.muManager) {
+                const newStage = this.muManager.stepStageDebug();
+                btn.innerHTML = `<span>🏝️ ムー段階 [${newStage}/21]</span>`;
+                if (this.uiManager) {
+                    const statusText = newStage === 0 ? 'ムー大陸が水没しました' : `ムー大陸が第 ${newStage} 段階へ浮上！`;
+                    this.uiManager.showToast(statusText, 'info');
+                }
+            }
+        });
+
+        document.body.appendChild(btn);
+    }
+
     executeGameExit() {
         this.uiManager.soundManager.playSuccessSound();
         setTimeout(() => {
@@ -656,6 +693,9 @@ export class GameManager {
             this.initStarterPack();
             this.rivalManager.init();
             
+            // ★ムー大陸 Phase 1: デバッグ伸縮ボタンを設置
+            this._initMuDebugButton();
+
             this.hideLoader();
             this.checkZoomLimit(); 
         } else {
