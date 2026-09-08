@@ -10,6 +10,11 @@
  * 4. 【北島北シフト（Y: +0.82）＆ 中央神聖海峡（幅 0.22）の完全保持】
  * 5. 【第1〜20段階ルビー赤 ➔ 第21段階自社エメラルド覚醒動的カラー遷移の完全保持】
  * 6. 【幾何学地平線オクルージョン（地球儀裏面透過の100%完全遮断）の完全保持】
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 4: 初到着3Dサイバー粒子花火セレモニー】
+ * 7. 【3Dサイバー粒子花火（triggerCelebrationFireworks / updateFireworks）】
+ *    中央タワー頂点（高さ 0.72）および3連ピラミッド頂点から、エメラルド・ゴールド・サファイアの
+ *    光のフォトン粒子群が夜空へ放射・減衰しながら地球表面へ降り注ぐ優美なセレモニー花火システムを実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -48,6 +53,11 @@ export class MuContinentManager {
         this.monumentBodyMats = [];
         this.monumentEdgeMats = [];
         this.monumentCoreMats = [];
+
+        // ★Phase 4: 3Dサイバー粒子花火パーティクル管理
+        this.fireworksGroup = new THREE.Group();
+        this.muGroup.add(this.fireworksGroup);
+        this.activeFireworks = [];
 
         this._buildContinentGeometry();
         this._buildMonuments();
@@ -746,6 +756,134 @@ export class MuContinentManager {
         this.pyramidGroup.add(this.pyrSmallGroup);
 
         this.landMesh.add(this.pyramidGroup);
+    }
+
+    /**
+     * ★Phase 4新設: 初便着陸記念 3Dサイバー粒子花火（フォトン・パイロテクニクス）を打ち上げる
+     */
+    triggerCelebrationFireworks() {
+        if (!this.landMesh) return;
+
+        // 発射原点（北島タワー頂点、および南島3連ピラミッド頂点）
+        const launchOrigins = [
+            new THREE.Vector3(0.02, 0.82, 0.012 + 0.72), // タワー頂点
+            new THREE.Vector3(0.02 - 0.02, -0.74 + 0.22, 0.012 + 0.40), // 大ピラミッド頂点
+            new THREE.Vector3(0.02 - 0.14, -0.74 - 0.24, 0.012 + 0.28), // 中ピラミッド頂点
+            new THREE.Vector3(0.02 - 0.22, -0.74 - 0.57, 0.012 + 0.18)  // 小ピラミッド頂点
+        ];
+
+        const particleCountPerOrigin = 90;
+        const totalParticles = launchOrigins.length * particleCountPerOrigin;
+
+        const positions = new Float32Array(totalParticles * 3);
+        const colors = new Float32Array(totalParticles * 3);
+        const velocities = [];
+
+        // 祝賀カラーパレット: 自社エメラルド、ソーラーゴールド、サイバーサファイア、ピュアホワイト
+        const palette = [
+            new THREE.Color(0x34d399),
+            new THREE.Color(0xfbbf24),
+            new THREE.Color(0x38bdf8),
+            new THREE.Color(0xffffff)
+        ];
+
+        let pIdx = 0;
+        launchOrigins.forEach((origin) => {
+            for (let i = 0; i < particleCountPerOrigin; i++) {
+                const idx3 = pIdx * 3;
+                positions[idx3] = origin.x;
+                positions[idx3 + 1] = origin.y;
+                positions[idx3 + 2] = origin.z;
+
+                // 放射状の初速（半球・上空へ向かう花火展開ベクトル）
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * (Math.PI * 0.42); // 上向き中心
+                const speed = 0.16 + (Math.random() * 0.26);
+
+                const vx = Math.sin(phi) * Math.cos(theta) * speed;
+                const vy = Math.sin(phi) * Math.sin(theta) * speed;
+                const vz = Math.cos(phi) * speed * 1.35; // Z+（法線方向へ高く飛翔）
+
+                velocities.push(new THREE.Vector3(vx, vy, vz));
+
+                const col = palette[Math.floor(Math.random() * palette.length)];
+                colors[idx3] = col.r;
+                colors[idx3 + 1] = col.g;
+                colors[idx3 + 2] = col.b;
+
+                pIdx++;
+            }
+        });
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.045,
+            vertexColors: true,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        const pointsMesh = new THREE.Points(geometry, material);
+        this.fireworksGroup.add(pointsMesh);
+
+        this.activeFireworks.push({
+            mesh: pointsMesh,
+            geometry: geometry,
+            material: material,
+            velocities: velocities,
+            life: 0,
+            maxLife: 4.2 // 約4.2秒の優美な残光
+        });
+    }
+
+    /**
+     * ★Phase 4新設: 毎フレームの花火物理シミュレーション更新（放射 ➔ 重力沈降 ➔ フェードアウト）
+     */
+    updateFireworks(delta) {
+        if (this.activeFireworks.length === 0) return;
+
+        for (let f = this.activeFireworks.length - 1; f >= 0; f--) {
+            const fw = this.activeFireworks[f];
+            fw.life += delta;
+            const progress = fw.life / fw.maxLife;
+
+            if (progress >= 1.0) {
+                this.fireworksGroup.remove(fw.mesh);
+                fw.geometry.dispose();
+                fw.material.dispose();
+                this.activeFireworks.splice(f, 1);
+                continue;
+            }
+
+            // フェードアウト（後半にかけてゆっくり減光）
+            const fade = Math.max(0, 1.0 - Math.pow(progress, 1.6));
+            fw.material.opacity = fade;
+
+            const posAttr = fw.geometry.attributes.position;
+            const count = posAttr.count;
+
+            for (let i = 0; i < count; i++) {
+                const vel = fw.velocities[i];
+
+                // 重力によるZ減速＆沈降（擬似重力 -0.12）
+                vel.z -= 0.12 * delta;
+                // 空気抵抗
+                vel.multiplyScalar(Math.pow(0.92, delta * 60));
+
+                const x = posAttr.getX(i) + (vel.x * delta);
+                const y = posAttr.getY(i) + (vel.y * delta);
+                const z = posAttr.getZ(i) + (vel.z * delta);
+
+                posAttr.setXYZ(i, x, y, z);
+            }
+
+            posAttr.needsUpdate = true;
+        }
     }
 
     /**

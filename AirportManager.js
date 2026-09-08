@@ -7,9 +7,11 @@
  *    全主要空港の3Dタワー（Lv 0〜3）と自社エメラルドマテリアルを一瞬で再構築。
  * 3. 3Dタワー造形（スリム・先細り・透明感）、地平線ディゾルブ、ハイライト等は100%完全保持。
  * 
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: Step 3】
- * 4. 【合計開発レベル集計（getTotalDevLevel）】画面上の全主要空港の現在の開発レベル（Lv 0〜3）の
- *    合計値を一括算出して返すヘルパー関数を追加。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3〜4】
+ * 4. 【合計開発レベル集計（getTotalDevLevel）】画面上の全主要空港の現在の開発レベル合計値を算出。
+ * 5. 【Phase 4: ムー中央古代空港ノード解放（unlockMuAirport）】
+ *    空路開通時に、北島タワー直下に主要空港と同等（type: 'major', 最大8路線）の「ムー中央古代空港 (MU)」
+ *    マーカーを動的生成・配置し、タップ判定（markers）へ正式登録。
  */
 
 import { CONFIG } from './Config.js';
@@ -29,6 +31,17 @@ export class AirportManager {
         this.markers = []; 
         this.allAirports = this._compileAllAirports();
         this.activeAirports = []; // ★画面上に実在・表示されている空港のリスト
+
+        // ★Phase 4: ムー中央古代空港の定義と開通管理
+        this.isMuUnlocked = false;
+        this.muAirportData = {
+            id: 'MU',
+            name: 'ムー中央古代空港',
+            country: '太平洋古代文明',
+            type: 'major',
+            lat: -18.0,
+            lon: -112.5
+        };
     }
 
     _compileAllAirports() {
@@ -41,7 +54,59 @@ export class AirportManager {
     }
 
     getAirportById(id) {
+        if (id === 'MU') return this.muAirportData;
         return this.allAirports.find(a => a.id === id);
+    }
+
+    /**
+     * ★Phase 4新設: ムー中央古代空港（MU）のマーカーノードを開通・有効化
+     * 主要空港と同等仕様（type: 'major', 最大8路線）としてタップ・航路接続を可能にする
+     */
+    unlockMuAirport() {
+        if (this.isMuUnlocked) return;
+        this.isMuUnlocked = true;
+
+        const airport = this.muAirportData;
+        const pos = Utils.latLonToVector3(airport.lat, airport.lon, CONFIG.GLOBE_RADIUS + 0.02);
+
+        const majorCoreGeo = new THREE.SphereGeometry(0.02, 16, 16);
+        const majorCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const majorRingGeo1 = new THREE.RingGeometry(0.035, 0.045, 32);
+        const majorRingGeo2 = new THREE.RingGeometry(0.06, 0.065, 32);
+        const majorRingMat = new THREE.MeshBasicMaterial({ color: 0x34d399, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+
+        const markerGroup = new THREE.Group();
+        const visualGroup = new THREE.Group();
+
+        markerGroup.position.copy(pos);
+        markerGroup.lookAt(pos.clone().multiplyScalar(2));
+
+        const coreMesh = new THREE.Mesh(majorCoreGeo, majorCoreMat);
+        const r1 = new THREE.Mesh(majorRingGeo1, majorRingMat.clone());
+        const highlightTarget = new THREE.Mesh(majorRingGeo2, majorRingMat.clone());
+
+        visualGroup.add(coreMesh);
+        visualGroup.add(r1);
+        visualGroup.add(highlightTarget);
+
+        markerGroup.add(visualGroup);
+
+        markerGroup.userData = {
+            airportData: airport,
+            targetMesh: highlightTarget,
+            originalColor: highlightTarget.material.color.getHex(),
+            isOrigin: false,
+            isDest: false,
+            visualGroup: visualGroup,
+            majorRings: [r1, highlightTarget],
+            devLevel: 3, // ★開通時点で完成された超巨大タワー
+            towerGroup: null,
+            fadeMaterials: []
+        };
+
+        this.airportGroup.add(markerGroup);
+        this.markers.push(markerGroup);
+        this.activeAirports.push(airport);
     }
 
     buildAirportMarkers() {
@@ -255,7 +320,7 @@ export class AirportManager {
      * @returns {number} 累計開発レベル
      */
     getTotalDevLevel() {
-        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major');
+        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major' && m.userData.airportData.id !== 'MU');
         return majors.reduce((sum, m) => sum + (m.userData.devLevel || 0), 0);
     }
 
@@ -263,7 +328,7 @@ export class AirportManager {
      * ★Phase 5: 全主要空港（約80箇所）のLv0〜3を2ビットずつパックし極小Base64文字列（約27文字）で出力
      */
     exportDevLevels() {
-        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major');
+        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major' && m.userData.airportData.id !== 'MU');
         if (majors.length === 0) return '';
 
         // すべて未開発（Lv 0）なら空文字を返してQR容量を節約
@@ -288,7 +353,7 @@ export class AirportManager {
      * ★Phase 5: 極小Base64文字列から全主要空港の3Dタワーを完全一括復元
      */
     restoreDevLevels(str) {
-        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major');
+        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major' && m.userData.airportData.id !== 'MU');
         if (majors.length === 0) return;
 
         // 文字列がない場合は全主要空港を Lv 0 にリセット

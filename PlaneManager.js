@@ -11,6 +11,10 @@
  * 5. 【Step 2追加】セーブデータ復元用メソッド（restorePlanes）を新設。
  * 6. 【5大対策仕様】路線未開設時も遊休機体（地上駐機モード）として planes 配列に安全保持し、全路線廃止後のセーブ＆ロード時の機体永久消滅を完全根絶。
  * 7. 【視覚的追従演出】プレイヤーの速度向上に応じ、AI機体の飛行アニメーション速度も約55%の比率で自然に追従加速。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 4 & Phase 5: 初到着検知 ＆ セーブ同期連動】
+ * 8. プレイヤー機がムー中央古代空港（MU）へ初着陸した瞬間を検知し、初回のみ `onFirstMuLanding` コールバックを発火。
+ * 9. セーブデータロード時に `hasLandedMu` を同期し、セレモニーの二重発火を完全に防止。
  */
 
 import { CONFIG } from './Config.js';
@@ -27,6 +31,10 @@ export class PlaneManager {
         this.globeGroup.add(this.planeGroup);
 
         this.baseGeometry = this._createPlaneGeometry();
+
+        // ★Phase 4 & Phase 5: ムー中央古代空港（MU）への初到着コールバック＆検知フラグ
+        this.onFirstMuLanding = null;
+        this.hasLandedMu = false;
     }
 
     _createPlaneGeometry() {
@@ -434,6 +442,15 @@ export class PlaneManager {
 
             if (plane.progress >= 1.0) {
                 const nextAirportId = plane.currentRoute.id;
+
+                // ★Phase 4新設: プレイヤー機がムー中央古代空港（MU）へ初着陸した瞬間を検知
+                if (plane.companyId === 'player' && nextAirportId === 'MU' && !this.hasLandedMu) {
+                    this.hasLandedMu = true;
+                    if (this.onFirstMuLanding) {
+                        this.onFirstMuLanding();
+                    }
+                }
+
                 let nextRoute = this._getRouteBySeparation(nextAirportId, plane.companyId);
                 
                 // ★折り返し反転（リバース）安全フォールバック: 次便がない場合、直前に飛んできた路線を逆向きに割り当てて即座に反転運航

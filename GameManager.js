@@ -3,8 +3,8 @@
  * 【Phase 5: 主要空港開発（全80空港）2ビット・ビットマップ極小QRセーブ＆完全復元 ＆ 施設解体・50%返金連動】
  * 1. 【解体リクエスト処理】`onDowngradeAirportRequested` を実装。直前建設費の50%（Lv3->2: $1.75M / Lv2->1: $750K / Lv1->0: $250K）を
  *    即時返金（addFunds）し、3Dタワーを1段階低い造形へダウングレード（Lv 0到達時は黄金リングへ復帰）。
- * 2. 【v7極小セーブ発行】`saveData.dev` に `airportManager.exportDevLevels()`（わずか20数文字）を格納し、
- *    解体後のレベル状態もセーブデータバージョン `v: 7` として完全記録。
+ * 2. 【v7極小セーブ発行 ➔ v8ムー完全対応版】`saveData.dev`（主要空港2ビット圧縮）に加え、
+ *    `saveData.mu` にムー進行状態（3ビット整数: 0〜7）をわずか1文字で格納し、セーブデータバージョン `v: 8` へ更新。
  * 3. 【タワー完全一括復元】ロード時（onLoadSaveRequested）に `data.dev` を `airportManager.restoreDevLevels()` へ渡し、
  *    地球儀上の全主要空港の3Dタワーを一瞬で再構築。
  * 4. 【動的開発処理】開発ボタン押下時（onDevelopAirportRequested）にデバッグ価格（$500K / $1.5M / $3.5M）を
@@ -14,12 +14,16 @@
  * 7. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
  * 8. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
  * 
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: 観測電信ディレイ着信 ＆ トースト・モーダル競合排他制御】
- * 9. `onDevelopAirportRequested` 内で、開発トースト（3.0秒）＋余韻（0.8秒）＝ 3.8秒後の遅延着信予約（`pendingMuTimeout`）を設定。
- * 10. 電信モーダル表示中は `this.isPaused = true` にして背後の時間進行・決算・イベント進行を安全に停止。
- * 11. 電信のOK受信時に `this.isPaused = false` にして時間をスムーズに再開。
- * 12. 期末決算モーダル（Level 2）発火時は電信タイマーを一時退避し、決算完了後に約0.5秒のインターバルを挟んで保留電信を自動発火。
- * 13. `handleTap` において `uiManager.isMuEventModalOpen()` が true の間はタップを即座に破棄し誤タップを完全防止。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 4 & Phase 5: 空路開通・初到着花火・極小QRセーブ＆完全復元】
+ * 9. `onDevelopAirportRequested` 内で、第21段階到達後にいずれかの主要空港が新たに Lv 3 へ新設された瞬間を検知し空路開通。
+ * 10. 条件達成時に `airportManager.unlockMuAirport()` を呼び出し、ムー中央古代空港（MU）を正式ノードとして解放。
+ * 11. `handleTap` における空路接続の最大許容距離を `networkManager.getMaxAllowedDistance(originData, destData)` に更新し、
+ *     ムー大陸関与路線は日本（羽田・成田）から直行可能な 1.72R（約118度）を自動適用。
+ * 12. `planeManager.onFirstMuLanding` を購読し、初便着陸時に `muManager.triggerCelebrationFireworks()` を発火。
+ *     初到着達成記念セレモニー電信モーダルを表示し、エンドレス経営の継続へ接続。
+ * 13. `animate()` 内で毎フレーム `muManager.updateFireworks(delta)` を呼び出し、花火パーティクルを更新。
+ * 14. 【Phase 5 Step 1 & 2】セーブ発行時に `hasReachedStage21`, `isMuUnlocked`, `isMuCelebrated` を 1 文字の 3 ビット整数文字列（saveData.mu）として出力（v8）。
+ *     ロード時に `data.mu` から 3 つのフラグを復元し、`planeManager.hasLandedMu` の同期および `unlockMuAirport()` によるノード再配置を完全実行。
  */
 
 import { CONFIG } from './Config.js';
@@ -56,6 +60,11 @@ export class GameManager {
         this.pendingMuTimeout = null;
         this.pendingMuStageData = null;
 
+        // ★Phase 4 & Phase 5: ムー大陸の進行フラグ統括
+        this.isMuUnlocked = false; // 空路開通済みフラグ
+        this.hasReachedStage21 = false; // 第21段階到達フラグ
+        this.isMuCelebrated = false; // 初到着セレモニー完了フラグ
+
         this.initThree();
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
@@ -67,6 +76,28 @@ export class GameManager {
         // ★ムー大陸 Phase 1: マネージャー初期化
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
         this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
+
+        // ★Phase 4新設: 自社機のムー中央古代空港（MU）への初到着コールバック登録
+        this.planeManager.onFirstMuLanding = () => {
+            if (this.isMuCelebrated) return;
+            this.isMuCelebrated = true;
+
+            // 1. 3Dサイバー粒子花火の打ち上げ
+            if (this.muManager && this.muManager.triggerCelebrationFireworks) {
+                this.muManager.triggerCelebrationFireworks();
+            }
+
+            // 2. 初到着記念の祝賀電信モーダルを着信表示
+            const celebrationEventData = {
+                stage: 21,
+                title: "祝・ムー中央古代空港 初便到着！",
+                sender: "世界航空連盟 ＆ 太古の碑文",
+                body: "太平洋の彼方に眠りし「伝承のムー大陸」へ、貴社の航空機が歴史的第1便として見事にタッチダウンを果たしました！\n\n中央メガリスタワーと3連ピラミッドから祝賀のフォトン花火が天空へ放たれています。\nこれより、ムー大陸は世界屈指の超長距離メガハブとして恒久的に稼働します！"
+            };
+            setTimeout(() => {
+                this.triggerMuModal(celebrationEventData);
+            }, 800);
+        };
 
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
@@ -143,7 +174,7 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし ＆ Phase 3 トースト後3.8秒電信ディレイ連動）
+        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし ＆ Phase 3 トースト後3.8秒電信ディレイ連動 ＆ Phase 4 空路開通判定）
         this.uiManager.onDevelopAirportRequested = (airportData, currentDevLevel) => {
             if (!airportData || airportData.type !== 'major') return;
             if (currentDevLevel >= 3) return;
@@ -173,8 +204,36 @@ export class GameManager {
             this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
             this.uiManager.showToast(`${airportData.name} を Lv ${nextLevel} へ開発しました！`, 'success');
 
-            // ★Phase 3改訂: トースト表示（3.0s）＋余韻（0.8s）＝ 3.8秒後に電信メッセージを着信表示
-            this.syncMuContinentStage(true, 3800);
+            // ★Phase 4新設: 第21段階到達後にいずれかの主要空港を「新たに Lv 3 へ新設」した瞬間を検知
+            const isMuUnlockTrigger = this.hasReachedStage21 && !this.isMuUnlocked && (nextLevel === 3);
+
+            if (isMuUnlockTrigger) {
+                this.isMuUnlocked = true;
+                if (this.airportManager.unlockMuAirport) {
+                    this.airportManager.unlockMuAirport();
+                }
+
+                // 3.8秒後に開通記念の緊急速報電信を発火
+                if (this.pendingMuTimeout) {
+                    clearTimeout(this.pendingMuTimeout);
+                    this.pendingMuTimeout = null;
+                }
+                const unlockEventData = {
+                    stage: 21,
+                    title: "超長距離誘導ビーコン共鳴・空路開通",
+                    sender: "ムー中央古代タワー通信",
+                    body: "世界主要空港の極限開発（Lv 3）に呼応し、ムー中央タワーの古代ビーコンが共鳴発光！\n\nプラズマ磁気防壁が解除され、「ムー中央古代空港」への航路が正式に開通しました！\n日本（羽田・成田）をはじめとする環太平洋の各主要空港より、直行便の開設が可能です！"
+                };
+                this.pendingMuStageData = unlockEventData;
+                this.pendingMuTimeout = setTimeout(() => {
+                    this.pendingMuTimeout = null;
+                    if (this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen()) return;
+                    this.triggerMuModal(unlockEventData);
+                }, 3800);
+            } else {
+                // 通常の浮上段階同期（トースト後3.8秒電信）
+                this.syncMuContinentStage(true, 3800);
+            }
         };
 
         // ★新設: 主要空港解体（ダウングレード）リクエストハンドラ（50%即時返金＆タワー降格 ＆ Phase 3 ムー大陸連動）
@@ -207,7 +266,7 @@ export class GameManager {
             this.syncMuContinentStage(false, 0);
         };
 
-        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
+        // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Phase 5 Step 1: v8 極小1文字ビットフラグ保存対応）
         this.uiManager.onIssueSaveRequested = async () => {
             try {
                 const playerPlanes = this.planeManager.planes.filter(p => p.companyId === 'player');
@@ -232,9 +291,16 @@ export class GameManager {
                 // ★Phase 5追加: 主要空港全80箇所のLv0〜3をわずか20数文字（約20バイト）でパック
                 const devLevelsStr = this.airportManager.exportDevLevels ? this.airportManager.exportDevLevels() : '';
 
+                // ★Phase 5 Step 1新設: ムー進行フラグ（3ビット整数: 0〜7）をわずか1文字でパック
+                let muMask = 0;
+                if (this.hasReachedStage21) muMask |= 1;
+                if (this.isMuUnlocked) muMask |= 2;
+                if (this.isMuCelebrated) muMask |= 4;
+                const muStateStr = muMask.toString();
+
                 // ★QR極限軽量化仕様: rivalState（タイマー・カウンター）と history（推移ログ）を完全除外
                 const saveData = {
-                    v: 7, // ★極限軽量・主要空港開発対応版 (v: 7)
+                    v: 8, // ★極限軽量・主要空港開発＆ムー大陸完全対応版 (v: 8)
                     type: 'save',
                     funds: Math.floor(this.economyManager.funds),
                     year: this.economyManager.year,
@@ -249,7 +315,8 @@ export class GameManager {
                     routes: routesStr,
                     rivals: rivalsData,
                     aiEconomy: this.economyManager.getAiEconomyData(),
-                    dev: devLevelsStr // ★Phase 5: 極小ビットマップ文字列
+                    dev: devLevelsStr, // ★主要空港全80箇所の2ビットデータ
+                    mu: muStateStr     // ★Phase 5新設: わずか1文字のビットフラグ (例: "7")
                 };
 
                 // 発行実時刻（YYYY/MM/DD HH:mm:ss）とゲーム進行度（X年目-Y月）
@@ -285,7 +352,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応 ➔ Phase 3 ムー大陸連動）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Phase 5 Step 1 & 2: v8 ムー完全復元対応）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -346,6 +413,22 @@ export class GameManager {
                         this.airportManager.restoreDevLevels(data.dev);
                     }
 
+                    // ★Phase 5 Step 1新設: ムー大陸の進行フラグ（v8）を解凍し完全復元
+                    const muVal = data.mu !== undefined ? parseInt(data.mu, 10) : 0;
+                    this.hasReachedStage21 = (muVal & 1) !== 0;
+                    this.isMuUnlocked = (muVal & 2) !== 0;
+                    this.isMuCelebrated = (muVal & 4) !== 0;
+
+                    // ★Phase 5 Step 2新設: PlaneManager の初着陸フラグ同期（セレモニー二重発火防止）
+                    if (this.planeManager) {
+                        this.planeManager.hasLandedMu = this.isMuCelebrated;
+                    }
+
+                    // ★Phase 5 Step 1新設: 空路開通済みならば MU 空港ノードを即座に有効化
+                    if (this.isMuUnlocked && this.airportManager.unlockMuAirport) {
+                        this.airportManager.unlockMuAirport();
+                    }
+
                     // ★Phase 3: ロードした主要空港の開発レベル合計に合わせてムー大陸の浮上段階を即座に復元
                     this.syncMuContinentStage(false, 0);
 
@@ -399,7 +482,7 @@ export class GameManager {
                     this.uiManager.showToast('QRコードが読み取れませんでした', 'error');
                 }
             } catch (err) {
-                console.error('[GameManager] Save Load Error:', err);
+                console.error('[GameManager] Save Issue Error:', err);
                 const msg = err.message ? err.message : '不明なエラー';
                 this.uiManager.showToast(`読込失敗: ${msg}`, 'error');
             }
@@ -558,6 +641,11 @@ export class GameManager {
         const targetStage = Math.max(0, Math.min(21, totalDev));
 
         this.muManager.setStage(targetStage);
+
+        // ★Phase 4: 第21段階に到達した実績をフラグとして記録
+        if (targetStage >= 21) {
+            this.hasReachedStage21 = true;
+        }
 
         // デバッグボタンの表示文字列も更新
         const btnDebug = document.getElementById('btn-mu-debug-step');
@@ -884,7 +972,9 @@ export class GameManager {
                 this.airportManager.setHighlight(bestHit, 'dest');
                 
                 const currConns = this.networkManager.getConnectionCount(data.id);
-                const maxConns = this.networkManager.MAX_CONNECTIONS[data.type];
+                // ★Phase 4: ムー中央古代空港（MU）は主要空港（major: 8路線）と同等扱い
+                const effectiveType = (data.id === 'MU') ? 'major' : data.type;
+                const maxConns = this.networkManager.MAX_CONNECTIONS[effectiveType] || 8;
                 const devLevel = bestHit.userData.devLevel || 0;
                 
                 // ★Phase 4: 開発レベルと所持金をUIに渡して開発ボタンを表示
@@ -916,7 +1006,8 @@ export class GameManager {
                     const posA = Utils.latLonToVector3(originData.lat, originData.lon, CONFIG.GLOBE_RADIUS);
                     const posB = Utils.latLonToVector3(destData.lat, destData.lon, CONFIG.GLOBE_RADIUS);
                     const distance = posA.distanceTo(posB);
-                    const maxDistance = CONFIG.GLOBE_RADIUS * 1.25;
+                    // ★Phase 4: ムー大陸関与路線は日本（羽田・成田）から直行可能な 1.72R（通常は 1.25R）を自動適用
+                    const maxDistance = this.networkManager.getMaxAllowedDistance(originData, destData);
 
                     if (distance > maxDistance) {
                         this.uiManager.showToast(window.APP_LANG.toastOverDistance);
@@ -986,6 +1077,11 @@ export class GameManager {
         this.airportManager.updateMarkerScale(this.camera);
         this.planeManager.updateScale(this.camera);
         this.planeManager.update(delta, currentBonuses.speedMultiplier);
+
+        // ★Phase 4新設: 3Dサイバー粒子花火パーティクルの毎フレーム物理更新
+        if (this.muManager && this.muManager.updateFireworks) {
+            this.muManager.updateFireworks(delta);
+        }
 
         this.competitionManager.update(delta, this.economyManager ? this.economyManager.year : 1);
         

@@ -9,6 +9,11 @@
  * 5. 機体飛行用 `{ id, curve, length, data }` 構造、ベジェ制御点計算、距離キャッシュ等は100%完全保持。
  * 6. 【追加】就航アクティブ制のための内部実績フラグ（`isOperational`）および開拓タイムスタンプ（`createdAt`）、`setRouteOperational` を実装。
  * 7. 【Step 3追加】空路ネットワークのBase62極小圧縮・抽出（exportRoutes）および3D空間への完全再構築（restoreRoutes）を実装。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 4: 主要空港同等ノード仕様 ＆ 日本直行距離制限（1.72R）】
+ * 8. 【主要空港同等接続数】ムー中央古代空港（MU）を主要空港（'major': 8路線）と同一の最大接続数として扱う判定を実装。
+ * 9. 【日本直行・描画破綻防止の距離制限（getMaxAllowedDistance）】ムー大陸が関与する空路は、通常の大圏距離制限（1.25R）を
+ *    日本（羽田・成田）から直行可能な 1.72R（約118度）に拡大。地球の真裏（対蹠点）のSlerp特異点破綻・地球コア貫通を物理的に100%未然防止。
  */
 
 import { CONFIG } from './Config.js';
@@ -153,6 +158,22 @@ export class NetworkManager {
         return this.network[companyId][fromId].some(dest => dest.id === toId);
     }
 
+    /**
+     * ★Phase 4新設: 2空港間の最大許容接続距離を取得
+     * 通常は地球半径比 1.25R。ムー中央古代空港（MU）が関与する場合は日本（東京・羽田）から直行可能な 1.72R（約118度）に拡大。
+     * ヨーロッパ等の地球の裏側（140度超）は除外し、対蹠点Slerp特異点破綻・地球コア貫通を物理的に完全防止。
+     * @param {Object} fromData 
+     * @param {Object} toData 
+     * @returns {number} 最大許容大圏弦長距離
+     */
+    getMaxAllowedDistance(fromData, toData) {
+        if (!fromData || !toData) return CONFIG.GLOBE_RADIUS * 1.25;
+        const fromId = typeof fromData === 'object' ? fromData.id : fromData;
+        const toId = typeof toData === 'object' ? toData.id : toData;
+        const isMuRoute = (fromId === 'MU' || toId === 'MU');
+        return isMuRoute ? (CONFIG.GLOBE_RADIUS * 1.72) : (CONFIG.GLOBE_RADIUS * 1.25);
+    }
+
     canConnect(fromData, toData, companyId = 'player') {
         if (!fromData || !toData) return false;
         if (fromData.id === toData.id) return false;
@@ -160,8 +181,12 @@ export class NetworkManager {
         const fromCount = this.getConnectionCount(fromData.id, companyId);
         const toCount = this.getConnectionCount(toData.id, companyId);
         
-        const fromMax = this.MAX_CONNECTIONS[fromData.type] || 5;
-        const toMax = this.MAX_CONNECTIONS[toData.type] || 5;
+        // ★Phase 4: ムー中央古代空港（MU）は主要空港（'major': 8路線）と完全に同一扱い
+        const fromType = (fromData.id === 'MU') ? 'major' : fromData.type;
+        const toType = (toData.id === 'MU') ? 'major' : toData.type;
+
+        const fromMax = this.MAX_CONNECTIONS[fromType] || 5;
+        const toMax = this.MAX_CONNECTIONS[toType] || 5;
 
         if (fromCount >= fromMax || toCount >= toMax) return false;
 
