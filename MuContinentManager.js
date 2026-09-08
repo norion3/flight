@@ -1,19 +1,22 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（カルデラ湖バランス復元 ＆ 北側衝突完全回避版）】
- * 1. 【北端衝突の完全解消 ＆ 内海調和メガスケール】
- *    中央聖域島（マダガスカル）の南北スケールを 0.335 ➔ 0.245、東西幅を 0.165 ➔ 0.148 へ最適化。
- *    配置重心（Yオフセット）を -0.015 ➔ -0.075 へ南シフトし、北壁内周との間に 0.20 のクリアな等幅海峡を復活。
- * 2. 【神聖カルデラ湖の明示的Holeくり抜き】
- *    偶発的ポリゴン隙間による縦長裂け目・骨化を根絶。計算され尽くした黄金比率の楕円カルデラ湖（東西 0.055 / 南北 0.095）を
- *    innerShape.holes.push で明示的に開口。島自体のどっしりとした台地感と、ノイズレスな二重環状発光線を完全両立。
- * 3. 【極限エーテル透過 ＆ 加算発光合成（AdditiveBlending）】
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（カルデラ湖黄金比率 ＆ 右翼陸地メッシュ完全復元版）】
+ * 1. 【右翼ポリゴン欠落・海抜けの数学的完全解消】
+ *    Three.js の Earcut（三角形分割）が外周と穴の巻き方向の衝突によって右半面を「穴の外部」と誤認していたバグを解決。
+ *    外周多角形の巻き方向を数学的に厳密に反時計回り（CCW）へ整流化し、カルデラ湖穴を時計回り（CW）で開口。
+ *    右半分の陸地ポリゴンを100%確実に復元し、海が透ける現象を根絶。
+ * 2. 【神聖カルデラ湖の黄金比率拡大】
+ *    豆粒サイズ（面積比4.8%）だった中央湖を、宇宙から見ても一目でわかる堂々たる存在感へ拡大。
+ *    東西半径を 0.055 ➔ 0.105、南北半径を 0.095 ➔ 0.180（約1.9倍拡大）、Yオフセットを -0.065 へ最適調和。
+ * 3. 【北端衝突回避 ＆ 南部水域最適配置】
+ *    マダガスカル島南北スケール 0.245、東西幅 0.148、北壁クリアランス 0.20 は完全保持。
+ * 4. 【極限エーテル透過 ＆ 加算発光合成（AdditiveBlending）】
  *    - 外周リング（面）: #059669 / opacity: 0.05 / AdditiveBlending（深海から放たれるエメラルドの光霞）
  *    - 中央聖域島（面）: #fbbf24 / opacity: 0.04 / AdditiveBlending（濁りゼロの神聖シャンパンゴールド・オーラ）
- * 4. 【高輝度ネオン輪郭線の主役化】
+ * 5. 【高輝度ネオン輪郭線の主役化】
  *    - 外周海岸線（線）: #34d399 / opacity: 1.00（LineLoop直接描画）
  *    - カルデラ湖岸線（線）: #fef08a / opacity: 1.00（神聖な金糸の二重環状線）
- * 5. 【内部ワイヤー線100%根絶 ＆ 完全球面追従】LineLoop直接描画、境界エッジ抽出、球面射影処理、0〜21段階浮上ロジックは完全保持。
+ * 6. 【内部ワイヤー線100%根絶 ＆ 完全球面追従】LineLoop直接描画、境界エッジ抽出、球面射影処理、0〜21段階浮上ロジックは完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -264,24 +267,30 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：明示的カルデラ湖 ＆ 最適メガ拡大） ---
+        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：黄金比率カルデラ湖 ＆ 右翼メッシュ完全復元） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
-        if (innerPoints.length > 0) {
-            innerShape.moveTo(innerPoints[0].x, innerPoints[0].y);
-            for (let i = 1; i < innerPoints.length; i++) {
-                innerShape.lineTo(innerPoints[i].x, innerPoints[i].y);
+
+        // ★Earcut破綻防止：外周の巻き方向を数学的にCCW（反時計回り）へ整流化
+        const isClockWise = THREE.ShapeUtils.isClockWise(innerPoints);
+        const orderedInnerPoints = isClockWise ? [...innerPoints].reverse() : [...innerPoints];
+
+        if (orderedInnerPoints.length > 0) {
+            innerShape.moveTo(orderedInnerPoints[0].x, orderedInnerPoints[0].y);
+            for (let i = 1; i < orderedInnerPoints.length; i++) {
+                innerShape.lineTo(orderedInnerPoints[i].x, orderedInnerPoints[i].y);
             }
             innerShape.closePath();
         }
 
-        // ★神聖カルデラ湖の明示的くり抜き（東西 0.055 / 南北 0.095 の黄金比オーバルパス）
+        // ★神聖カルデラ湖の黄金比率拡大（東西 0.105 / 南北 0.180 / Y: -0.065）
+        // ★Earcut仕様に準拠し、穴は外周（CCW）と逆のClockwise（時計回り: true）で開口
         const calderaHole = new THREE.Path();
         const lakeCenterX = 0.02;
-        const lakeCenterY = -0.075;
-        const lakeRadiusX = 0.055;
-        const lakeRadiusY = 0.095;
-        calderaHole.absellipse(lakeCenterX, lakeCenterY, lakeRadiusX, lakeRadiusY, 0, Math.PI * 2, false);
+        const lakeCenterY = -0.065;
+        const lakeRadiusX = 0.105;
+        const lakeRadiusY = 0.180;
+        calderaHole.absellipse(lakeCenterX, lakeCenterY, lakeRadiusX, lakeRadiusY, 0, Math.PI * 2, true);
         innerShape.holes.push(calderaHole);
 
         // 面取り（ベベル）を排除し、聖なるカルデラ湖穴を綺麗に開口
