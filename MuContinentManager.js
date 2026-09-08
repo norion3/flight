@@ -1,20 +1,21 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（ツインアイランド重なり完全根絶 ＆ 全輪郭頂点数3倍超高密度トポロジー版）】
- * 1. 【南島（カスピ海）の縮小 ＆ -32度回転傾斜による重なり完全根絶】
- *    - 内海南部の東西に広い円形水域に合わせ、南島（カスピ海）を約32度反時計回りに回転傾斜（-0.558 rad）かつ適正縮小（scaleX: 0.105, scaleY: 0.115）。
- *    - 北島（マダガスカル: 重心 X +0.02, Y +0.72）と南島（カスピ海: 重心 X +0.02, Y -0.58）の間に幅約 0.23〜0.28 の中央神聖海峡を開通。
- *    - 島同士の重なり・接触を物理的に 100% 完全に解消。
- * 2. 【チープさを一掃する頂点数3倍・惑星級超高解像度フラクタル地殻】
- *    スプライン補間出力頂点数を従来の約3倍へと大幅強化。
- *    - 外周オーストラリア: 258頂点 ➔ 774頂点（全湾入・岬の折れ線感を完全消去）
- *    - 北島マダガスカル: 156頂点 ➔ 468頂点（アンブル岬、アントンギル湾、ボンベトカ湾を超高密度ネオン化）
- *    - 南島カスピ海: 162頂点 ➔ 486頂点（王冠状カラ・ボガス・ゴル湾、ヴォルガ川デルタを超高密度ネオン化）
- * 3. 【描画・マテリアル・球面射影完全同期】
- *    - 輪郭線: 他大陸と100%同一の LineLoop 一筆書き直接描画（内部ワイヤー線0%、高輝度ネオン opacity 1.00）
- *    - 面: AdditiveBlending 極薄オーラ（外周: #059669 opacity 0.05 / 内部2島: #fbbf24 opacity 0.04）
- * 4. 【完全球面追従 ＆ 浮上ロジック完全保持】
- *    地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジック、外部公開インターフェースは完全保持。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（他大陸描画処理・色彩完全同期 ＆ 生データ直結トポロジー版）】
+ * 1. 【スプライン丸めの完全廃止 ＆ 生データ直結（Linear LineLoop）描画】
+ *    角を削ってCG粘土感を出していた THREE.SplineCurve による平滑化を完全撤廃。
+ *    オーストラリア（画像13）、マダガスカル（画像14）、カスピ海（画像15）の実機生データ点群を
+ *    そのまま直線（Linear）で直結。アンブル岬の鋭利な突起、アントンギル湾の深い切れ込み、
+ *    王冠状カラ・ボガス・ゴル湾の波食起伏を1ピクセルも丸めず、他大陸と100%同一のシャープな地殻へ復元。
+ * 2. 【全海岸線カラーの他大陸完全同期（CONFIG.COLORS.COASTLINE）】
+ *    外周海岸線（緑 #34d399）および内部島海岸線（淡黄 #fef08a）の独自カラーを撤廃し、
+ *    他大陸と完全に同一のシアンホワイト（CONFIG.COLORS.COASTLINE）へ統一。
+ *    異物感を完全消滅させ、惑星地殻としての究極のシームレス調和を完成。
+ * 3. 【南島（カスピ海）の約1.15倍黄金拡大 ＆ 南側広大水域への適正アライメント】
+ *    南側水域の余白を埋めるため、カスピ海スケールを約1.15倍（scaleX: 0.120, scaleY: 0.132）へ拡大。
+ *    重心を Y = -0.65 へアライメントし、中央神聖海峡（幅 0.25）を維持したまま黄金比率で水域を満杯化。
+ * 4. 【面（オーラ）と線（地殻）の完璧な役割分担 ＆ 完全球面追従】
+ *    線は他大陸と完全同色でありながら、陸地の下からだけ極薄の燐光（AdditiveBlending / 外周 0.05 / 内部 0.04）が漂う神聖美。
+ *    地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジックは完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -47,8 +48,8 @@ export class MuContinentManager {
     }
 
     /**
-     * オーストラリア本土の実在リアル地理データに基づく超高精細海岸線（86点サンプリング）
-     * 90度時計回り回転 ＆ 拡大（scaleFactor: 0.140） ＆ ★頂点数3倍スプライン平滑化（774頂点出力）
+     * オーストラリア本土の実在リアル地理データに基づく超高精細海岸線（86点生データ）
+     * 90度時計回り回転 ＆ 拡大（scaleFactor: 0.140） ＆ ★他大陸と完全同一の生データ直結（Linear）
      */
     _getRotatedAustraliaPoints() {
         const realAussiePoints = [
@@ -90,21 +91,16 @@ export class MuContinentManager {
 
         // 90度時計回り回転 (x' = dy * s, y' = -dx * s) および拡大スケール (0.140)
         const scaleFactor = 0.140;
-        const rotatedPoints = realAussiePoints.map(([dx, dy]) => {
+        return realAussiePoints.map(([dx, dy]) => {
             const rotX = dy * scaleFactor;
             const rotY = -dx * scaleFactor;
             return new THREE.Vector2(rotX, rotY);
         });
-
-        // ★スプライン曲線（Catmull-Rom スムージング）で頂点数を3倍化（774頂点出力）
-        const closedPoints = [...rotatedPoints, rotatedPoints[0]];
-        const spline = new THREE.SplineCurve(closedPoints);
-        return spline.getPoints(rotatedPoints.length * 9);
     }
 
     /**
-     * 北島：マダガスカル島（Madagascar）の実在リアル地理データに基づく超高精細ベクター（52点サンプリング）
-     * 重心 (0, 0) を基準としたローカル座標系で生成 ＆ ★頂点数3倍スプライン平滑化（468頂点出力）
+     * 北島：マダガスカル島（Madagascar）の実在リアル地理データに基づく超高精細ベクター（52点生データ）
+     * 重心 (0, 0) を基準としたローカル座標系で生成 ＆ ★他大陸と完全同一の生データ直結（Linear）
      */
     _getNorthIslandMadagascarPoints() {
         const realMadagascarPoints = [
@@ -144,19 +140,14 @@ export class MuContinentManager {
         const rawCenterX = sumX / realMadagascarPoints.length;
         const rawCenterY = sumY / realMadagascarPoints.length;
 
-        const points = realMadagascarPoints.map(([dx, dy]) => {
+        return realMadagascarPoints.map(([dx, dy]) => {
             return new THREE.Vector2((dx - rawCenterX) * scaleX, (dy - rawCenterY) * scaleY);
         });
-
-        // ★スプライン平滑化で頂点数を3倍化（468頂点出力）
-        const closedPoints = [...points, points[0]];
-        const spline = new THREE.SplineCurve(closedPoints);
-        return spline.getPoints(468);
     }
 
     /**
-     * 南島：カスピ海（Caspian Sea）の実在リアル地理データに基づく超高精細ベクター（54点サンプリング）
-     * ★最適化：内海南部の広大水域に合わせて約32度反時計回り回転 ＆ 縮小 ＆ ★頂点数3倍スプライン平滑化（486頂点出力）
+     * 南島：カスピ海（Caspian Sea）の実在リアル地理データに基づく超高精細ベクター（54点生データ）
+     * ★最適化：内海南部の広大水域に合わせて約32度反時計回り回転 ＆ 約1.15倍黄金拡大 ＆ ★他大陸と完全同一の生データ直結（Linear）
      */
     _getSouthIslandCaspianPoints() {
         const realCaspianPoints = [
@@ -182,9 +173,9 @@ export class MuContinentManager {
             [-2.5, 3.6], [-2.3, 4.2], [-1.9, 4.7], [-1.6, 5.2], [-1.5, 5.6], [-1.4, 6.0]
         ];
 
-        // 南島縮小スケーリング（実効幅 約0.78 / 実効長さ 約1.05）
-        const scaleX = 0.105;
-        const scaleY = 0.115;
+        // ★南島黄金スケーリング：約1.15倍ふっくら拡大（実効幅 約0.90 / 実効長さ 約1.20）
+        const scaleX = 0.120;
+        const scaleY = 0.132;
 
         // 重心 (0, 0) を基準としたローカル点群を計算
         let sumX = 0;
@@ -201,18 +192,13 @@ export class MuContinentManager {
         const cosA = Math.cos(rotAngle);
         const sinA = Math.sin(rotAngle);
 
-        const points = realCaspianPoints.map(([dx, dy]) => {
+        return realCaspianPoints.map(([dx, dy]) => {
             const lx = (dx - rawCenterX) * scaleX;
             const ly = (dy - rawCenterY) * scaleY;
             const rx = (lx * cosA) - (ly * sinA);
             const ry = (lx * sinA) + (ly * cosA);
             return new THREE.Vector2(rx, ry);
         });
-
-        // ★スプライン平滑化で頂点数を3倍化（486頂点出力）
-        const closedPoints = [...points, points[0]];
-        const spline = new THREE.SplineCurve(closedPoints);
-        return spline.getPoints(486);
     }
 
     /**
@@ -253,7 +239,7 @@ export class MuContinentManager {
     }
 
     /**
-     * 3D大陸メッシュ（外周高密度オーストラリア ＋ 北島マダガスカル ＋ 南島カスピ海 黄金分離配置）を構築
+     * 3D大陸メッシュ（外周生データオーストラリア ＋ 北島マダガスカル ＋ 南島カスピ海 他大陸完全同期配置）を構築
      */
     _buildContinentGeometry() {
         // --- 1. 外周沿岸部（深海と完全に溶け合う極薄サイバーエメラルド・オーラ） ---
@@ -291,7 +277,7 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // 外周ネオン発光海岸線（LineLoop直接描画：774頂点超高精細ループ）
+        // 外周ネオン発光海岸線（LineLoop直接描画：★他大陸同色 CONFIG.COLORS.COASTLINE）
         const shapeBox = new THREE.Box2().setFromPoints(shapePoints);
         const shapeCenter = new THREE.Vector2();
         shapeBox.getCenter(shapeCenter);
@@ -301,7 +287,7 @@ export class MuContinentManager {
         this._projectGeometryToSphere(coastLineGeo, 0.008);
 
         const edgesMat = new THREE.LineBasicMaterial({
-            color: 0x34d399,
+            color: CONFIG.COLORS.COASTLINE, // ★他大陸と完全同一のシアンホワイトへ同期
             transparent: true,
             opacity: 1.00,
             depthWrite: false
@@ -325,7 +311,7 @@ export class MuContinentManager {
         this.materials.push(innerMat);
 
         const innerLineMat = new THREE.LineBasicMaterial({
-            color: 0xfef08a,
+            color: CONFIG.COLORS.COASTLINE, // ★他大陸と完全同一のシアンホワイトへ同期
             transparent: true,
             opacity: 1.00,
             depthWrite: false
@@ -362,7 +348,7 @@ export class MuContinentManager {
         const northMesh = new THREE.Mesh(northGeo, innerMat);
         this.landMesh.add(northMesh);
 
-        // 北島超高密度ネオン海岸線（LineLoop直接描画：468頂点超高密度）
+        // 北島高精細ネオン海岸線（LineLoop直接描画：生データ直結・他大陸同色）
         const northPoints3D = northLocalPoints.map(p => new THREE.Vector3(p.x + northPosX, p.y + northPosY, 0.0045));
         const northLineGeo = new THREE.BufferGeometry().setFromPoints(northPoints3D);
         this._projectGeometryToSphere(northLineGeo, 0.016);
@@ -370,10 +356,10 @@ export class MuContinentManager {
         this.landMesh.add(northLine);
 
         // =========================================================================
-        // ★3. 南島：カスピ海（帝都メガリスタワー島 / 重心 X: +0.02, Y: -0.58 に黄金配置）
+        // ★3. 南島：カスピ海（帝都メガリスタワー島 / 重心 X: +0.02, Y: -0.65 に黄金配置）
         // =========================================================================
         const southPosX = 0.02;
-        const southPosY = -0.58;
+        const southPosY = -0.65;
 
         const southLocalPoints = this._getSouthIslandCaspianPoints();
         const southShape = new THREE.Shape();
@@ -385,14 +371,14 @@ export class MuContinentManager {
             southShape.closePath();
         }
 
-        // ジオメトリ生成後、明示的に南島黄金座標 (+0.02, -0.58) へ平行移動（center()は絶対に使わない）
+        // ジオメトリ生成後、明示的に南島黄金座標 (+0.02, -0.65) へ平行移動（center()は絶対に使わない）
         const southGeo = new THREE.ExtrudeGeometry(southShape, islandExtrudeSettings);
         southGeo.translate(southPosX, southPosY, 0);
         this._projectGeometryToSphere(southGeo, 0.016);
         const southMesh = new THREE.Mesh(southGeo, innerMat);
         this.landMesh.add(southMesh);
 
-        // 南島超高密度ネオン海岸線（LineLoop直接描画：486頂点超高密度）
+        // 南島高精細ネオン海岸線（LineLoop直接描画：生データ直結・他大陸同色）
         const southPoints3D = southLocalPoints.map(p => new THREE.Vector3(p.x + southPosX, p.y + southPosY, 0.0045));
         const southLineGeo = new THREE.BufferGeometry().setFromPoints(southPoints3D);
         this._projectGeometryToSphere(southLineGeo, 0.016);
