@@ -1,6 +1,6 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（島分離・黄金間隔アライメント ＆ ルビー覚醒演出完成版）】
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（裏面透過完全遮断・地平線オクルージョン完成版）】
  * 1. 【北島の北シフトによる島同士の接触完全根絶】
  *    - 北島（マダガスカル）およびタワーの重心を Y: +0.72 ➔ Y: +0.82 へ北シフト。
  *    - 南島（Y: -0.74）との間に幅 0.22 の美しい中央神聖海峡を完全復元。
@@ -11,6 +11,11 @@
  *    - 第1〜20段階: 古代の封印が眠る真紅のルビークリスタル（Mesh: 0xe11d48, Line: 0xfb7185, Core: 0xf43f5e）。
  *    - 第21段階（完全浮上）: 自社サイバーエメラルド（Mesh: 0x34d399, Line: 0x6ee7b7, Core: 0xffffff）へと一斉覚醒。
  * 4. 【Phase 1 球面サーフェス＆fBm海岸線＆北島タワー（高さ 0.72）の完全保持】
+ * 5. 【幾何学地平線オクルージョン（地球儀裏面透過の100%完全遮断）】
+ *    - 自律オクルージョン判定エンジン（_setupOcclusionCulling）を新設。
+ *    - カメラ方向とムー大陸法線の内積判定（cosTheta < horizonCos - 0.18）により、地球の裏側に回った瞬間に
+ *      muGroup 全体（大地・海岸線・タワー・ピラミッド）を 100% 完全非表示（visible = false）化。
+ *    - 日本・アジア・欧州などを正面にした際の裏抜けを物理的・数学的に完全根絶。
  */
 
 import { CONFIG } from './Config.js';
@@ -52,7 +57,55 @@ export class MuContinentManager {
 
         this._buildContinentGeometry();
         this._buildMonuments();
+        this._setupOcclusionCulling(); // ★地平線オクルージョン遮蔽エンジンの初期化
         this.setStage(0); // 初期状態は水没（Lv 0）
+    }
+
+    /**
+     * ★地平線オクルージョン（裏面透過完全遮断）エンジン
+     * カメラとムー大陸の相対角度（法線内積）を毎フレーム自律監視し、
+     * 地球の裏側に回った瞬間に muGroup 全体を 100% 完全非表示（visible = false）にする
+     */
+    _setupOcclusionCulling() {
+        const triggerGeo = new THREE.BufferGeometry();
+        triggerGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+        const triggerMat = new THREE.PointsMaterial({ size: 0, transparent: true, opacity: 0, depthWrite: false });
+        this.occlusionTrigger = new THREE.Points(triggerGeo, triggerMat);
+        this.occlusionTrigger.frustumCulled = false;
+        this.scene.add(this.occlusionTrigger);
+
+        const continentWorldPos = new THREE.Vector3();
+        const normal = new THREE.Vector3();
+        const camPos = new THREE.Vector3();
+        const dirC = new THREE.Vector3();
+
+        this.occlusionTrigger.onBeforeRender = (renderer, scene, camera) => {
+            // 水没時（Lv 0）は常に非表示
+            if (this.currentStage <= 0) {
+                this.muGroup.visible = false;
+                return;
+            }
+
+            // ムー大陸中心のワールド座標と地球表面法線ベクトル
+            this.muGroup.getWorldPosition(continentWorldPos);
+            normal.copy(continentWorldPos).normalize();
+
+            // カメラ位置と地平線コサイン境界値（cosTheta_horizon = R / distC）
+            camPos.copy(camera.position);
+            const distC = camPos.length();
+            if (distC < 0.001) return;
+
+            dirC.copy(camPos).normalize();
+            const cosTheta = dirC.dot(normal);
+            const horizonCos = CONFIG.GLOBE_RADIUS / distC;
+
+            // 大陸の広がり（マージン幅 0.18）を考慮した幾何学的遮蔽判定
+            if (cosTheta < horizonCos - 0.18) {
+                this.muGroup.visible = false; // ★地球の裏側に回ったら完全非表示
+            } else {
+                this.muGroup.visible = true;  // ★正面・地平線上に回ってきたら表示
+            }
+        };
     }
 
     /**
