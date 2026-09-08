@@ -1,18 +1,19 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（中央ツインモニュメント：古代ピラミッド ＆ 超巨大メガリスタワー空港 実装版）】
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（位置逆転 ＆ クリスタル高層ピラミッド 最適化版）】
  * 1. 【Phase 1 球面サーフェス＆fBm海岸線の完全継承】
  *    南島の影・歪みゼロの純粋球面サーフェス（ShapeGeometry）、他大陸同期シアンホワイト海岸線（LineLoop）、
  *    多層フラクタル補間（fBm）による本物測量級海岸線は100%完全保持。
- * 2. 【北島：古代ピラミッド（巨石多層階段神殿モニュメント）】
- *    - 配置: 北島（マダガスカル島重心 X: +0.02, Y: +0.72）
- *    - 造形: 4層の古代巨石階段台座 ＋ 頂点神殿祠堂（ゴールド加算発光面 ＋ シアンホワイト発光エッジ）。
- *    - 成長: 第7段階から海底より基底が出現し、第15段階で完全な巨石階段ピラミッドとして完成。
- * 3. 【南島：超巨大メガリスタワー（通常主要空港の3倍高・高さ約0.72）】
- *    - 配置: 南島（カスピ海島重心 X: +0.02, Y: -0.65）
+ * 2. 【位置逆転①：北島＝超巨大メガリスタワー空港塔（高さ 0.72）】
+ *    - 配置: 北島（マダガスカル島重心 X: +0.02, Y: +0.72 / 流線型島に天を突く光柱）
  *    - 造形: 通常主要タワー（高さ0.24）の3倍（高さ0.72）に達する、先細りテーパーの壮麗なエメラルド・クリスタルオベリスク塔
  *      ＋ 頂点二重リング ＋ 管制ビーコン光点。
  *    - 成長: 第13段階から海面より基部がせり上がり、第21段階で天を突く完成形へ屹立。
+ * 3. 【位置逆転②：南島＝高層クリスタル階段ピラミッド（7層・高さ 約0.44）】
+ *    - 配置: 南島（カスピ海島重心 X: +0.02, Y: -0.65 / 広大なメガ台地にどっしり鎮座）
+ *    - 造形: 平べったい4層から【壮麗な7層ジッグラト構造】へ倍増。高さを 0.1175 ➔ 約 0.44 へ約4倍高層化。
+ *    - 質感: ベタ塗りを廃止し、タワーと同期した【半透明シャンパンクリスタル（opacity: 0.22）＋ シアンホワイト発光エッジ】。
+ *    - 成長: 第7段階から海底より基底が出現し、第15段階で完全な高層クリスタル神殿として完成。
  * 4. 【浮上段階連動 ＆ 添付コード完全互換】
  *    setStage(0〜21) で島全体の隆起と連動して両モニュメントが動的成長。デバッグループ動作も完全同期。
  */
@@ -460,84 +461,18 @@ export class MuContinentManager {
     }
 
     /**
-     * Phase 2: 中央ツインモニュメントの構築
-     * - 北島（マダガスカル）: 古代巨石階段ピラミッド（遺跡モニュメント）
-     * - 南島（カスピ海）: 超巨大メガリスタワー空港塔（通常主要タワーの3倍高：高さ 0.72）
+     * Phase 2: 中央ツインモニュメントの構築（位置逆転 ＆ クリスタル高層ピラミッド仕様）
+     * - ★北島（マダガスカル）: 超巨大メガリスタワー空港塔（通常主要タワーの3倍高：高さ 0.72）
+     * - ★南島（カスピ海）: 高層クリスタル階段ピラミッド神殿（7層ジッグラト構造：高さ 約0.44）
      */
     _buildMonuments() {
         // =========================================================================
-        // 1. 北島：古代ピラミッド（巨石多層階段神殿モニュメント）
-        // =========================================================================
-        this.pyramidGroup = new THREE.Group();
-        const northPosX = 0.02;
-        const northPosY = 0.72;
-        this.pyramidGroup.position.set(northPosX, northPosY, 0.012);
-
-        // ピラミッドマテリアル（ゴールド加算発光面 ＋ シアンホワイト発光エッジ）
-        const pyrMat = new THREE.MeshBasicMaterial({
-            color: 0xfbbf24,
-            transparent: true,
-            opacity: 0.35,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        pyrMat._baseOpacity = 0.35;
-        this.materials.push(pyrMat);
-
-        const pyrEdgeMat = new THREE.LineBasicMaterial({
-            color: CONFIG.COLORS.COASTLINE,
-            transparent: true,
-            opacity: 0.90,
-            depthWrite: false
-        });
-        pyrEdgeMat._baseOpacity = 0.90;
-        this.materials.push(pyrEdgeMat);
-
-        // 4層の階段台座（下層ほど広く、上層ほど狭い）
-        const layerSteps = [
-            { w: 0.22, h: 0.025, z: 0.0125 },
-            { w: 0.16, h: 0.025, z: 0.0375 },
-            { w: 0.10, h: 0.025, z: 0.0625 },
-            { w: 0.05, h: 0.025, z: 0.0875 }
-        ];
-
-        layerSteps.forEach(step => {
-            const boxGeo = new THREE.BoxGeometry(step.w, step.w, step.h);
-            const boxMesh = new THREE.Mesh(boxGeo, pyrMat);
-            boxMesh.position.z = step.z;
-            this.pyramidGroup.add(boxMesh);
-
-            const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-            const edgeLine = new THREE.LineSegments(edgesGeo, pyrEdgeMat);
-            edgeLine.position.z = step.z;
-            this.pyramidGroup.add(edgeLine);
-        });
-
-        // 最上部の神殿祠堂ピラミッド尖塔（四角錐）
-        const shrineGeo = new THREE.ConeGeometry(0.032, 0.035, 4);
-        const shrineMesh = new THREE.Mesh(shrineGeo, pyrMat);
-        shrineMesh.rotation.x = Math.PI / 2;
-        shrineMesh.rotation.y = Math.PI / 4;
-        shrineMesh.position.z = 0.1175;
-        this.pyramidGroup.add(shrineMesh);
-
-        const shrineEdges = new THREE.EdgesGeometry(shrineGeo);
-        const shrineEdgeLine = new THREE.LineSegments(shrineEdges, pyrEdgeMat);
-        shrineEdgeLine.rotation.x = Math.PI / 2;
-        shrineEdgeLine.rotation.y = Math.PI / 4;
-        shrineEdgeLine.position.z = 0.1175;
-        this.pyramidGroup.add(shrineEdgeLine);
-
-        this.landMesh.add(this.pyramidGroup);
-
-        // =========================================================================
-        // 2. 南島：超巨大メガリスタワー空港塔（通常主要タワーの3倍高：高さ 0.72）
+        // 1. ★北島：超巨大メガリスタワー空港塔（通常主要タワーの3倍高：高さ 0.72）
         // =========================================================================
         this.towerGroup = new THREE.Group();
-        const southPosX = 0.02;
-        const southPosY = -0.65;
-        this.towerGroup.position.set(southPosX, southPosY, 0.012);
+        const northPosX = 0.02;
+        const northPosY = 0.72;
+        this.towerGroup.position.set(northPosX, northPosY, 0.012);
 
         // タワー寸法: 通常主要空港タワー（高さ0.24）の厳密に3倍高（0.72）
         this.maxTowerHeight = 0.72;
@@ -618,13 +553,99 @@ export class MuContinentManager {
         this.towerGroup.add(this.towerBeacon);
 
         this.landMesh.add(this.towerGroup);
+
+        // =========================================================================
+        // 2. ★南島：高層クリスタル階段ピラミッド神殿（7層ジッグラト構造：高さ 約0.44）
+        // =========================================================================
+        this.pyramidGroup = new THREE.Group();
+        const southPosX = 0.02;
+        const southPosY = -0.65;
+        this.pyramidGroup.position.set(southPosX, southPosY, 0.012);
+
+        // クリスタルピラミッドマテリアル（半透明シャンパンクリスタル ＋ シアンホワイトネオンエッジ）
+        const pyrMat = new THREE.MeshBasicMaterial({
+            color: 0xfbbf24,
+            transparent: true,
+            opacity: 0.22,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        pyrMat._baseOpacity = 0.22;
+        this.materials.push(pyrMat);
+
+        const pyrEdgeMat = new THREE.LineBasicMaterial({
+            color: CONFIG.COLORS.COASTLINE,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false
+        });
+        pyrEdgeMat._baseOpacity = 0.85;
+        this.materials.push(pyrEdgeMat);
+
+        // ★7層の壮麗な多層階段構造（南島の広大な大地にどっしりと裾野を広げ、天に向かって緻密にステップアップ）
+        const layerSteps = [
+            { w: 0.50, h: 0.048, z: 0.024 },
+            { w: 0.42, h: 0.048, z: 0.072 },
+            { w: 0.34, h: 0.048, z: 0.120 },
+            { w: 0.26, h: 0.048, z: 0.168 },
+            { w: 0.19, h: 0.048, z: 0.216 },
+            { w: 0.13, h: 0.048, z: 0.264 },
+            { w: 0.08, h: 0.048, z: 0.312 }
+        ];
+
+        layerSteps.forEach(step => {
+            const boxGeo = new THREE.BoxGeometry(step.w, step.w, step.h);
+            const boxMesh = new THREE.Mesh(boxGeo, pyrMat);
+            boxMesh.position.z = step.z;
+            this.pyramidGroup.add(boxMesh);
+
+            const edgesGeo = new THREE.EdgesGeometry(boxGeo);
+            const edgeLine = new THREE.LineSegments(edgesGeo, pyrEdgeMat);
+            edgeLine.position.z = step.z;
+            this.pyramidGroup.add(edgeLine);
+        });
+
+        // 最上部の神聖クリスタル祠堂ピラミッド尖塔（四角錐：高さ 0.085）
+        const shrineHeight = 0.085;
+        const shrineBaseZ = 0.336; // 7層目上面
+        const shrineGeo = new THREE.ConeGeometry(0.048, shrineHeight, 4);
+        const shrineMesh = new THREE.Mesh(shrineGeo, pyrMat);
+        shrineMesh.rotation.x = Math.PI / 2;
+        shrineMesh.rotation.y = Math.PI / 4;
+        shrineMesh.position.z = shrineBaseZ + (shrineHeight / 2);
+        this.pyramidGroup.add(shrineMesh);
+
+        const shrineEdges = new THREE.EdgesGeometry(shrineGeo);
+        const shrineEdgeLine = new THREE.LineSegments(shrineEdges, pyrEdgeMat);
+        shrineEdgeLine.rotation.x = Math.PI / 2;
+        shrineEdgeLine.rotation.y = Math.PI / 4;
+        shrineEdgeLine.position.z = shrineBaseZ + (shrineHeight / 2);
+        this.pyramidGroup.add(shrineEdgeLine);
+
+        // 頂点エネルギー光点（白く光るフォトンコア：総高さ 約0.44）
+        const coreGeo = new THREE.SphereGeometry(0.010, 10, 10);
+        const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 1.0,
+            depthWrite: false
+        });
+        coreMat._baseOpacity = 1.0;
+        this.materials.push(coreMat);
+
+        const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+        coreMesh.position.z = shrineBaseZ + shrineHeight + 0.006;
+        this.pyramidGroup.add(coreMesh);
+
+        this.landMesh.add(this.pyramidGroup);
     }
 
     /**
      * ムー大陸の浮上段階を設定（0〜21）
      * - 大陸スケール・隆起高度・透明度
-     * - 北島古代ピラミッドの段階成長（第7〜15段階）
-     * - 南島超巨大メガリスタワーの段階成長（第13〜21段階）
+     * - 南島古代ピラミッドの段階成長（第7〜15段階）
+     * - 北島超巨大メガリスタワーの段階成長（第13〜21段階）
      * @param {number} stage - 0: 完全水没, 1: 最初の島影, 21: 100%完全浮上
      */
     setStage(stage) {
@@ -659,7 +680,7 @@ export class MuContinentManager {
         });
 
         // =========================================================================
-        // ④ Phase 2: 北島古代ピラミッドの段階成長（第7段階出現 ➔ 第15段階完成）
+        // ④ Phase 2: 南島古代ピラミッドの段階成長（第7段階出現 ➔ 第15段階完成）
         // =========================================================================
         if (this.pyramidGroup) {
             if (this.currentStage < 7) {
@@ -673,7 +694,7 @@ export class MuContinentManager {
         }
 
         // =========================================================================
-        // ⑤ Phase 2: 南島超巨大メガリスタワーの段階成長（第13段階出現 ➔ 第21段階完成・高さ0.72）
+        // ⑤ Phase 2: 北島超巨大メガリスタワーの段階成長（第13段階出現 ➔ 第21段階完成・高さ0.72）
         // =========================================================================
         if (this.towerGroup) {
             if (this.currentStage < 13) {
