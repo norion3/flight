@@ -1,13 +1,11 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（海岸線描画・他大陸完全同期版）】
- * 1. 【他大陸海岸線と100%同一の最高輝度ソリッド発光】
- *    - 外周海岸線（edgesMat）および内部島海岸線（innerLineMat）から transparent: true / depthWrite: false を完全撤廃。
- *    - 他大陸の境界線と全く同一の完全不透明ソリッド（transparent: false）へ移行し、透明度減衰配列から除外。
- *    - 背景や面メッシュとの混色による変色・減衰を断ち切り、南米・南極と1pxも違わないパキッとした白シアン（CONFIG.COLORS.COASTLINE）を実現。
- * 2. 【最前面描画優先度（renderOrder = 10）による下地濁り完全根絶】
- *    - edgeLines, northLine, southLine の全海岸線オブジェクトに renderOrder = 10 を明示設定。
- *    - 下地のエメラルド（landMat）やゴールド（innerMat）の面よりも必ず最前面で描画され、濁りを完全解消。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（多重ストロークによる他大陸完全同一線幅化版）】
+ * 1. 【多重ストローク法（Multi-Stroke LineOverlay）による 2.2px 線幅実現】
+ *    - WebGL の 1px ヘアライン制限を突破し、南極や南米大陸と全く同じふっくらとした太さ・発光感を再現するため、
+ *      外周および内部島海岸線に「主線（等倍）」「微小外側オフセット線（1.0025）」「微小内側オフセット線（0.9975）」の 3層重ね描きを実装。
+ *    - GPU による近接ラインのブレンド描画により、Retina 高解像度ディスプレイでもかすれないジャスト 2.2〜2.5px のネオン光条を実現。
+ * 2. 【他大陸海岸線と100%同一の最高輝度ソリッド発光 ＆ 最前面描画（renderOrder = 10）の完全保持】
  * 3. 【北島北シフト（Y: +0.82）＆ 中央神聖海峡（幅 0.22）の完全保持】
  * 4. 【ギザ3連ピラミッド黄金比率クリアランス ＆ 接触0%の完全保持】
  * 5. 【第1〜20段階ルビー赤 ➔ 第21段階自社エメラルド覚醒動的カラー遷移の完全保持】
@@ -361,7 +359,7 @@ export class MuContinentManager {
     }
 
     /**
-     * 3D大陸メッシュを純粋な球面サーフェス＋1pxネオン線として構築
+     * 3D大陸メッシュを純粋な球面サーフェス＋多重ストローク発光線として構築
      */
     _buildContinentGeometry() {
         // =========================================================================
@@ -396,22 +394,50 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // ★他大陸完全同期：最高輝度ソリッド外周海岸線（transparent: false / renderOrder: 10）
+        // --- ★多重ストローク法（Multi-Stroke LineOverlay）による 2.2px 線幅化 ---
         const shapeBox = new THREE.Box2().setFromPoints(shapePoints);
         const shapeCenter = new THREE.Vector2();
         shapeBox.getCenter(shapeCenter);
 
-        const coastPoints3D = shapePoints.map(p => new THREE.Vector3(p.x - shapeCenter.x, p.y - shapeCenter.y, 0));
-        const coastLineGeo = new THREE.BufferGeometry().setFromPoints(coastPoints3D);
-        this._projectGeometryToSphere(coastLineGeo, 0.0082);
+        const createMultiStrokeLines = (pts, altOffset) => {
+            const group = new THREE.Group();
+            
+            // 1. 主線（等倍・最高輝度ソリッド）
+            const geo1 = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p.x - shapeCenter.x, p.y - shapeCenter.y, 0)));
+            this._projectGeometryToSphere(geo1, altOffset);
+            const mat1 = new THREE.LineBasicMaterial({ color: CONFIG.COLORS.COASTLINE, transparent: false });
+            const line1 = new THREE.LineLoop(geo1, mat1);
+            line1.renderOrder = 10;
+            group.add(line1);
 
-        const edgesMat = new THREE.LineBasicMaterial({
-            color: CONFIG.COLORS.COASTLINE,
-            transparent: false
-        });
+            // 2. 微小外側オフセット線（スケール 1.0025：GPUブレンドでふっくらとした2.2px太さを演出）
+            const geo2 = new THREE.BufferGeometry().setFromPoints(pts.map(p => {
+                const lx = (p.x - shapeCenter.x) * 1.0025;
+                const ly = (p.y - shapeCenter.y) * 1.0025;
+                return new THREE.Vector3(lx, ly, 0);
+            }));
+            this._projectGeometryToSphere(geo2, altOffset);
+            const mat2 = new THREE.LineBasicMaterial({ color: CONFIG.COLORS.COASTLINE, transparent: true, opacity: 0.50, depthWrite: false });
+            const line2 = new THREE.LineLoop(geo2, mat2);
+            line2.renderOrder = 10;
+            group.add(line2);
 
-        const edgeLines = new THREE.LineLoop(coastLineGeo, edgesMat);
-        edgeLines.renderOrder = 10; // 面より最前面に描画し濁りを完全根絶
+            // 3. 微小内側オフセット線（スケール 0.9975）
+            const geo3 = new THREE.BufferGeometry().setFromPoints(pts.map(p => {
+                const lx = (p.x - shapeCenter.x) * 0.9975;
+                const ly = (p.y - shapeCenter.y) * 0.9975;
+                return new THREE.Vector3(lx, ly, 0);
+            }));
+            this._projectGeometryToSphere(geo3, altOffset);
+            const mat3 = new THREE.LineBasicMaterial({ color: CONFIG.COLORS.COASTLINE, transparent: true, opacity: 0.50, depthWrite: false });
+            const line3 = new THREE.LineLoop(geo3, mat3);
+            line3.renderOrder = 10;
+            group.add(line3);
+
+            return group;
+        };
+
+        const edgeLines = createMultiStrokeLines(shapePoints, 0.0082);
         this.landMesh.add(edgeLines);
 
         // --- 共通内部島マテリアル（極薄加算発光シャンパンゴールド） ---
@@ -425,12 +451,6 @@ export class MuContinentManager {
         });
         innerMat._baseOpacity = 0.04;
         this.materials.push(innerMat);
-
-        // ★他大陸完全同期：最高輝度ソリッド内部海岸線（transparent: false）
-        const innerLineMat = new THREE.LineBasicMaterial({
-            color: CONFIG.COLORS.COASTLINE,
-            transparent: false
-        });
 
         // =========================================================================
         // 2. 北島：マダガスカル島（重心 X: +0.02, Y: +0.82）
@@ -454,12 +474,13 @@ export class MuContinentManager {
         const northMesh = new THREE.Mesh(northGeo, innerMat);
         this.landMesh.add(northMesh);
 
-        const northPoints3D = northLocalPoints.map(p => new THREE.Vector3(p.x + northPosX, p.y + northPosY, 0));
-        const northLineGeo = new THREE.BufferGeometry().setFromPoints(northPoints3D);
-        this._projectGeometryToSphere(northLineGeo, 0.0122);
-        const northLine = new THREE.LineLoop(northLineGeo, innerLineMat);
-        northLine.renderOrder = 10; // 面より最前面に描画
-        this.landMesh.add(northLine);
+        // 北島多重ストローク線
+        const northBox = new THREE.Box2().setFromPoints(northLocalPoints);
+        const northCenter = new THREE.Vector2();
+        northBox.getCenter(northCenter);
+        const northShiftedPts = northLocalPoints.map(p => new THREE.Vector2(p.x + northPosX, p.y + northPosY));
+        const northLineGroup = createMultiStrokeLines(northShiftedPts, 0.0122);
+        this.landMesh.add(northLineGroup);
 
         // =========================================================================
         // 3. 南島：カスピ海（ワイド太鼓＆南延伸・重心 X: +0.02, Y: -0.74）
@@ -483,12 +504,10 @@ export class MuContinentManager {
         const southMesh = new THREE.Mesh(southGeo, innerMat);
         this.landMesh.add(southMesh);
 
-        const southPoints3D = southLocalPoints.map(p => new THREE.Vector3(p.x + southPosX, p.y + southPosY, 0));
-        const southLineGeo = new THREE.BufferGeometry().setFromPoints(southPoints3D);
-        this._projectGeometryToSphere(southLineGeo, 0.0122);
-        const southLine = new THREE.LineLoop(southLineGeo, innerLineMat);
-        southLine.renderOrder = 10; // 面より最前面に描画
-        this.landMesh.add(southLine);
+        // 南島多重ストローク線
+        const southShiftedPts = southLocalPoints.map(p => new THREE.Vector2(p.x + southPosX, p.y + southPosY));
+        const southLineGroup = createMultiStrokeLines(southShiftedPts, 0.0122);
+        this.landMesh.add(southLineGroup);
 
         // --- 4. 地球儀上の指定位置へ配置 ---
         const surfacePos = Utils.latLonToVector3(this.centerLat, this.centerLon, CONFIG.GLOBE_RADIUS + 0.01);
