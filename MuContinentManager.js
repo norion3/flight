@@ -1,16 +1,19 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（色彩調和・薄層トランスルーセント完全洗練版）】
- * 1. 【極薄トランスルーセント調和（世界観との完全融合）】
- *    面をくっきり濃く塗るのではなく、深海の濃紺が上品に透き通る極薄ベールへと調整。
- *    - 外周リング（面）: #059669 / opacity: 0.22（深海を透かすサイバーエメラルド）
- *    - 中央聖域島（面）: #fbbf24 / opacity: 0.20（下地の青と混ざっても濁らない極薄シャンパンゴールド）
- * 2. 【ネオン光彩ラインによるエッジ強調（品格ある存在感）】
- *    目立たせる役割を「面」ではなく「澄んだ光の輪郭線」に担わせ、航空管制図の世界観と完全調和。
- *    - 外周海岸線（線）: #34d399 / opacity: 0.85（LineLoop直接描画）
- *    - カルデラ湖岸線（線）: #fef08a / opacity: 0.90（神聖な金糸の二重環状線）
- * 3. 【内部ワイヤー線100%根絶 ＆ 聖なるカルデラ湖完全維持】LineLoop直接描画および境界エッジ抽出ロジックは完全保持。
- * 4. 【中央聖域島の縦長非等方拡大】外周内海の長楕円形状に合わせた縦長配置（東西 0.120 / 南北 0.185）を完全保持。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（内海適合型メガ拡大 ＆ 加算発光極限エーテル透過版）】
+ * 1. 【中央聖域島の二回りメガ巨大化 ＆ 内海適合型延伸】
+ *    内海の中央くびれ部での緑壁衝突を完全回避しつつ、南側の広大な水域を満たすため、
+ *    東西幅スケールを 0.120 ➔ 0.165、南北長さを 0.185 ➔ 0.335（約1.8倍）へ大幅延伸。
+ *    配置重心（Yオフセット）を -0.015 へ最適化し、全周の水路幅を完全な等幅（約0.045）へと調和。
+ * 2. 【極限エーテル透過 ＆ 加算発光合成（物質感ゼロのホログラム化）】
+ *    薄いセロファン板のように見える通常混色の段差を根絶し、海面に光だけを乗せる AdditiveBlending（加算合成）へ移行。
+ *    - 外周リング（面）: #059669 / opacity: 0.05 / AdditiveBlending（深海から放たれるエメラルドの光霞）
+ *    - 中央聖域島（面）: #fbbf24 / opacity: 0.04 / AdditiveBlending（濁りゼロの神聖シャンパンゴールド・オーラ）
+ * 3. 【高輝度ネオン輪郭線の主役化】
+ *    面を極限まで薄くしたことで、境界ラインが宝石のように際立つよう輝度を最大化。
+ *    - 外周海岸線（線）: #34d399 / opacity: 1.00（LineLoop直接描画）
+ *    - カルデラ湖岸線（線）: #fef08a / opacity: 1.00（神聖な金糸の二重環状線）
+ * 4. 【内部ワイヤー線100%根絶 ＆ 聖なるカルデラ湖完全維持】LineLoop直接描画および境界エッジ抽出ロジックは完全保持。
  * 5. 【完全球面追従】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジックは完全保持。
  */
 
@@ -101,7 +104,7 @@ export class MuContinentManager {
 
     /**
      * マダガスカル島リアルデータに基づく中央聖域島
-     * 縦長・非等方拡大（東西 0.120 / 南北 0.185） ＆ スプライン平滑化
+     * 内海適合型メガ二回り拡大（東西 0.165 / 南北 0.335） ＆ スプライン平滑化
      */
     _getInnerPlateauPoints() {
         const realMadagascarPoints = [
@@ -127,13 +130,13 @@ export class MuContinentManager {
             [1.4, 5.5], [1.6, 5.7], [2.1, 6.8]
         ];
 
-        // 【縦長・非等方拡大】東西の緑壁との衝突を防ぐ幅（0.120）＆ 南北空隙を埋める延伸（0.185）
-        const scaleX = 0.120;
-        const scaleY = 0.185;
+        // 【内海適合型メガ拡大】中央くびれ部衝突を防ぐ東西幅（0.165）＆ 南側広大水域を満たす縦長延伸（0.335）
+        const scaleX = 0.165;
+        const scaleY = 0.335;
         const plateauPoints = realMadagascarPoints.map(([dx, dy]) => {
-            // 縦向き配置（dxが東西X軸、dyが南北Y軸） ＆ 内海中央アライメント
+            // 縦向き配置（dxが東西X軸、dyが南北Y軸） ＆ 内海全域への黄金配置（Yオフセット: -0.015）
             const posX = (dx * scaleX) + 0.02;
-            const posY = (dy * scaleY) + 0.04;
+            const posY = (dy * scaleY) - 0.015;
             return new THREE.Vector2(posX, posY);
         });
 
@@ -221,10 +224,10 @@ export class MuContinentManager {
     }
 
     /**
-     * 3D大陸メッシュ（極薄透光クリスタル沿岸緑 ＋ 極薄シャンパンゴールド聖域 ＋ ノイズレス境界線）を構築
+     * 3D大陸メッシュ（極薄発光クリスタル沿岸緑 ＋ 極薄発光シャンパンゴールド聖域 ＋ ノイズレス境界線）を構築
      */
     _buildContinentGeometry() {
-        // --- 1. 外周沿岸部（深海が透き通る極薄サイバーエメラルド・ベール） ---
+        // --- 1. 外周沿岸部（深海と完全に溶け合う極薄サイバーエメラルド・オーラ） ---
         const shapePoints = this._getRotatedAustraliaPoints();
         const shape = new THREE.Shape();
         
@@ -247,21 +250,22 @@ export class MuContinentManager {
         // 球面射影：地球の丸みにピタッと吸い付かせる
         this._projectGeometryToSphere(landGeo, 0.008);
 
-        // 沿岸部：深海が透ける極薄サイバーエメラルド（#059669 / opacity: 0.22）
+        // 沿岸部：加算発光合成 ＋ 極限透過（不透明度 0.05）
         const landMat = new THREE.MeshBasicMaterial({
             color: 0x059669,
             transparent: true,
-            opacity: 0.22,
+            opacity: 0.05,
+            blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        landMat._baseOpacity = 0.22;
+        landMat._baseOpacity = 0.05;
         this.materials.push(landMat);
 
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：カルデラ湖穴保持 ＆ 縦長非等方拡大） ---
+        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：カルデラ湖穴保持 ＆ 二回りメガ拡大） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
         if (innerPoints.length > 0) {
@@ -283,21 +287,22 @@ export class MuContinentManager {
         // 球面射影：沿岸部よりわずかに一段せり上がった球面台地
         this._projectGeometryToSphere(innerGeo, 0.016);
 
-        // 内陸部：極薄シャンパン・トパーズゴールド（#fbbf24 / opacity: 0.20）
+        // 内陸部：加算発光合成 ＋ 極限透過（不透明度 0.04：濁りゼロの金霞）
         const innerMat = new THREE.MeshBasicMaterial({
             color: 0xfbbf24,
             transparent: true,
-            opacity: 0.20,
+            opacity: 0.04,
+            blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        innerMat._baseOpacity = 0.20;
+        innerMat._baseOpacity = 0.04;
         this.materials.push(innerMat);
 
         const innerMesh = new THREE.Mesh(innerGeo, innerMat);
         this.landMesh.add(innerMesh);
 
-        // 内陸聖域の境界エッジライン（澄んだ金糸発光 #fef08a, opacity: 0.90）
+        // 内陸聖域の境界エッジライン（澄んだ金糸発光 #fef08a, opacity: 1.00）
         const innerBox = new THREE.Box2().setFromPoints(innerPoints);
         const innerCenter = new THREE.Vector2();
         innerBox.getCenter(innerCenter);
@@ -311,15 +316,15 @@ export class MuContinentManager {
         const innerEdgesMat = new THREE.LineBasicMaterial({
             color: 0xfef08a,
             transparent: true,
-            opacity: 0.90,
+            opacity: 1.00,
             depthWrite: false
         });
-        innerEdgesMat._baseOpacity = 0.90;
+        innerEdgesMat._baseOpacity = 1.00;
         this.materials.push(innerEdgesMat);
         const innerEdgeLines = new THREE.LineSegments(innerBoundaryGeo, innerEdgesMat);
         this.landMesh.add(innerEdgeLines);
 
-        // --- 3. 外周ネオン発光海岸線（澄んだ光の輪郭 #34d399, opacity: 0.85） ---
+        // --- 3. 外周ネオン発光海岸線（澄んだ光の輪郭 #34d399, opacity: 1.00） ---
         const shapeBox = new THREE.Box2().setFromPoints(shapePoints);
         const shapeCenter = new THREE.Vector2();
         shapeBox.getCenter(shapeCenter);
@@ -331,10 +336,10 @@ export class MuContinentManager {
         const edgesMat = new THREE.LineBasicMaterial({
             color: 0x34d399,
             transparent: true,
-            opacity: 0.85,
+            opacity: 1.00,
             depthWrite: false
         });
-        edgesMat._baseOpacity = 0.85;
+        edgesMat._baseOpacity = 1.00;
         this.materials.push(edgesMat);
 
         const edgeLines = new THREE.LineLoop(coastLineGeo, edgesMat);
