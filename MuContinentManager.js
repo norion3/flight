@@ -702,7 +702,7 @@ export class MuContinentManager {
 
         // -------------------------------------------------------------------------
         // ① 第1神殿：大ピラミッド（クフ王相当 / 底面幅 0.42 / 高さ 0.40 / 7層）
-        //    ★黄金間隔アライメント：(+0.08, +0.26)
+        //    ★最適内陸シフト：(+0.02, +0.20) で東側海岸線のはみ出しを完全解消
         // -------------------------------------------------------------------------
         const mainLayers = [
             { w: 0.42, h: 0.045, z: 0.0225 },
@@ -714,12 +714,12 @@ export class MuContinentManager {
             { w: 0.06, h: 0.045, z: 0.2925 }
         ];
         this.pyrMainGroup = this._createPyramidStructure(pyrMat, pyrEdgeMat, mainLayers, 0.038, 0.075, 0.010);
-        this.pyrMainGroup.position.set(0.08, 0.26, 0); // 北東側の雄大な台地に堂々君臨
+        this.pyrMainGroup.position.set(0.02, 0.20, 0); // 南島台地の中央にジャスト収容
         this.pyramidGroup.add(this.pyrMainGroup);
 
         // -------------------------------------------------------------------------
         // ② 第2神殿：中ピラミッド（カフラー王相当 / 底面幅 0.30 / 高さ 0.28 / 5層）
-        //    ★黄金比主間隔（大とのクリアランス 0.105）：(-0.06, -0.18)
+        //    ★黄金主間隔クリアランス(0.105)を完全維持：(-0.10, -0.22)
         // -------------------------------------------------------------------------
         const midLayers = [
             { w: 0.30, h: 0.038, z: 0.019 },
@@ -729,12 +729,12 @@ export class MuContinentManager {
             { w: 0.05, h: 0.038, z: 0.171 }
         ];
         this.pyrMidGroup = this._createPyramidStructure(pyrMat, pyrEdgeMat, midLayers, 0.028, 0.055, 0.008);
-        this.pyrMidGroup.position.set(-0.06, -0.18, 0); // 南西へ黄金間隔で平行展開
+        this.pyrMidGroup.position.set(-0.10, -0.22, 0); // 南西へ黄金間隔で平行展開
         this.pyramidGroup.add(this.pyrMidGroup);
 
         // -------------------------------------------------------------------------
         // ③ 第3神殿：小ピラミッド（メンカウラー王相当 / 底面幅 0.20 / 高さ 0.18 / 3層）
-        //    ★黄金比副間隔（中とのクリアランス 0.065）＋ ミンタカ逃げ：(-0.16, -0.46)
+        //    ★黄金副間隔クリアランス(0.065)＋ミンタカ逃げを完全維持：(-0.18, -0.48)
         // -------------------------------------------------------------------------
         const smallLayers = [
             { w: 0.20, h: 0.032, z: 0.016 },
@@ -742,7 +742,7 @@ export class MuContinentManager {
             { w: 0.06, h: 0.032, z: 0.080 }
         ];
         this.pyrSmallGroup = this._createPyramidStructure(pyrMat, pyrEdgeMat, smallLayers, 0.020, 0.040, 0.006);
-        this.pyrSmallGroup.position.set(-0.16, -0.46, 0); // 南西端の台地を満たす黄金比オフセット配置
+        this.pyrSmallGroup.position.set(-0.18, -0.48, 0); // 南西端の台地を満たす黄金比オフセット配置
         this.pyramidGroup.add(this.pyrSmallGroup);
 
         this.landMesh.add(this.pyramidGroup);
