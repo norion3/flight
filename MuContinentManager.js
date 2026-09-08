@@ -1,22 +1,16 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（南島ワイド南延伸 ＆ ギザ3連ピラミッド黄金比率アライメント完成版）】
- * 1. 【南島（カスピ海）のワイド太鼓化 ＆ 南延伸】
- *    - 横幅スケールを scaleX: 0.185（約1.28倍太く）、長さスケールを scaleY: 0.198（約1.25倍南へ延伸）。
- *    - 重心を Y: -0.74 へアライメントし、北島（Y: +0.72）との間に幅 0.26 の中央海峡を厳密に死守。
- *    - 内海南部の広大な漆黒水域が贅沢に満たされ、3連ピラミッドをゆったり包み込む広大な聖域平野を形成。
- * 2. 【ギザ3連ピラミッドの底面重なり完全根絶 ＆ 黄金比率アライメント】
- *    - 大ピラミッド（底面幅 0.42 / 高さ 0.40 / 7層）の大きさ・デザインは100%完全保持。
- *    - 大・中・小の底面重なりを完全解消し、各基の間に幅 0.06 の澄んだ参道空間を開通。
- *    - 大神殿: (+0.06, +0.22) / 中神殿: (-0.06, -0.16) / 小神殿: (-0.16, -0.44) のギザ・オリオン三つ星配置。
- * 3. 【タワー完全同期の極薄サイバーエメラルド・クリスタル】
- *    - 3基すべて【自社エメラルド（0x34d399）＋ 光条エッジ（0x6ee7b7）＋ 極薄スケルトン（opacity: 0.15）】で統一。
- *    - 3基それぞれの頂点に純白のフォトンコア（光点ビーコン）が整列。
- * 4. 【段階成長のドラマチック連鎖（第7〜15段階）】
- *    - 第7〜10段階: 主神殿「大ピラミッド」が海底から出現・成長
- *    - 第11〜13段階: 脇を固める「中ピラミッド」が隆起・完成
- *    - 第14〜15段階: 最後の「小ピラミッド」が組み上がり、3連ピラミッドが完全降臨！
- * 5. 【Phase 1 球面サーフェス＆fBm海岸線＆北島タワー（高さ 0.72）の完全保持】
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（島分離・黄金間隔アライメント ＆ ルビー覚醒演出完成版）】
+ * 1. 【北島の北シフトによる島同士の接触完全根絶】
+ *    - 北島（マダガスカル）およびタワーの重心を Y: +0.72 ➔ Y: +0.82 へ北シフト。
+ *    - 南島（Y: -0.74）との間に幅 0.22 の美しい中央神聖海峡を完全復元。
+ * 2. 【ギザ3連ピラミッドの黄金比率クリアランス（接触 0%）】
+ *    - 大神殿: (+0.08, +0.26) / 中神殿: (-0.06, -0.18) / 小神殿: (-0.16, -0.46) の黄金比率配置。
+ *    - 大と中、中と小の角の接触を完全解消し、端正な光の参道を開通。
+ * 3. 【未覚醒ルビークリスタル（Lv 1〜20）➔ 覚醒自社エメラルド（Lv 21）動的遷移】
+ *    - 第1〜20段階: 古代の封印が眠る真紅のルビークリスタル（Mesh: 0xe11d48, Line: 0xfb7185, Core: 0xf43f5e）。
+ *    - 第21段階（完全浮上）: 自社サイバーエメラルド（Mesh: 0x34d399, Line: 0x6ee7b7, Core: 0xffffff）へと一斉覚醒。
+ * 4. 【Phase 1 球面サーフェス＆fBm海岸線＆北島タワー（高さ 0.72）の完全保持】
  */
 
 import { CONFIG } from './Config.js';
@@ -50,6 +44,11 @@ export class MuContinentManager {
         this.pyrMidGroup = null;
         this.pyrSmallGroup = null;
         this.towerGroup = null;
+
+        // 覚醒カラー制御用マテリアル保持配列
+        this.monumentBodyMats = [];
+        this.monumentEdgeMats = [];
+        this.monumentCoreMats = [];
 
         this._buildContinentGeometry();
         this._buildMonuments();
@@ -391,10 +390,10 @@ export class MuContinentManager {
         this.materials.push(innerLineMat);
 
         // =========================================================================
-        // 2. 北島：マダガスカル島（空港ハブ島 / 重心 X: +0.02, Y: +0.72）
+        // 2. 北島：マダガスカル島（★北へ+0.10シフトして接触完全解消 / 重心 X: +0.02, Y: +0.82）
         // =========================================================================
         const northPosX = 0.02;
-        const northPosY = 0.72;
+        const northPosY = 0.82; // ★北へシフトし、南島との間に幅0.22の神聖海峡を開通
 
         const northLocalPoints = this._getNorthIslandMadagascarPoints(); // 213頂点
         const northShape = new THREE.Shape();
@@ -491,13 +490,14 @@ export class MuContinentManager {
         // 頂点フォトンコア光点
         const coreGeo = new THREE.SphereGeometry(coreR, 10, 10);
         const coreMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0xf43f5e, // 初期値は未覚醒赤コア
             transparent: true,
             opacity: 1.0,
             depthWrite: false
         });
         coreMat._baseOpacity = 1.0;
         this.materials.push(coreMat);
+        this.monumentCoreMats.push(coreMat); // 覚醒切り替え対象
 
         const coreMesh = new THREE.Mesh(coreGeo, coreMat);
         coreMesh.position.z = topZ + shrineH + 0.005;
@@ -508,26 +508,23 @@ export class MuContinentManager {
 
     /**
      * Phase 2: 中央ツインモニュメントの構築
-     * - 北島（マダガスカル）: 超巨大メガリスタワー空港塔（高さ 0.72）
-     * - 南島（カスピ海）: ★ギザ風3連クリスタルピラミッド神殿（大・中・小のオリオン三つ星配置）
+     * - 北島（マダガスカル）: 超巨大メガリスタワー空港塔（高さ 0.72 / Y: +0.82）
+     * - 南島（カスピ海）: ★ギザ風3連クリスタルピラミッド神殿（黄金比率アライメント / 接触0%）
      */
     _buildMonuments() {
-        const playerEmeraldHex = 0x34d399; // 自社サイバーエメラルド統一カラー
-        const emeraldEdgeHex = 0x6ee7b7;   // エッジ発光シアンエメラルド
-
         // =========================================================================
         // 1. 北島：超巨大メガリスタワー空港塔（通常主要タワーの3倍高：高さ 0.72）
         // =========================================================================
         this.towerGroup = new THREE.Group();
         const northPosX = 0.02;
-        const northPosY = 0.72;
+        const northPosY = 0.82; // ★北島シフトに追従
         this.towerGroup.position.set(northPosX, northPosY, 0.012);
 
         this.maxTowerHeight = 0.72;
         this.towerRadiusBottom = 0.058;
         this.towerRadiusTop = this.towerRadiusBottom * 0.45;
 
-        // ① 半透明オベリスク・シリンダー光柱
+        // ① 半透明オベリスク・シリンダー光柱（1〜20段階: 赤 / 21段階: 緑）
         const towerCylinderGeo = new THREE.CylinderGeometry(
             this.towerRadiusTop,
             this.towerRadiusBottom,
@@ -537,7 +534,7 @@ export class MuContinentManager {
             true
         );
         const towerCylinderMat = new THREE.MeshBasicMaterial({
-            color: playerEmeraldHex,
+            color: 0xe11d48, // 初期値: 未覚醒ルビー赤
             transparent: true,
             opacity: 0.28,
             blending: THREE.AdditiveBlending,
@@ -546,6 +543,7 @@ export class MuContinentManager {
         });
         towerCylinderMat._baseOpacity = 0.28;
         this.materials.push(towerCylinderMat);
+        this.monumentBodyMats.push(towerCylinderMat);
 
         const towerCylinderMesh = new THREE.Mesh(towerCylinderGeo, towerCylinderMat);
         towerCylinderMesh.rotation.x = Math.PI / 2;
@@ -555,13 +553,14 @@ export class MuContinentManager {
         // ② タワー八稜線のネオンエッジライン
         const towerEdgesGeo = new THREE.EdgesGeometry(towerCylinderGeo);
         const towerEdgesMat = new THREE.LineBasicMaterial({
-            color: emeraldEdgeHex,
+            color: 0xfb7185, // 初期値: クリムゾン発光ライン
             transparent: true,
             opacity: 0.60,
             depthWrite: false
         });
         towerEdgesMat._baseOpacity = 0.60;
         this.materials.push(towerEdgesMat);
+        this.monumentEdgeMats.push(towerEdgesMat);
 
         const towerEdgesLine = new THREE.LineSegments(towerEdgesGeo, towerEdgesMat);
         towerEdgesLine.rotation.x = Math.PI / 2;
@@ -571,7 +570,7 @@ export class MuContinentManager {
         // ③ 頂点二重リング
         const topRingGeo = new THREE.RingGeometry(this.towerRadiusTop * 0.6, this.towerRadiusTop * 1.15, 24);
         const topRingMat = new THREE.MeshBasicMaterial({
-            color: 0xa7f3d0,
+            color: 0xfda4af,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.95,
@@ -579,6 +578,7 @@ export class MuContinentManager {
         });
         topRingMat._baseOpacity = 0.95;
         this.materials.push(topRingMat);
+        this.monumentEdgeMats.push(topRingMat);
 
         this.towerTopRing = new THREE.Mesh(topRingGeo, topRingMat);
         this.towerTopRing.position.z = this.maxTowerHeight;
@@ -587,13 +587,14 @@ export class MuContinentManager {
         // ④ 頂点管制ビーコン光点
         const beaconGeo = new THREE.SphereGeometry(0.014, 12, 12);
         const beaconMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0xf43f5e,
             transparent: true,
             opacity: 1.0,
             depthWrite: false
         });
         beaconMat._baseOpacity = 1.0;
         this.materials.push(beaconMat);
+        this.monumentCoreMats.push(beaconMat);
 
         this.towerBeacon = new THREE.Mesh(beaconGeo, beaconMat);
         this.towerBeacon.position.z = this.maxTowerHeight + 0.008;
@@ -602,43 +603,42 @@ export class MuContinentManager {
         this.landMesh.add(this.towerGroup);
 
         // =========================================================================
-        // 2. 南島：ギザ風3連クリスタルピラミッド神殿群
-        //    - 大ピラミッドの大きさ・デザインは100%完全保持
-        //    - 南島の傾斜角（-32度）に合わせてピラミッド群の向きを調和
-        //    - 南西に伸びる広大な大地に中・小ピラミッドを展開
+        // 2. 南島：ギザ風3連クリスタルピラミッド神殿群（黄金クリアランス配置）
         // =========================================================================
         this.pyramidGroup = new THREE.Group();
         const southPosX = 0.02;
         const southPosY = -0.74;
         this.pyramidGroup.position.set(southPosX, southPosY, 0.012);
 
-        // ★南島の大地傾斜角（-32度）に合わせてピラミッド全体の向きを調和
+        // 南島の大地傾斜角（-32度）に合わせてピラミッド全体の向きを調和
         this.pyramidGroup.rotation.z = -32 * (Math.PI / 180);
 
-        // タワー完全同期マテリアル（サイバーエメラルド極薄スケルトン ＋ 発光ネオンエッジ）
+        // ピラミッド共通マテリアル（初期値: 未覚醒ルビークリスタル）
         const pyrMat = new THREE.MeshBasicMaterial({
-            color: playerEmeraldHex,
+            color: 0xe11d48,
             transparent: true,
-            opacity: 0.15,
+            opacity: 0.16,
             blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        pyrMat._baseOpacity = 0.15;
+        pyrMat._baseOpacity = 0.16;
         this.materials.push(pyrMat);
+        this.monumentBodyMats.push(pyrMat);
 
         const pyrEdgeMat = new THREE.LineBasicMaterial({
-            color: emeraldEdgeHex,
+            color: 0xfb7185,
             transparent: true,
-            opacity: 0.80,
+            opacity: 0.85,
             depthWrite: false
         });
-        pyrEdgeMat._baseOpacity = 0.80;
+        pyrEdgeMat._baseOpacity = 0.85;
         this.materials.push(pyrEdgeMat);
+        this.monumentEdgeMats.push(pyrEdgeMat);
 
         // -------------------------------------------------------------------------
-        // ① 第1神殿：大ピラミッド（クフ王相当 / 現状デザイン・大きさを100%完全保持）
-        //    底面幅 0.42 / 高さ 約0.40 / 7層
+        // ① 第1神殿：大ピラミッド（クフ王相当 / 底面幅 0.42 / 高さ 0.40 / 7層）
+        //    ★黄金間隔アライメント：(+0.08, +0.26)
         // -------------------------------------------------------------------------
         const mainLayers = [
             { w: 0.42, h: 0.045, z: 0.0225 },
@@ -650,12 +650,12 @@ export class MuContinentManager {
             { w: 0.06, h: 0.045, z: 0.2925 }
         ];
         this.pyrMainGroup = this._createPyramidStructure(pyrMat, pyrEdgeMat, mainLayers, 0.038, 0.075, 0.010);
-        this.pyrMainGroup.position.set(0.06, 0.22, 0); // 北東側の雄大な台地に配置
+        this.pyrMainGroup.position.set(0.08, 0.26, 0); // 北東側の雄大な台地に堂々君臨
         this.pyramidGroup.add(this.pyrMainGroup);
 
         // -------------------------------------------------------------------------
-        // ② 第2神殿：中ピラミッド（カフラー王相当 / ★新規追加）
-        //    底面幅 0.30 / 高さ 約0.28 / 5層 / 南西へ平行シフト（食い込み重なり完全解消）
+        // ② 第2神殿：中ピラミッド（カフラー王相当 / 底面幅 0.30 / 高さ 0.28 / 5層）
+        //    ★黄金比主間隔（大とのクリアランス 0.105）：(-0.06, -0.18)
         // -------------------------------------------------------------------------
         const midLayers = [
             { w: 0.30, h: 0.038, z: 0.019 },
@@ -665,12 +665,12 @@ export class MuContinentManager {
             { w: 0.05, h: 0.038, z: 0.171 }
         ];
         this.pyrMidGroup = this._createPyramidStructure(pyrMat, pyrEdgeMat, midLayers, 0.028, 0.055, 0.008);
-        this.pyrMidGroup.position.set(-0.06, -0.16, 0); // 南西へシフト（参道クリアランス確保）
+        this.pyrMidGroup.position.set(-0.06, -0.18, 0); // 南西へ黄金間隔で平行展開
         this.pyramidGroup.add(this.pyrMidGroup);
 
         // -------------------------------------------------------------------------
-        // ③ 第3神殿：小ピラミッド（メンカウラー王相当 / ★新規追加）
-        //    底面幅 0.20 / 高さ 約0.18 / 3層 / 黄金比率＋オリオン座三つ星オフセット
+        // ③ 第3神殿：小ピラミッド（メンカウラー王相当 / 底面幅 0.20 / 高さ 0.18 / 3層）
+        //    ★黄金比副間隔（中とのクリアランス 0.065）＋ ミンタカ逃げ：(-0.16, -0.46)
         // -------------------------------------------------------------------------
         const smallLayers = [
             { w: 0.20, h: 0.032, z: 0.016 },
@@ -678,7 +678,7 @@ export class MuContinentManager {
             { w: 0.06, h: 0.032, z: 0.080 }
         ];
         this.pyrSmallGroup = this._createPyramidStructure(pyrMat, pyrEdgeMat, smallLayers, 0.020, 0.040, 0.006);
-        this.pyrSmallGroup.position.set(-0.16, -0.44, 0); // 南西端の台地を満たす黄金比オフセット配置
+        this.pyrSmallGroup.position.set(-0.16, -0.46, 0); // 南西端の台地を満たす黄金比オフセット配置
         this.pyramidGroup.add(this.pyrSmallGroup);
 
         this.landMesh.add(this.pyramidGroup);
@@ -686,6 +686,8 @@ export class MuContinentManager {
 
     /**
      * ムー大陸の浮上段階を設定（0〜21）
+     * - 第1〜20段階: 未覚醒「ルビークリスタル（赤）」
+     * - 第21段階: 完全浮上・自社「サイバーエメラルド（緑）＆ 純白ビーコン」へ一斉覚醒
      */
     setStage(stage) {
         this.currentStage = Math.max(0, Math.min(this.maxStage, stage));
@@ -716,7 +718,18 @@ export class MuContinentManager {
             mat.opacity = base * alphaRatio;
         });
 
-        // ④ 南島：3連ピラミッドのドラマチック段階成長（第7〜15段階で大➔中➔小が連鎖出現）
+        // ★④ 未覚醒（赤）➔ 第21段階 覚醒（自社エメラルド緑 ＆ 純白フォトンコア）動的カラー切り替え
+        const isAwakened = this.currentStage === 21;
+
+        const bodyColor = isAwakened ? 0x34d399 : 0xe11d48;
+        const edgeColor = isAwakened ? 0x6ee7b7 : 0xfb7185;
+        const coreColor = isAwakened ? 0xffffff : 0xf43f5e;
+
+        this.monumentBodyMats.forEach(m => m.color.setHex(bodyColor));
+        this.monumentEdgeMats.forEach(m => m.color.setHex(edgeColor));
+        this.monumentCoreMats.forEach(m => m.color.setHex(coreColor));
+
+        // ⑤ 南島：3連ピラミッドのドラマチック段階成長（第7〜15段階で大➔中➔小が連鎖出現）
         if (this.pyramidGroup) {
             if (this.currentStage < 7) {
                 this.pyramidGroup.visible = false;
@@ -753,7 +766,7 @@ export class MuContinentManager {
             }
         }
 
-        // ⑤ 北島タワーの段階成長（第13〜21段階）
+        // ⑥ 北島タワーの段階成長（第13〜21段階）
         if (this.towerGroup) {
             if (this.currentStage < 13) {
                 this.towerGroup.visible = false;
