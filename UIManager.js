@@ -9,10 +9,11 @@
  * 6. ボタン押下時のコールバック onDowngradeAirportRequested を完全保持。
  * 7. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
  * 
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: 観測電信モーダル最適化（激重化＆操作不能の完全根絶）】
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: 観測電信モーダル最適化 ＆ トースト・モーダル競合制御】
  * 8. `muEventBackdrop` の初期状態および非表示時に `hidden` かつ `display = 'none'` を徹底。
  * 9. 非表示中の全画面 `backdrop-blur-md` 計算によるGPU圧迫（激重化）と、透明な要素によるタップイベント横取り（操作不能）を 100% 完全に根絶。
  * 10. `showMuEventModal` 発火時のみ `display = 'flex'` で表示し、OK受信時に確実に `display = 'none'` へ退避。
+ * 11. 電信モーダル表示時に残存トーストのタイマーおよび表示クラスを確実にクリアし、メッセージの重なりを完全防止。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -643,6 +644,15 @@ export class UIManager {
         if (!stageData) return;
         this.soundManager.playNoticeSound();
         this.hideAll();
+
+        // ★安全排他: もし既存トーストが表示中であれば確実に消滅させる
+        if (this.toastTimeout) {
+            clearTimeout(this.toastTimeout);
+            this.toastTimeout = null;
+        }
+        if (this.toast) {
+            this.toast.classList.remove('toast-show');
+        }
 
         if (!this.muEventBackdrop) {
             this._initMuEventModal();

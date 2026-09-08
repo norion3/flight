@@ -14,13 +14,12 @@
  * 7. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
  * 8. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
  * 
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: Step 3 主要空港開発累計・実連動 ＆ 観測ニュース電信着信】
- * 9. `Data_MuEvents.js` の `getMuEventByStage` をインポート。
- * 10. 主要空港開発時（onDevelopAirportRequested）および解体時（onDowngradeAirportRequested）に
- *     全主要空港の累計開発レベル（合計 0〜21）を算出し、`muManager.setStage(targetStage)` を自動更新。
- * 11. 新しい段階へ浮上した際、`uiManager.showMuEventModal(stageData)` を発火して全21篇の完全個別電信を着信表示。
- * 12. QRセーブ読込時にも現在の累計開発レベルに応じたムー大陸の浮上段階を即座に完全復元。
- * 13. 右上の「🏝️ ムー段階 [X/21]」デバッグボタンは手動テスト＆電信プレビュー用として完全保持。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: 観測電信ディレイ着信 ＆ トースト・モーダル競合排他制御】
+ * 9. `onDevelopAirportRequested` 内で、開発トースト（3.0秒）＋余韻（0.8秒）＝ 3.8秒後の遅延着信予約（`pendingMuTimeout`）を設定。
+ * 10. 電信モーダル表示中は `this.isPaused = true` にして背後の時間進行・決算・イベント進行を安全に停止。
+ * 11. 電信のOK受信時に `this.isPaused = false` にして時間をスムーズに再開。
+ * 12. 期末決算モーダル（Level 2）発火時は電信タイマーを一時退避し、決算完了後に約0.5秒のインターバルを挟んで保留電信を自動発火。
+ * 13. `handleTap` において `uiManager.isMuEventModalOpen()` が true の間はタップを即座に破棄し誤タップを完全防止。
  */
 
 import { CONFIG } from './Config.js';
@@ -52,6 +51,10 @@ export class GameManager {
         this.selectedOrigin = null;
         this.targetDistance = null; 
         this.isPaused = false; 
+
+        // ★新設: 観測電信の遅延予約・保留管理タイマー
+        this.pendingMuTimeout = null;
+        this.pendingMuStageData = null;
 
         this.initThree();
         this.globe = new Globe(this.scene);
@@ -103,8 +106,14 @@ export class GameManager {
             this.networkManager
         );
 
-        // Phase 6: 期末決算モーダルのハンドラ登録
+        // Phase 6: 期末決算モーダルのハンドラ登録（★電信待機タイマーの一時退避 ＆ 決算終了後の保留電信自動発火）
         this.economyManager.onAnnualSettlement = (settlementData) => {
+            // もし電信待機中のタイマーが走っていれば一旦クリア（データは pendingMuStageData に保持）
+            if (this.pendingMuTimeout) {
+                clearTimeout(this.pendingMuTimeout);
+                this.pendingMuTimeout = null;
+            }
+
             this.isPaused = true;
             this.uiManager.showSettlementModal(
                 settlementData,
@@ -112,6 +121,14 @@ export class GameManager {
                     this.isPaused = false;
                     if (this.eventManager) {
                         this.eventManager.cooldownTimer = 30.0;
+                    }
+                    // ★決算モーダルが閉じた直後（約0.5秒後）に、保留されていた電信モーダルを発火
+                    if (this.pendingMuStageData) {
+                        const stageData = this.pendingMuStageData;
+                        this.pendingMuStageData = null;
+                        setTimeout(() => {
+                            this.triggerMuModal(stageData);
+                        }, 500);
                     }
                 },
                 () => {
@@ -126,7 +143,7 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし ＆ Phase 3 ムー大陸連動）
+        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし ＆ Phase 3 トースト後3.8秒電信ディレイ連動）
         this.uiManager.onDevelopAirportRequested = (airportData, currentDevLevel) => {
             if (!airportData || airportData.type !== 'major') return;
             if (currentDevLevel >= 3) return;
@@ -156,8 +173,8 @@ export class GameManager {
             this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
             this.uiManager.showToast(`${airportData.name} を Lv ${nextLevel} へ開発しました！`, 'success');
 
-            // ★Phase 3: 空港開発に伴うムー大陸の浮上＆観測ニュース電信判定
-            this.syncMuContinentStage(true);
+            // ★Phase 3改訂: トースト表示（3.0s）＋余韻（0.8s）＝ 3.8秒後に電信メッセージを着信表示
+            this.syncMuContinentStage(true, 3800);
         };
 
         // ★新設: 主要空港解体（ダウングレード）リクエストハンドラ（50%即時返金＆タワー降格 ＆ Phase 3 ムー大陸連動）
@@ -186,8 +203,8 @@ export class GameManager {
             const refundStr = this.uiManager._formatMoneyShort(refund);
             this.uiManager.showToast(`${airportData.name} の施設を解体し、+${refundStr} が返金されました！`, 'info');
 
-            // ★Phase 3: 施設解体に伴うムー大陸の浮上段階引き下げ同期（電信モーダルは非表示）
-            this.syncMuContinentStage(false);
+            // ★Phase 3: 施設解体に伴うムー大陸の浮上段階引き下げ同期（電信モーダルは非表示・ディレイなし）
+            this.syncMuContinentStage(false, 0);
         };
 
         // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
@@ -330,7 +347,7 @@ export class GameManager {
                     }
 
                     // ★Phase 3: ロードした主要空港の開発レベル合計に合わせてムー大陸の浮上段階を即座に復元
-                    this.syncMuContinentStage(false);
+                    this.syncMuContinentStage(false, 0);
 
                     // ★QR極限軽量化仕様: AIタイマー/撤退カウンターおよび過去推移履歴は復元せず、読込時点から通常動作・蓄積を開始
 
@@ -530,10 +547,11 @@ export class GameManager {
     }
 
     /**
-     * ★ムー大陸 Phase 3: 全主要空港の累計開発レベルに応じてムー大陸の浮上段階を同期
+     * ★Phase 3: 全主要空港の累計開発レベルに応じてムー大陸の浮上段階を同期（ディレイ着信対応）
      * @param {boolean} triggerModal - 新しい段階に達した際に観測ニュース電信モーダルを表示するか
+     * @param {number} delayMs - 電信モーダル着信までの遅延ミリ秒（トースト完全消滅＋余韻）
      */
-    syncMuContinentStage(triggerModal = true) {
+    syncMuContinentStage(triggerModal = true, delayMs = 0) {
         if (!this.muManager || !this.airportManager) return;
 
         const totalDev = this.airportManager.getTotalDevLevel ? this.airportManager.getTotalDevLevel() : 0;
@@ -551,12 +569,43 @@ export class GameManager {
         if (triggerModal && targetStage > this.lastMuStage) {
             this.lastMuStage = targetStage;
             const stageData = getMuEventByStage(targetStage);
-            if (stageData && this.uiManager && this.uiManager.showMuEventModal) {
-                this.uiManager.showMuEventModal(stageData, () => {});
+            if (stageData && this.uiManager) {
+                if (delayMs > 0) {
+                    // 既存の待機タイマーがあればクリア
+                    if (this.pendingMuTimeout) {
+                        clearTimeout(this.pendingMuTimeout);
+                        this.pendingMuTimeout = null;
+                    }
+                    this.pendingMuStageData = stageData;
+                    this.pendingMuTimeout = setTimeout(() => {
+                        this.pendingMuTimeout = null;
+                        // もし決算モーダル等が開いている場合は保留を維持
+                        if (this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen()) {
+                            return;
+                        }
+                        this.triggerMuModal(stageData);
+                    }, delayMs);
+                } else {
+                    this.triggerMuModal(stageData);
+                }
             }
         } else if (!triggerModal) {
             this.lastMuStage = Math.max(this.lastMuStage, targetStage);
         }
+    }
+
+    /**
+     * ★Phase 3: 観測電信モーダルを安全に時間停止状態で発火
+     * @param {object} stageData - Data_MuEvents.js のイベントデータ
+     */
+    triggerMuModal(stageData) {
+        if (!stageData || !this.uiManager) return;
+        this.pendingMuStageData = null;
+        this.isPaused = true; // ★電信読込中はゲーム内時間を一時停止（決算・イベントの裏重複を100%防止）
+
+        this.uiManager.showMuEventModal(stageData, () => {
+            this.isPaused = false; // ★OK受信でゲーム内時間を安全に再開
+        });
     }
 
     /**
@@ -582,8 +631,8 @@ export class GameManager {
 
                 if (newStage > 0) {
                     const stageData = getMuEventByStage(newStage);
-                    if (stageData && this.uiManager && this.uiManager.showMuEventModal) {
-                        this.uiManager.showMuEventModal(stageData, () => {});
+                    if (stageData && this.uiManager) {
+                        this.triggerMuModal(stageData);
                     }
                 } else if (this.uiManager) {
                     this.uiManager.showToast('ムー大陸が水没しました', 'info');
@@ -791,7 +840,9 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || (this.uiManager && this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen())) return;
+        // ★排他制御: 電信モーダル表示中（isMuEventModalOpen）もタップを確実に破棄
+        if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || 
+            (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen()))) return;
 
         const tapX = event.clientX;
         const tapY = event.clientY;
