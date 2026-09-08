@@ -14,9 +14,13 @@
  * 7. 【リアルタイム同期】毎秒の資金変動時に checkAirportDevelopButton を呼び、開発ボタンの点灯・消灯を自動同期。
  * 8. 既存の軽快な45pxタップ判定、ライバル復活/撤退、期末決算モーダル、イベント等は100%完全保持。
  * 
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1】
- * 9. `MuContinentManager` を初期化し、地球儀グループ（globe.group）へ接続。
- * 10. 画面右上に「🏝️ ムー段階 [0/21]」デバッグボタンを設置し、タップごとに 0〜21 段階のループ動作を即時検証可能に連携。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: Step 3 主要空港開発累計・実連動 ＆ 観測ニュース電信着信】
+ * 9. `Data_MuEvents.js` の `getMuEventByStage` をインポート。
+ * 10. 主要空港開発時（onDevelopAirportRequested）および解体時（onDowngradeAirportRequested）に
+ *     全主要空港の累計開発レベル（合計 0〜21）を算出し、`muManager.setStage(targetStage)` を自動更新。
+ * 11. 新しい段階へ浮上した際、`uiManager.showMuEventModal(stageData)` を発火して全21篇の完全個別電信を着信表示。
+ * 12. QRセーブ読込時にも現在の累計開発レベルに応じたムー大陸の浮上段階を即座に完全復元。
+ * 13. 右上の「🏝️ ムー段階 [X/21]」デバッグボタンは手動テスト＆電信プレビュー用として完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -34,6 +38,7 @@ import { EventManager } from './EventManager.js';
 import { Utils } from './Utils.js';
 import { SaveManager } from './SaveManager.js';
 import { MuContinentManager } from './MuContinentManager.js'; // ★ムー大陸 Phase 1
+import { getMuEventByStage } from './Data_MuEvents.js'; // ★ムー大陸 Phase 3
 
 const STATE_IDLE = 0;
 const STATE_CONNECTING = 1;
@@ -58,6 +63,7 @@ export class GameManager {
         
         // ★ムー大陸 Phase 1: マネージャー初期化
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
+        this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
 
         this.economyManager = new EconomyManager(this.uiManager);
         this.upgradeManager = new UpgradeManager();
@@ -120,7 +126,7 @@ export class GameManager {
             this.isPaused = false;
         };
 
-        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし）
+        // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし ＆ Phase 3 ムー大陸連動）
         this.uiManager.onDevelopAirportRequested = (airportData, currentDevLevel) => {
             if (!airportData || airportData.type !== 'major') return;
             if (currentDevLevel >= 3) return;
@@ -149,9 +155,12 @@ export class GameManager {
             // ボタン表示と価格・文言の即時更新
             this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
             this.uiManager.showToast(`${airportData.name} を Lv ${nextLevel} へ開発しました！`, 'success');
+
+            // ★Phase 3: 空港開発に伴うムー大陸の浮上＆観測ニュース電信判定
+            this.syncMuContinentStage(true);
         };
 
-        // ★新設: 主要空港解体（ダウングレード）リクエストハンドラ（50%即時返金＆タワー降格）
+        // ★新設: 主要空港解体（ダウングレード）リクエストハンドラ（50%即時返金＆タワー降格 ＆ Phase 3 ムー大陸連動）
         this.uiManager.onDowngradeAirportRequested = (airportData, currentDevLevel) => {
             if (!airportData || airportData.type !== 'major') return;
             if (currentDevLevel <= 0) return;
@@ -176,6 +185,9 @@ export class GameManager {
             this.uiManager.updateAirportDevelopButton(nextLevel, this.economyManager.funds);
             const refundStr = this.uiManager._formatMoneyShort(refund);
             this.uiManager.showToast(`${airportData.name} の施設を解体し、+${refundStr} が返金されました！`, 'info');
+
+            // ★Phase 3: 施設解体に伴うムー大陸の浮上段階引き下げ同期（電信モーダルは非表示）
+            this.syncMuContinentStage(false);
         };
 
         // ★QRセーブ・ロード: セーブデータ発行ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
@@ -256,7 +268,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Step 4 完全版 ➔ v6 極限軽量版 ➔ v7 主要空港開発対応 ➔ Phase 3 ムー大陸連動）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -316,6 +328,9 @@ export class GameManager {
                     if (this.airportManager.restoreDevLevels) {
                         this.airportManager.restoreDevLevels(data.dev);
                     }
+
+                    // ★Phase 3: ロードした主要空港の開発レベル合計に合わせてムー大陸の浮上段階を即座に復元
+                    this.syncMuContinentStage(false);
 
                     // ★QR極限軽量化仕様: AIタイマー/撤退カウンターおよび過去推移履歴は復元せず、読込時点から通常動作・蓄積を開始
 
@@ -515,7 +530,37 @@ export class GameManager {
     }
 
     /**
-     * ★ムー大陸 Phase 1: 0〜21段階伸縮テストボタンを画面に設置
+     * ★ムー大陸 Phase 3: 全主要空港の累計開発レベルに応じてムー大陸の浮上段階を同期
+     * @param {boolean} triggerModal - 新しい段階に達した際に観測ニュース電信モーダルを表示するか
+     */
+    syncMuContinentStage(triggerModal = true) {
+        if (!this.muManager || !this.airportManager) return;
+
+        const totalDev = this.airportManager.getTotalDevLevel ? this.airportManager.getTotalDevLevel() : 0;
+        const targetStage = Math.max(0, Math.min(21, totalDev));
+
+        this.muManager.setStage(targetStage);
+
+        // デバッグボタンの表示文字列も更新
+        const btnDebug = document.getElementById('btn-mu-debug-step');
+        if (btnDebug) {
+            btnDebug.innerHTML = `<span>🏝️ ムー段階 [${targetStage}/21]</span>`;
+        }
+
+        // 新しい段階に前進した場合のみ観測ニュース電信モーダルを着信表示
+        if (triggerModal && targetStage > this.lastMuStage) {
+            this.lastMuStage = targetStage;
+            const stageData = getMuEventByStage(targetStage);
+            if (stageData && this.uiManager && this.uiManager.showMuEventModal) {
+                this.uiManager.showMuEventModal(stageData, () => {});
+            }
+        } else if (!triggerModal) {
+            this.lastMuStage = Math.max(this.lastMuStage, targetStage);
+        }
+    }
+
+    /**
+     * ★ムー大陸 Phase 1〜3: 0〜21段階手動検証ボタン（電信表示も同時にテスト可能）
      */
     _initMuDebugButton() {
         if (document.getElementById('btn-mu-debug-step')) return;
@@ -523,7 +568,8 @@ export class GameManager {
         const btn = document.createElement('button');
         btn.id = 'btn-mu-debug-step';
         btn.className = 'interactive-ui absolute top-24 right-4 z-40 bg-slate-900/90 text-emerald-400 border border-emerald-500/60 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg shadow-emerald-950/50 active:scale-95 transition-all flex items-center gap-1.5';
-        btn.innerHTML = `<span>🏝️ ムー段階 [0/21]</span>`;
+        const initStage = this.muManager ? this.muManager.getStage() : 0;
+        btn.innerHTML = `<span>🏝️ ムー段階 [${initStage}/21]</span>`;
 
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -533,9 +579,14 @@ export class GameManager {
             if (this.muManager) {
                 const newStage = this.muManager.stepStageDebug();
                 btn.innerHTML = `<span>🏝️ ムー段階 [${newStage}/21]</span>`;
-                if (this.uiManager) {
-                    const statusText = newStage === 0 ? 'ムー大陸が水没しました' : `ムー大陸が第 ${newStage} 段階へ浮上！`;
-                    this.uiManager.showToast(statusText, 'info');
+
+                if (newStage > 0) {
+                    const stageData = getMuEventByStage(newStage);
+                    if (stageData && this.uiManager && this.uiManager.showMuEventModal) {
+                        this.uiManager.showMuEventModal(stageData, () => {});
+                    }
+                } else if (this.uiManager) {
+                    this.uiManager.showToast('ムー大陸が水没しました', 'info');
                 }
             }
         });

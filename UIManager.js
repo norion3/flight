@@ -8,6 +8,10 @@
  * 5. Lv 3: 開発ボタンを「最大開発完了 (Lv 3)」として非活性化（HTML側アイコンと合わせてクレーン1つ表示）。
  * 6. ボタン押下時のコールバック onDowngradeAirportRequested を完全保持。
  * 7. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: Step 2 観測ニュース電信モーダル実装】
+ * 8. サイバー航空管制室風の観測報告電信モーダル（OKボタンのみ）の生成・表示メソッド `showMuEventModal(stageData, onOk)` および `hideMuEventModal()` を実装。
+ * 9. 電信受信時に `soundManager.playNoticeSound()` を再生し、発見の臨場感を演出。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -29,6 +33,12 @@ export class UIManager {
         this.helpMenu = document.getElementById('help-menu');
         this.eventBackdrop = document.getElementById('event-modal-backdrop');
         this.settlementBackdrop = document.getElementById('settlement-modal-backdrop');
+
+        // ★ムー大陸 Phase 3: 観測電信モーダル初期化
+        this.muEventBackdrop = null;
+        this._isMuEventModalOpen = false;
+        this._currentMuOkCallback = null;
+        this._initMuEventModal();
 
         // ★新設: 空港開発・解体ボタンコンテナおよび各ボタン要素
         this.airportDevContainer = document.getElementById('airport-dev-container');
@@ -568,6 +578,112 @@ export class UIManager {
         }
     }
 
+    /**
+     * ★ムー大陸 Phase 3: 観測電信モーダルのDOM要素初期化
+     */
+    _initMuEventModal() {
+        if (document.getElementById('mu-event-modal-backdrop')) {
+            this.muEventBackdrop = document.getElementById('mu-event-modal-backdrop');
+            return;
+        }
+
+        const backdrop = document.createElement('div');
+        backdrop.id = 'mu-event-modal-backdrop';
+        backdrop.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300 opacity-0 pointer-events-none';
+        backdrop.innerHTML = `
+            <div class="interactive-ui relative w-full max-w-sm bg-slate-900/95 border border-cyan-500/50 rounded-2xl p-5 shadow-2xl shadow-cyan-950/60 overflow-hidden flex flex-col gap-3">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="flex items-center justify-between border-b border-cyan-500/30 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">📡</span>
+                        <span class="text-xs font-black tracking-widest text-cyan-400 font-mono uppercase">PACIFIC TELEGRAM</span>
+                    </div>
+                    <span id="mu-event-stage-badge" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">STAGE 1/21</span>
+                </div>
+                <div class="flex flex-col gap-1.5 mt-1">
+                    <div class="text-[11px] font-bold text-slate-400 font-mono tracking-wider flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <span id="mu-event-sender">【太平洋観測衛星】</span>
+                    </div>
+                    <h3 id="mu-event-title" class="text-base font-black text-slate-100 tracking-wide">重力異常の検知</h3>
+                    <p id="mu-event-body" class="text-xs text-slate-300 leading-relaxed whitespace-pre-line mt-1 bg-slate-950/60 border border-slate-800 p-3 rounded-xl shadow-inner font-sans"></p>
+                </div>
+                <div class="mt-2">
+                    <button id="btn-mu-event-ok" class="w-full py-3 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 active:scale-[0.98] text-white font-black text-xs rounded-xl shadow-lg shadow-cyan-950/50 transition-all tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer">
+                        <span>OK 受信</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(backdrop);
+        this.muEventBackdrop = backdrop;
+
+        const btnOk = backdrop.querySelector('#btn-mu-event-ok');
+        if (btnOk) {
+            btnOk.addEventListener('click', () => {
+                this.soundManager.playSuccessSound();
+                this.hideMuEventModal();
+                if (this._currentMuOkCallback) {
+                    const cb = this._currentMuOkCallback;
+                    this._currentMuOkCallback = null;
+                    cb();
+                }
+            });
+        }
+    }
+
+    /**
+     * ★ムー大陸 Phase 3: 観測電信モーダルを表示
+     * @param {object} stageData - Data_MuEvents.js のイベントオブジェクト
+     * @param {function} onOk - OKボタン押下時のコールバック
+     */
+    showMuEventModal(stageData, onOk) {
+        if (!stageData) return;
+        this.soundManager.playNoticeSound();
+        this.hideAll();
+
+        if (!this.muEventBackdrop) {
+            this._initMuEventModal();
+        }
+
+        const badgeEl = document.getElementById('mu-event-stage-badge');
+        const senderEl = document.getElementById('mu-event-sender');
+        const titleEl = document.getElementById('mu-event-title');
+        const bodyEl = document.getElementById('mu-event-body');
+
+        if (badgeEl) badgeEl.innerText = `STAGE ${stageData.stage}/21`;
+        if (senderEl) senderEl.innerText = `【${stageData.sender || 'サイバー航空管制室'}】`;
+        if (titleEl) titleEl.innerText = stageData.title || '';
+        if (bodyEl) bodyEl.innerText = stageData.body || '';
+
+        this._currentMuOkCallback = onOk;
+
+        if (this.muEventBackdrop) {
+            this.muEventBackdrop.classList.add('show');
+            this.muEventBackdrop.style.opacity = '1';
+            this.muEventBackdrop.style.pointerEvents = 'auto';
+            this._isMuEventModalOpen = true;
+            this._toggleMainButtons(false);
+        }
+    }
+
+    /**
+     * ★ムー大陸 Phase 3: 観測電信モーダルを閉じる
+     */
+    hideMuEventModal() {
+        if (this.muEventBackdrop) {
+            this.muEventBackdrop.classList.remove('show');
+            this.muEventBackdrop.style.opacity = '0';
+            this.muEventBackdrop.style.pointerEvents = 'none';
+            this._isMuEventModalOpen = false;
+            this._toggleMainButtons(true);
+        }
+    }
+
+    isMuEventModalOpen() {
+        return this._isMuEventModalOpen;
+    }
+
     _resetControlCenterView() {
         this.ccLayerMain.style.transform = 'translateX(0)';
         this.ccLayerDetail.style.transform = 'translateX(100%)';
@@ -1071,7 +1187,7 @@ export class UIManager {
     }
 
     hideAll() {
-        if (this._isEventModalOpen || this._isSettlementModalOpen) return;
+        if (this._isEventModalOpen || this._isSettlementModalOpen || this._isMuEventModalOpen) return;
 
         this.infoCard.classList.remove('show');
         if (this.airportDevContainer) this.airportDevContainer.classList.add('hidden');

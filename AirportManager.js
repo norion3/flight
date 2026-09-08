@@ -6,6 +6,10 @@
  * 2. 【一括完全復元（restoreDevLevels）】読み込んだ極小ビット文字列をデコードし、
  *    全主要空港の3Dタワー（Lv 0〜3）と自社エメラルドマテリアルを一瞬で再構築。
  * 3. 3Dタワー造形（スリム・先細り・透明感）、地平線ディゾルブ、ハイライト等は100%完全保持。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: Step 3】
+ * 4. 【合計開発レベル集計（getTotalDevLevel）】画面上の全主要空港の現在の開発レベル（Lv 0〜3）の
+ *    合計値を一括算出して返すヘルパー関数を追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -244,6 +248,15 @@ export class AirportManager {
         u.towerGroup = towerGroup;
         u.fadeMaterials = fadeMats;
         u.visualGroup.add(towerGroup);
+    }
+
+    /**
+     * ★Phase 3: 画面上の全主要空港の現在の開発レベル合計値を取得する
+     * @returns {number} 累計開発レベル
+     */
+    getTotalDevLevel() {
+        const majors = this.markers.filter(m => m.userData.airportData && m.userData.airportData.type === 'major');
+        return majors.reduce((sum, m) => sum + (m.userData.devLevel || 0), 0);
     }
 
     /**
