@@ -1,21 +1,17 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（裏面透過完全遮断・地平線オクルージョン完成版）】
- * 1. 【北島の北シフトによる島同士の接触完全根絶】
- *    - 北島（マダガスカル）およびタワーの重心を Y: +0.72 ➔ Y: +0.82 へ北シフト。
- *    - 南島（Y: -0.74）との間に幅 0.22 の美しい中央神聖海峡を完全復元。
- * 2. 【ギザ3連ピラミッドの黄金比率クリアランス（接触 0%）】
- *    - 大神殿: (+0.08, +0.26) / 中神殿: (-0.06, -0.18) / 小神殿: (-0.16, -0.46) の黄金比率配置。
- *    - 大と中、中と小の角の接触を完全解消し、端正な光の参道を開通。
- * 3. 【未覚醒ルビークリスタル（Lv 1〜20）➔ 覚醒自社エメラルド（Lv 21）動的遷移】
- *    - 第1〜20段階: 古代の封印が眠る真紅のルビークリスタル（Mesh: 0xe11d48, Line: 0xfb7185, Core: 0xf43f5e）。
- *    - 第21段階（完全浮上）: 自社サイバーエメラルド（Mesh: 0x34d399, Line: 0x6ee7b7, Core: 0xffffff）へと一斉覚醒。
- * 4. 【Phase 1 球面サーフェス＆fBm海岸線＆北島タワー（高さ 0.72）の完全保持】
- * 5. 【幾何学地平線オクルージョン（地球儀裏面透過の100%完全遮断）】
- *    - 自律オクルージョン判定エンジン（_setupOcclusionCulling）を新設。
- *    - カメラ方向とムー大陸法線の内積判定（cosTheta < horizonCos - 0.18）により、地球の裏側に回った瞬間に
- *      muGroup 全体（大地・海岸線・タワー・ピラミッド）を 100% 完全非表示（visible = false）化。
- *    - 日本・アジア・欧州などを正面にした際の裏抜けを物理的・数学的に完全根絶。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 2（海岸線描画・他大陸完全同期版）】
+ * 1. 【他大陸海岸線と100%同一の最高輝度ソリッド発光】
+ *    - 外周海岸線（edgesMat）および内部島海岸線（innerLineMat）から transparent: true / depthWrite: false を完全撤廃。
+ *    - 他大陸の境界線と全く同一の完全不透明ソリッド（transparent: false）へ移行し、透明度減衰配列から除外。
+ *    - 背景や面メッシュとの混色による変色・減衰を断ち切り、南米・南極と1pxも違わないパキッとした白シアン（CONFIG.COLORS.COASTLINE）を実現。
+ * 2. 【最前面描画優先度（renderOrder = 10）による下地濁り完全根絶】
+ *    - edgeLines, northLine, southLine の全海岸線オブジェクトに renderOrder = 10 を明示設定。
+ *    - 下地のエメラルド（landMat）やゴールド（innerMat）の面よりも必ず最前面で描画され、濁りを完全解消。
+ * 3. 【北島北シフト（Y: +0.82）＆ 中央神聖海峡（幅 0.22）の完全保持】
+ * 4. 【ギザ3連ピラミッド黄金比率クリアランス ＆ 接触0%の完全保持】
+ * 5. 【第1〜20段階ルビー赤 ➔ 第21段階自社エメラルド覚醒動的カラー遷移の完全保持】
+ * 6. 【幾何学地平線オクルージョン（地球儀裏面透過の100%完全遮断）の完全保持】
  */
 
 import { CONFIG } from './Config.js';
@@ -400,7 +396,7 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // 外周ネオン発光海岸線（LineLoop直接描画）
+        // ★他大陸完全同期：最高輝度ソリッド外周海岸線（transparent: false / renderOrder: 10）
         const shapeBox = new THREE.Box2().setFromPoints(shapePoints);
         const shapeCenter = new THREE.Vector2();
         shapeBox.getCenter(shapeCenter);
@@ -411,14 +407,11 @@ export class MuContinentManager {
 
         const edgesMat = new THREE.LineBasicMaterial({
             color: CONFIG.COLORS.COASTLINE,
-            transparent: true,
-            opacity: 1.00,
-            depthWrite: false
+            transparent: false
         });
-        edgesMat._baseOpacity = 1.00;
-        this.materials.push(edgesMat);
 
         const edgeLines = new THREE.LineLoop(coastLineGeo, edgesMat);
+        edgeLines.renderOrder = 10; // 面より最前面に描画し濁りを完全根絶
         this.landMesh.add(edgeLines);
 
         // --- 共通内部島マテリアル（極薄加算発光シャンパンゴールド） ---
@@ -433,20 +426,17 @@ export class MuContinentManager {
         innerMat._baseOpacity = 0.04;
         this.materials.push(innerMat);
 
+        // ★他大陸完全同期：最高輝度ソリッド内部海岸線（transparent: false）
         const innerLineMat = new THREE.LineBasicMaterial({
             color: CONFIG.COLORS.COASTLINE,
-            transparent: true,
-            opacity: 1.00,
-            depthWrite: false
+            transparent: false
         });
-        innerLineMat._baseOpacity = 1.00;
-        this.materials.push(innerLineMat);
 
         // =========================================================================
-        // 2. 北島：マダガスカル島（★北へ+0.10シフトして接触完全解消 / 重心 X: +0.02, Y: +0.82）
+        // 2. 北島：マダガスカル島（重心 X: +0.02, Y: +0.82）
         // =========================================================================
         const northPosX = 0.02;
-        const northPosY = 0.82; // ★北へシフトし、南島との間に幅0.22の神聖海峡を開通
+        const northPosY = 0.82;
 
         const northLocalPoints = this._getNorthIslandMadagascarPoints(); // 213頂点
         const northShape = new THREE.Shape();
@@ -468,10 +458,11 @@ export class MuContinentManager {
         const northLineGeo = new THREE.BufferGeometry().setFromPoints(northPoints3D);
         this._projectGeometryToSphere(northLineGeo, 0.0122);
         const northLine = new THREE.LineLoop(northLineGeo, innerLineMat);
+        northLine.renderOrder = 10; // 面より最前面に描画
         this.landMesh.add(northLine);
 
         // =========================================================================
-        // 3. 南島：カスピ海（★3連ピラミッド聖域島 / ワイド太鼓＆南延伸・重心 X: +0.02, Y: -0.74）
+        // 3. 南島：カスピ海（ワイド太鼓＆南延伸・重心 X: +0.02, Y: -0.74）
         // =========================================================================
         const southPosX = 0.02;
         const southPosY = -0.74;
@@ -496,6 +487,7 @@ export class MuContinentManager {
         const southLineGeo = new THREE.BufferGeometry().setFromPoints(southPoints3D);
         this._projectGeometryToSphere(southLineGeo, 0.0122);
         const southLine = new THREE.LineLoop(southLineGeo, innerLineMat);
+        southLine.renderOrder = 10; // 面より最前面に描画
         this.landMesh.add(southLine);
 
         // --- 4. 地球儀上の指定位置へ配置 ---
