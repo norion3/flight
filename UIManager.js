@@ -9,9 +9,10 @@
  * 6. ボタン押下時のコールバック onDowngradeAirportRequested を完全保持。
  * 7. 既存のトースト、決算モーダル、イベントモーダル、HUD、アップグレード、グラフ、ライバルパネル等は100%完全保持。
  * 
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: Step 2 観測ニュース電信モーダル実装】
- * 8. サイバー航空管制室風の観測報告電信モーダル（OKボタンのみ）の生成・表示メソッド `showMuEventModal(stageData, onOk)` および `hideMuEventModal()` を実装。
- * 9. 電信受信時に `soundManager.playNoticeSound()` を再生し、発見の臨場感を演出。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 3: 観測電信モーダル最適化（激重化＆操作不能の完全根絶）】
+ * 8. `muEventBackdrop` の初期状態および非表示時に `hidden` かつ `display = 'none'` を徹底。
+ * 9. 非表示中の全画面 `backdrop-blur-md` 計算によるGPU圧迫（激重化）と、透明な要素によるタップイベント横取り（操作不能）を 100% 完全に根絶。
+ * 10. `showMuEventModal` 発火時のみ `display = 'flex'` で表示し、OK受信時に確実に `display = 'none'` へ退避。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -579,7 +580,7 @@ export class UIManager {
     }
 
     /**
-     * ★ムー大陸 Phase 3: 観測電信モーダルのDOM要素初期化
+     * ★ムー大陸 Phase 3: 観測電信モーダルのDOM要素初期化（非表示時は hidden / display: none で完全遮断）
      */
     _initMuEventModal() {
         if (document.getElementById('mu-event-modal-backdrop')) {
@@ -589,7 +590,8 @@ export class UIManager {
 
         const backdrop = document.createElement('div');
         backdrop.id = 'mu-event-modal-backdrop';
-        backdrop.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300 opacity-0 pointer-events-none';
+        backdrop.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300 opacity-0 pointer-events-none hidden';
+        backdrop.style.display = 'none'; // ★非表示時のGPUブラー負荷およびタップ横取りを100%完全遮断
         backdrop.innerHTML = `
             <div class="interactive-ui relative w-full max-w-sm bg-slate-900/95 border border-cyan-500/50 rounded-2xl p-5 shadow-2xl shadow-cyan-950/60 overflow-hidden flex flex-col gap-3">
                 <div class="absolute -top-12 -right-12 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -633,7 +635,7 @@ export class UIManager {
     }
 
     /**
-     * ★ムー大陸 Phase 3: 観測電信モーダルを表示
+     * ★ムー大陸 Phase 3: 観測電信モーダルを表示（表示時のみ display = flex へ遷移）
      * @param {object} stageData - Data_MuEvents.js のイベントオブジェクト
      * @param {function} onOk - OKボタン押下時のコールバック
      */
@@ -659,6 +661,8 @@ export class UIManager {
         this._currentMuOkCallback = onOk;
 
         if (this.muEventBackdrop) {
+            this.muEventBackdrop.classList.remove('hidden');
+            this.muEventBackdrop.style.display = 'flex'; // ★表示時のみレンダリングツリーへ投入
             this.muEventBackdrop.classList.add('show');
             this.muEventBackdrop.style.opacity = '1';
             this.muEventBackdrop.style.pointerEvents = 'auto';
@@ -668,13 +672,15 @@ export class UIManager {
     }
 
     /**
-     * ★ムー大陸 Phase 3: 観測電信モーダルを閉じる
+     * ★ムー大陸 Phase 3: 観測電信モーダルを閉じる（非表示時は display = none で即座に完全退避）
      */
     hideMuEventModal() {
         if (this.muEventBackdrop) {
             this.muEventBackdrop.classList.remove('show');
             this.muEventBackdrop.style.opacity = '0';
             this.muEventBackdrop.style.pointerEvents = 'none';
+            this.muEventBackdrop.classList.add('hidden');
+            this.muEventBackdrop.style.display = 'none'; // ★閉じた瞬間にブラー計算とイベント遮断を完全解除
             this._isMuEventModalOpen = false;
             this._toggleMainButtons(true);
         }
