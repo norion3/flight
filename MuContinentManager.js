@@ -1,20 +1,19 @@
 /**
  * AI可読性・先祖返り防止コメント:
- * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（内海適合型メガ拡大 ＆ 加算発光極限エーテル透過版）】
- * 1. 【中央聖域島の二回りメガ巨大化 ＆ 内海適合型延伸】
- *    内海の中央くびれ部での緑壁衝突を完全回避しつつ、南側の広大な水域を満たすため、
- *    東西幅スケールを 0.120 ➔ 0.165、南北長さを 0.185 ➔ 0.335（約1.8倍）へ大幅延伸。
- *    配置重心（Yオフセット）を -0.015 へ最適化し、全周の水路幅を完全な等幅（約0.045）へと調和。
- * 2. 【極限エーテル透過 ＆ 加算発光合成（物質感ゼロのホログラム化）】
- *    薄いセロファン板のように見える通常混色の段差を根絶し、海面に光だけを乗せる AdditiveBlending（加算合成）へ移行。
+ * 【ムー大陸 創世・航路開拓プロジェクト Phase 1（カルデラ湖バランス復元 ＆ 北側衝突完全回避版）】
+ * 1. 【北端衝突の完全解消 ＆ 内海調和メガスケール】
+ *    中央聖域島（マダガスカル）の南北スケールを 0.335 ➔ 0.245、東西幅を 0.165 ➔ 0.148 へ最適化。
+ *    配置重心（Yオフセット）を -0.015 ➔ -0.075 へ南シフトし、北壁内周との間に 0.20 のクリアな等幅海峡を復活。
+ * 2. 【神聖カルデラ湖の明示的Holeくり抜き】
+ *    偶発的ポリゴン隙間による縦長裂け目・骨化を根絶。計算され尽くした黄金比率の楕円カルデラ湖（東西 0.055 / 南北 0.095）を
+ *    innerShape.holes.push で明示的に開口。島自体のどっしりとした台地感と、ノイズレスな二重環状発光線を完全両立。
+ * 3. 【極限エーテル透過 ＆ 加算発光合成（AdditiveBlending）】
  *    - 外周リング（面）: #059669 / opacity: 0.05 / AdditiveBlending（深海から放たれるエメラルドの光霞）
  *    - 中央聖域島（面）: #fbbf24 / opacity: 0.04 / AdditiveBlending（濁りゼロの神聖シャンパンゴールド・オーラ）
- * 3. 【高輝度ネオン輪郭線の主役化】
- *    面を極限まで薄くしたことで、境界ラインが宝石のように際立つよう輝度を最大化。
+ * 4. 【高輝度ネオン輪郭線の主役化】
  *    - 外周海岸線（線）: #34d399 / opacity: 1.00（LineLoop直接描画）
  *    - カルデラ湖岸線（線）: #fef08a / opacity: 1.00（神聖な金糸の二重環状線）
- * 4. 【内部ワイヤー線100%根絶 ＆ 聖なるカルデラ湖完全維持】LineLoop直接描画および境界エッジ抽出ロジックは完全保持。
- * 5. 【完全球面追従】地球半径 R=5.0 への球面射影（_projectGeometryToSphere）および 0〜21段階浮上ロジックは完全保持。
+ * 5. 【内部ワイヤー線100%根絶 ＆ 完全球面追従】LineLoop直接描画、境界エッジ抽出、球面射影処理、0〜21段階浮上ロジックは完全保持。
  */
 
 import { CONFIG } from './Config.js';
@@ -104,7 +103,7 @@ export class MuContinentManager {
 
     /**
      * マダガスカル島リアルデータに基づく中央聖域島
-     * 内海適合型メガ二回り拡大（東西 0.165 / 南北 0.335） ＆ スプライン平滑化
+     * 北端衝突完全解消 ＆ 南部水域最適配置（東西 0.148 / 南北 0.245 / Yオフセット -0.075）
      */
     _getInnerPlateauPoints() {
         const realMadagascarPoints = [
@@ -130,13 +129,13 @@ export class MuContinentManager {
             [1.4, 5.5], [1.6, 5.7], [2.1, 6.8]
         ];
 
-        // 【内海適合型メガ拡大】中央くびれ部衝突を防ぐ東西幅（0.165）＆ 南側広大水域を満たす縦長延伸（0.335）
-        const scaleX = 0.165;
-        const scaleY = 0.335;
+        // 【北端衝突解消 ＆ 内海調和メガスケール】東西 0.148 / 南北 0.245
+        const scaleX = 0.148;
+        const scaleY = 0.245;
         const plateauPoints = realMadagascarPoints.map(([dx, dy]) => {
-            // 縦向き配置（dxが東西X軸、dyが南北Y軸） ＆ 内海全域への黄金配置（Yオフセット: -0.015）
+            // 縦向き配置（dxが東西X軸、dyが南北Y軸） ＆ 南側広大水域への最適シフト（Yオフセット: -0.075）
             const posX = (dx * scaleX) + 0.02;
-            const posY = (dy * scaleY) - 0.015;
+            const posY = (dy * scaleY) - 0.075;
             return new THREE.Vector2(posX, posY);
         });
 
@@ -265,7 +264,7 @@ export class MuContinentManager {
         this.landMesh = new THREE.Mesh(landGeo, landMat);
         this.muGroup.add(this.landMesh);
 
-        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：カルデラ湖穴保持 ＆ 二回りメガ拡大） ---
+        // --- 2. 内陸部（極薄シャンパン・トパーズゴールドの聖域台地：明示的カルデラ湖 ＆ 最適メガ拡大） ---
         const innerPoints = this._getInnerPlateauPoints();
         const innerShape = new THREE.Shape();
         if (innerPoints.length > 0) {
@@ -275,6 +274,15 @@ export class MuContinentManager {
             }
             innerShape.closePath();
         }
+
+        // ★神聖カルデラ湖の明示的くり抜き（東西 0.055 / 南北 0.095 の黄金比オーバルパス）
+        const calderaHole = new THREE.Path();
+        const lakeCenterX = 0.02;
+        const lakeCenterY = -0.075;
+        const lakeRadiusX = 0.055;
+        const lakeRadiusY = 0.095;
+        calderaHole.absellipse(lakeCenterX, lakeCenterY, lakeRadiusX, lakeRadiusY, 0, Math.PI * 2, false);
+        innerShape.holes.push(calderaHole);
 
         // 面取り（ベベル）を排除し、聖なるカルデラ湖穴を綺麗に開口
         const innerExtrudeSettings = {
