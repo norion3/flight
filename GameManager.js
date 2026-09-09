@@ -22,8 +22,10 @@
  * 12. `planeManager.onFirstMuLanding` を購読し、初便着陸時に `muManager.triggerCelebrationFireworks()` を発火。
  *     初到着達成記念セレモニー電信モーダルを表示し、エンドレス経営の継続へ接続。
  * 13. `animate()` 内で毎フレーム `muManager.updateFireworks(delta)` を呼び出し、花火パーティクルを更新。
- * 14. 【Phase 5 Step 1 & 2】セーブ発行時に `hasReachedStage21`, `isMuUnlocked`, `isMuCelebrated` を 1 文字の 3 ビット整数文字列（saveData.mu）として出力（v8）。
- *     ロード時に `data.mu` から 3 つのフラグを復元し、`planeManager.hasLandedMu` の同期および `unlockMuAirport()` によるノード再配置を完全実行。
+ * 14. 【Phase 5 Step 1 & 2 ＆ バグ根本修正】
+ *     ロード時（onLoadSaveRequested）において、空路復元（restoreRoutes）および機体復元（restorePlanes）を実行する「前」に、
+ *     最優先で `data.mu` を解凍して `isMuUnlocked` を判定し `airportManager.unlockMuAirport()` を即時実行。
+ *     これにより `airportsData`（Base62ソート配列）のインデックスのズレを完全に根絶し、セーブ時の空路・機体を寸分の狂いもなく100%正確に完全復元。
  */
 
 import { CONFIG } from './Config.js';
@@ -352,7 +354,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Phase 5 Step 1 & 2: v8 ムー完全復元対応）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Phase 5 Step 1 & 2: v8 ムー完全復元対応 ＆ インデックス順序厳密制御）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -381,10 +383,27 @@ export class GameManager {
                     const currentBonuses = this.upgradeManager.getBonuses();
                     this.economyManager.maxPlanes = currentBonuses.maxPlanes;
 
-                    // 5. 空港データ配列の取得
+                    // ★最優先順序制御（インデックスズレ完全防止）:
+                    // 空路・機体復元より「前」に、最優先で data.mu を解凍し MU ノードを配置！
+                    const muVal = data.mu !== undefined ? parseInt(data.mu, 10) : 0;
+                    this.hasReachedStage21 = (muVal & 1) !== 0;
+                    this.isMuUnlocked = (muVal & 2) !== 0;
+                    this.isMuCelebrated = (muVal & 4) !== 0;
+
+                    // PlaneManager の初着陸フラグ同期（セレモニー二重発火防止）
+                    if (this.planeManager) {
+                        this.planeManager.hasLandedMu = this.isMuCelebrated;
+                    }
+
+                    // 開通済みならば、路線 Base62 デコードの前に MU 空港ノードを即座に配置
+                    if (this.isMuUnlocked && this.airportManager.unlockMuAirport) {
+                        this.airportManager.unlockMuAirport();
+                    }
+
+                    // 5. 空港データ配列の取得（MU ノード配置完了後に取得することで、セーブ時と 100% 同一のインデックス順序を保証）
                     const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
 
-                    // 6. 全5社の空路ネットワーク復元（★順序制御: 機体配置の前に必ず全社路線を再構築！）
+                    // 6. 全5社の空路ネットワーク復元（★正確なインデックスで全社路線を再構築！）
                     if (data.routes !== undefined && this.networkManager.restoreRoutes) {
                         this.networkManager.restoreRoutes(data.routes, 'player', airportsData);
                     }
@@ -396,7 +415,7 @@ export class GameManager {
                         });
                     }
 
-                    // 7. 全5社の機体再配属（★路線構築完了後に実行）
+                    // 7. 全5社の機体再配属（★正しい路線構築完了後に実行）
                     if (data.planes && this.planeManager.restorePlanes) {
                         this.planeManager.restorePlanes(data.planes, 'player');
                     }
@@ -413,26 +432,8 @@ export class GameManager {
                         this.airportManager.restoreDevLevels(data.dev);
                     }
 
-                    // ★Phase 5 Step 1新設: ムー大陸の進行フラグ（v8）を解凍し完全復元
-                    const muVal = data.mu !== undefined ? parseInt(data.mu, 10) : 0;
-                    this.hasReachedStage21 = (muVal & 1) !== 0;
-                    this.isMuUnlocked = (muVal & 2) !== 0;
-                    this.isMuCelebrated = (muVal & 4) !== 0;
-
-                    // ★Phase 5 Step 2新設: PlaneManager の初着陸フラグ同期（セレモニー二重発火防止）
-                    if (this.planeManager) {
-                        this.planeManager.hasLandedMu = this.isMuCelebrated;
-                    }
-
-                    // ★Phase 5 Step 1新設: 空路開通済みならば MU 空港ノードを即座に有効化
-                    if (this.isMuUnlocked && this.airportManager.unlockMuAirport) {
-                        this.airportManager.unlockMuAirport();
-                    }
-
                     // ★Phase 3: ロードした主要空港の開発レベル合計に合わせてムー大陸の浮上段階を即座に復元
                     this.syncMuContinentStage(false, 0);
-
-                    // ★QR極限軽量化仕様: AIタイマー/撤退カウンターおよび過去推移履歴は復元せず、読込時点から通常動作・蓄積を開始
 
                     // 8. 各種UI・パネル・ランキングの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
