@@ -14,6 +14,12 @@
  * 9. 非表示中の全画面 `backdrop-blur-md` 計算によるGPU圧迫（激重化）と、透明な要素によるタップイベント横取り（操作不能）を 100% 完全に根絶。
  * 10. `showMuEventModal` 発火時のみ `display = 'flex'` で表示し、OK受信時に確実に `display = 'none'` へ退避。
  * 11. 電信モーダル表示時に残存トーストのタイマーおよび表示クラスを確実にクリアし、メッセージの重なりを完全防止。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト 改善反映】
+ * 12. 【ムー中央古代空港（MU）特別解体禁止判定】updateAirportDevelopButton において、MU空港選択時は解体ボタンを
+ *     「解体不可」として完全グレーアウト・disabled固定化し、開発側も「太古メガハブ稼働中 (Lv 3)」として固定非活性化。
+ * 13. 【電信メッセージ分母・フェーズ別バッジ対応】showMuEventModal において、ステージ1〜21は `STAGE X/21`、
+ *     開通電信は `SPECIAL MISSION`、初着陸祝賀電信は `MISSION COMPLETE` としてバッジを正しく切り替え表示。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -663,7 +669,21 @@ export class UIManager {
         const titleEl = document.getElementById('mu-event-title');
         const bodyEl = document.getElementById('mu-event-body');
 
-        if (badgeEl) badgeEl.innerText = `STAGE ${stageData.stage}/21`;
+        // ★改善反映: 電信バッジのフェーズ別表示（STAGE 1〜21/21, SPECIAL MISSION, MISSION COMPLETE）
+        if (badgeEl) {
+            if (stageData.badge) {
+                badgeEl.innerText = stageData.badge;
+            } else if (stageData.isFinalCelebration) {
+                badgeEl.innerText = 'MISSION COMPLETE';
+            } else if (stageData.isSpecialUnlock) {
+                badgeEl.innerText = 'SPECIAL MISSION';
+            } else if (stageData.stage !== undefined) {
+                badgeEl.innerText = `STAGE ${stageData.stage}/21`;
+            } else {
+                badgeEl.innerText = 'STAGE 21/21';
+            }
+        }
+
         if (senderEl) senderEl.innerText = `【${stageData.sender || 'サイバー航空管制室'}】`;
         if (titleEl) titleEl.innerText = stageData.title || '';
         if (bodyEl) bodyEl.innerText = stageData.body || '';
@@ -1052,7 +1072,7 @@ export class UIManager {
         this._toggleMainButtons(false);
     }
 
-    // ★改訂: 空港開発＆解体ボタンの常時表示・固定レイアウトおよび活性状態制御
+    // ★改訂: 空港開発＆解体ボタンの常時表示・固定レイアウトおよび活性状態制御（MU空港特別解体禁止対応）
     updateAirportDevelopButton(devLevel = 0, currentFunds = null) {
         this.currentAirportDevLevel = devLevel;
         if (!this.airportDevContainer || !this.btnDevelopAirport) return;
@@ -1066,6 +1086,25 @@ export class UIManager {
         const costEl = document.getElementById('btn-develop-cost');
         const refundEl = document.getElementById('btn-downgrade-refund');
 
+        // ★改善反映: ムー中央古代空港（MU）は解体不可・完成固定の特別判定
+        if (this.currentAirportData.id === 'MU') {
+            if (this.btnDowngradeAirport) {
+                this.btnDowngradeAirport.disabled = true;
+                this.btnDowngradeAirport.className = 'flex-[38] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 bg-slate-800 text-slate-600 border border-slate-700/50 opacity-40 cursor-not-allowed shadow-inner';
+                const textSpan = this.btnDowngradeAirport.querySelector('span:nth-child(2)');
+                if (textSpan) textSpan.innerText = '解体不可';
+                if (refundEl) {
+                    refundEl.innerText = '';
+                    refundEl.className = 'font-mono text-slate-600';
+                }
+            }
+            this.btnDevelopAirport.disabled = true;
+            this.btnDevelopAirport.className = 'flex-[62] py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-slate-800 text-emerald-400 border border-emerald-500/40 shadow-inner cursor-default';
+            if (textEl) textEl.innerText = '太古メガハブ稼働中 (Lv 3)';
+            if (costEl) costEl.innerText = '';
+            return;
+        }
+
         const costs = [500000, 1500000, 3500000]; // 建設費用（Lv 1: $500K / Lv 2: $1.5M / Lv 3: $3.5M）
         const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
 
@@ -1073,6 +1112,8 @@ export class UIManager {
         if (this.btnDowngradeAirport) {
             this.btnDowngradeAirport.classList.remove('hidden');
             const refundAmount = refunds[devLevel] || 250000;
+            const textSpan = this.btnDowngradeAirport.querySelector('span:nth-child(2)');
+            if (textSpan) textSpan.innerText = '解体';
             if (refundEl) refundEl.innerText = `+${this._formatMoneyShort(refundAmount)}`;
 
             if (devLevel <= 0) {

@@ -15,6 +15,10 @@
  * 7. 【3Dサイバー粒子花火（triggerCelebrationFireworks / updateFireworks）】
  *    中央タワー頂点（高さ 0.72）および3連ピラミッド頂点から、エメラルド・ゴールド・サファイアの
  *    光のフォトン粒子群が夜空へ放射・減衰しながら地球表面へ降り注ぐ優美なセレモニー花火システムを実装。
+ * 
+ * 【花火演出時間の黄金比率最適化（改善反映）】
+ * 8. 【残光寿命5.0秒への延長】花火粒子の最大寿命（maxLife）を4.2秒から5.0秒へ延長。
+ *    十分な余韻と達成感をプレイヤーへ届けた後に、静粛かつ自然に最終祝賀電信へ接続。
  */
 
 import { CONFIG } from './Config.js';
@@ -759,7 +763,8 @@ export class MuContinentManager {
     }
 
     /**
-     * ★Phase 4新設: 初便着陸記念 3Dサイバー粒子花火（フォトン・パイロテクニクス）を打ち上げる
+     * ★Phase 4新設 ＆ 改善反映: 初便着陸記念 3Dサイバー粒子花火（フォトン・パイロテクニクス）
+     * 黄金比率の5.0秒間、地球上に降り注ぐ優美な祝賀花火を展開
      */
     triggerCelebrationFireworks() {
         if (!this.landMesh) return;
@@ -837,7 +842,7 @@ export class MuContinentManager {
             material: material,
             velocities: velocities,
             life: 0,
-            maxLife: 4.2 // 約4.2秒の優美な残光
+            maxLife: 5.0 // ★黄金比率の5.0秒間に延長
         });
     }
 

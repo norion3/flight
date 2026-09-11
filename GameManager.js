@@ -26,6 +26,15 @@
  *     ロード時（onLoadSaveRequested）において、空路復元（restoreRoutes）および機体復元（restorePlanes）を実行する「前」に、
  *     最優先で `data.mu` を解凍して `isMuUnlocked` を判定し `airportManager.unlockMuAirport()` を即時実行。
  *     これにより `airportsData`（Base62ソート配列）のインデックスのズレを完全に根絶し、セーブ時の空路・機体を寸分の狂いもなく100%正確に完全復元。
+ * 
+ * 【ムー大陸 創世・航路開拓プロジェクト 改善反映】
+ * 15. 【ムー大陸デバッグボタン非表示化】`_initMuDebugButton` でボタンに `hidden` クラスを付与して非表示化。
+ *     `window.toggleMuDebug()` によりコンソールからいつでも表示/非表示を切り替え可能に温存。
+ * 16. 【未読電信キューイング機構（FIFO）】連続建設（連打）時にスキップされた段階の電信を `muMessageQueue` にストックし、
+ *     モーダルOK受信後1.8秒のインターバルで1通ずつ順番に着信・ポップアップ（未読レポートの喪失を100%根絶）。
+ * 17. 【花火5.0秒間の完全静粛・排他制御】初便タッチダウン時に `isMuCelebrating = true` を設定。
+ *     花火が打ち上がる5.0秒間は決算・ランダムイベント・トーストを完全保留し、5.2秒後に満を持して祝賀電信を着信。
+ * 18. 【MU空港解体リクエスト遮断】`onDowngradeAirportRequested` に `airportData.id === 'MU'` のガードを追加。
  */
 
 import { CONFIG } from './Config.js';
@@ -58,9 +67,11 @@ export class GameManager {
         this.targetDistance = null; 
         this.isPaused = false; 
 
-        // ★新設: 観測電信の遅延予約・保留管理タイマー
+        // ★新設: 観測電信の遅延予約・保留管理タイマー ＆ FIFOキューイング
         this.pendingMuTimeout = null;
         this.pendingMuStageData = null;
+        this.muMessageQueue = []; // ★連続開発時の電信ストックキュー
+        this.isMuCelebrating = false; // ★花火セレモニー中の完全静粛・排他フラグ
 
         // ★Phase 4 & Phase 5: ムー大陸の進行フラグ統括
         this.isMuUnlocked = false; // 空路開通済みフラグ
@@ -79,26 +90,30 @@ export class GameManager {
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
         this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
 
-        // ★Phase 4新設: 自社機のムー中央古代空港（MU）への初到着コールバック登録
+        // ★Phase 4新設 ＆ 改善反映: 自社機のムー中央古代空港（MU）への初到着コールバック登録（花火5.0秒完全排他制御）
         this.planeManager.onFirstMuLanding = () => {
             if (this.isMuCelebrated) return;
             this.isMuCelebrated = true;
+            this.isMuCelebrating = true; // ★花火演出中の完全静粛モード開始
 
-            // 1. 3Dサイバー粒子花火の打ち上げ
+            // 1. 3Dサイバー粒子花火の打ち上げ（5.0秒間の優美な残光）
             if (this.muManager && this.muManager.triggerCelebrationFireworks) {
                 this.muManager.triggerCelebrationFireworks();
             }
 
-            // 2. 初到着記念の祝賀電信モーダルを着信表示
+            // 2. 花火が消え去った黄金比率の5.2秒後に、満を持して最終祝賀電信を着信表示
             const celebrationEventData = {
                 stage: 21,
                 title: "祝・ムー中央古代空港 初便到着！",
                 sender: "世界航空連盟 ＆ 太古の碑文",
-                body: "太平洋の彼方に眠りし「伝承のムー大陸」へ、貴社の航空機が歴史的第1便として見事にタッチダウンを果たしました！\n\n中央メガリスタワーと3連ピラミッドから祝賀のフォトン花火が天空へ放たれています。\nこれより、ムー大陸は世界屈指の超長距離メガハブとして恒久的に稼働します！"
+                body: "太平洋の彼方に眠りし「伝承のムー大陸」へ、貴社の航空機が歴史的第1便として見事にタッチダウンを果たしました！\n\n中央メガリスタワーと3連ピラミッドから祝賀のフォトン花火が天空へ放たれています。\nこれより、ムー大陸は世界屈指の超長距離メガハブとして恒久的に稼働します！",
+                isFinalCelebration: true // ★バッジを MISSION COMPLETE に切り替えるフラグ
             };
+
             setTimeout(() => {
+                this.isMuCelebrating = false; // 花火演出モード解除
                 this.triggerMuModal(celebrationEventData);
-            }, 800);
+            }, 5200);
         };
 
         this.economyManager = new EconomyManager(this.uiManager);
@@ -147,6 +162,16 @@ export class GameManager {
                 this.pendingMuTimeout = null;
             }
 
+            // 花火演出中の場合は決算モーダルを少し遅延
+            if (this.isMuCelebrating) {
+                setTimeout(() => {
+                    if (this.economyManager.onAnnualSettlement) {
+                        this.economyManager.onAnnualSettlement(settlementData);
+                    }
+                }, 2000);
+                return;
+            }
+
             this.isPaused = true;
             this.uiManager.showSettlementModal(
                 settlementData,
@@ -155,12 +180,16 @@ export class GameManager {
                     if (this.eventManager) {
                         this.eventManager.cooldownTimer = 30.0;
                     }
-                    // ★決算モーダルが閉じた直後（約0.5秒後）に、保留されていた電信モーダルを発火
+                    // ★決算モーダルが閉じた直後（約0.5秒後）に、保留されていた電信モーダルまたはキューを発火
                     if (this.pendingMuStageData) {
                         const stageData = this.pendingMuStageData;
                         this.pendingMuStageData = null;
                         setTimeout(() => {
                             this.triggerMuModal(stageData);
+                        }, 500);
+                    } else if (this.muMessageQueue.length > 0) {
+                        setTimeout(() => {
+                            this._processMuQueue(0);
                         }, 500);
                     }
                 },
@@ -179,6 +208,7 @@ export class GameManager {
         // ★Phase 4: 主要空港開発リクエストハンドラ（動的レベルアップ＆資金引き落とし ＆ Phase 3 トースト後3.8秒電信ディレイ連動 ＆ Phase 4 空路開通判定）
         this.uiManager.onDevelopAirportRequested = (airportData, currentDevLevel) => {
             if (!airportData || airportData.type !== 'major') return;
+            if (airportData.id === 'MU') return; // ★MU空港は開発不要・完成固定
             if (currentDevLevel >= 3) return;
 
             const costs = [500000, 1500000, 3500000]; // デバッグ価格（Lv 0->1: $500K / Lv 1->2: $1.5M / Lv 2->3: $3.5M）
@@ -215,32 +245,27 @@ export class GameManager {
                     this.airportManager.unlockMuAirport();
                 }
 
-                // 3.8秒後に開通記念の緊急速報電信を発火
-                if (this.pendingMuTimeout) {
-                    clearTimeout(this.pendingMuTimeout);
-                    this.pendingMuTimeout = null;
-                }
                 const unlockEventData = {
                     stage: 21,
                     title: "超長距離誘導ビーコン共鳴・空路開通",
                     sender: "ムー中央古代タワー通信",
-                    body: "世界主要空港の極限開発（Lv 3）に呼応し、ムー中央タワーの古代ビーコンが共鳴発光！\n\nプラズマ磁気防壁が解除され、「ムー中央古代空港」への航路が正式に開通しました！\n日本（羽田・成田）をはじめとする環太平洋の各主要空港より、直行便の開設が可能です！"
+                    body: "世界主要空港の極限開発（Lv 3）に呼応し、ムー中央タワーの古代ビーコンが共鳴発光！\n\nプラズマ磁気防壁が解除され、「ムー中央古代空港」への航路が正式に開通しました！\n日本（羽田・成田）をはじめとする環太平洋の各主要空港より、直行便の開設が可能です！",
+                    isSpecialUnlock: true // ★バッジを SPECIAL MISSION に切り替えるフラグ
                 };
-                this.pendingMuStageData = unlockEventData;
-                this.pendingMuTimeout = setTimeout(() => {
-                    this.pendingMuTimeout = null;
-                    if (this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen()) return;
-                    this.triggerMuModal(unlockEventData);
-                }, 3800);
+                
+                // キューに積んで順次着信
+                this.muMessageQueue.push(unlockEventData);
+                this._processMuQueue(3800);
             } else {
-                // 通常の浮上段階同期（トースト後3.8秒電信）
+                // 通常の浮上段階同期（トースト後3.8秒電信キューイング）
                 this.syncMuContinentStage(true, 3800);
             }
         };
 
-        // ★新設: 主要空港解体（ダウングレード）リクエストハンドラ（50%即時返金＆タワー降格 ＆ Phase 3 ムー大陸連動）
+        // ★新設 ＆ 改善反映: 主要空港解体（ダウングレード）リクエストハンドラ（MU空港解体絶対遮断ガード）
         this.uiManager.onDowngradeAirportRequested = (airportData, currentDevLevel) => {
             if (!airportData || airportData.type !== 'major') return;
+            if (airportData.id === 'MU') return; // ★ムー中央古代空港は解体絶対禁止
             if (currentDevLevel <= 0) return;
 
             const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
@@ -631,9 +656,9 @@ export class GameManager {
     }
 
     /**
-     * ★Phase 3: 全主要空港の累計開発レベルに応じてムー大陸の浮上段階を同期（ディレイ着信対応）
+     * ★Phase 3 & 改善反映: 全主要空港の累計開発レベルに応じてムー大陸の浮上段階を同期（未読FIFOキューイング対応）
      * @param {boolean} triggerModal - 新しい段階に達した際に観測ニュース電信モーダルを表示するか
-     * @param {number} delayMs - 電信モーダル着信までの遅延ミリ秒（トースト完全消滅＋余韻）
+     * @param {number} delayMs - 電信モーダル着信までの遅延ミリ秒
      */
     syncMuContinentStage(triggerModal = true, delayMs = 0) {
         if (!this.muManager || !this.airportManager) return;
@@ -654,35 +679,57 @@ export class GameManager {
             btnDebug.innerHTML = `<span>🏝️ ムー段階 [${targetStage}/21]</span>`;
         }
 
-        // 新しい段階に前進した場合のみ観測ニュース電信モーダルを着信表示
+        // 新しい段階に前進した場合、途中のスキップ分も含めてすべてキューに登録し順次配信
         if (triggerModal && targetStage > this.lastMuStage) {
-            this.lastMuStage = targetStage;
-            const stageData = getMuEventByStage(targetStage);
-            if (stageData && this.uiManager) {
-                if (delayMs > 0) {
-                    // 既存の待機タイマーがあればクリア
-                    if (this.pendingMuTimeout) {
-                        clearTimeout(this.pendingMuTimeout);
-                        this.pendingMuTimeout = null;
-                    }
-                    this.pendingMuStageData = stageData;
-                    this.pendingMuTimeout = setTimeout(() => {
-                        this.pendingMuTimeout = null;
-                        // もし決算モーダル等が開いている場合は保留を維持
-                        if (this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen()) return;
-                        this.triggerMuModal(stageData);
-                    }, delayMs);
-                } else {
-                    this.triggerMuModal(stageData);
+            for (let s = this.lastMuStage + 1; s <= targetStage; s++) {
+                const stageData = getMuEventByStage(s);
+                if (stageData) {
+                    this.muMessageQueue.push(stageData);
                 }
             }
+            this.lastMuStage = targetStage;
+            this._processMuQueue(delayMs);
         } else if (!triggerModal) {
             this.lastMuStage = Math.max(this.lastMuStage, targetStage);
         }
     }
 
     /**
-     * ★Phase 3: 観測電信モーダルを安全に時間停止状態で発火
+     * ★改善反映: 電信メッセージのFIFOキューイング消化処理
+     * @param {number} delayMs - 開始ディレイ
+     */
+    _processMuQueue(delayMs = 0) {
+        if (this.muMessageQueue.length === 0) return;
+        if (this.pendingMuTimeout) return;
+        // 排他条件: 決算中・電信表示中・花火セレモニー中は保留
+        if (this.isMuCelebrating) return;
+        if (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen())) return;
+
+        const nextEvent = this.muMessageQueue.shift();
+        if (!nextEvent) return;
+
+        if (delayMs > 0) {
+            this.pendingMuStageData = nextEvent;
+            this.pendingMuTimeout = setTimeout(() => {
+                this.pendingMuTimeout = null;
+                this.pendingMuStageData = null;
+                if (this.isMuCelebrating) {
+                    this.muMessageQueue.unshift(nextEvent);
+                    return;
+                }
+                if (this.uiManager.isSettlementModalOpen()) {
+                    this.muMessageQueue.unshift(nextEvent);
+                    return;
+                }
+                this.triggerMuModal(nextEvent);
+            }, delayMs);
+        } else {
+            this.triggerMuModal(nextEvent);
+        }
+    }
+
+    /**
+     * ★Phase 3 & 改善反映: 観測電信モーダルを安全に時間停止状態で発火（OK受信後に次のキューを自動消化）
      * @param {object} stageData - Data_MuEvents.js のイベントデータ
      */
     triggerMuModal(stageData) {
@@ -692,18 +739,25 @@ export class GameManager {
 
         this.uiManager.showMuEventModal(stageData, () => {
             this.isPaused = false; // ★OK受信でゲーム内時間を安全に再開
+            // もしキューに未読メッセージが残っていれば、1.8秒の余韻後に順次次便を着信
+            if (this.muMessageQueue.length > 0) {
+                setTimeout(() => {
+                    this._processMuQueue(0);
+                }, 1800);
+            }
         });
     }
 
     /**
-     * ★ムー大陸 Phase 1〜3: 0〜21段階手動検証ボタン（電信表示も同時にテスト可能）
+     * ★ムー大陸 Phase 1〜3 ＆ 改善反映: 0〜21段階手動検証ボタン（画面上は非表示・コンソールからトグル可能に温存）
      */
     _initMuDebugButton() {
         if (document.getElementById('btn-mu-debug-step')) return;
 
         const btn = document.createElement('button');
         btn.id = 'btn-mu-debug-step';
-        btn.className = 'interactive-ui absolute top-24 right-4 z-40 bg-slate-900/90 text-emerald-400 border border-emerald-500/60 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg shadow-emerald-950/50 active:scale-95 transition-all flex items-center gap-1.5';
+        // ★改善反映: hidden クラスを追加して初期状態で画面から非表示化
+        btn.className = 'interactive-ui absolute top-24 right-4 z-40 bg-slate-900/90 text-emerald-400 border border-emerald-500/60 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg shadow-emerald-950/50 active:scale-95 transition-all flex items-center gap-1.5 hidden';
         const initStage = this.muManager ? this.muManager.getStage() : 0;
         btn.innerHTML = `<span>🏝️ ムー段階 [${initStage}/21]</span>`;
 
@@ -728,6 +782,14 @@ export class GameManager {
         });
 
         document.body.appendChild(btn);
+
+        // ★コンソールから開発者が手軽に表示/非表示を切り替えられるグローバルコマンドを用意
+        if (typeof window !== 'undefined') {
+            window.toggleMuDebug = () => {
+                btn.classList.toggle('hidden');
+                console.log('[MuDebug] button visibility toggled.');
+            };
+        }
     }
 
     executeGameExit() {
@@ -880,7 +942,7 @@ export class GameManager {
             this.initStarterPack();
             this.rivalManager.init();
             
-            // ★ムー大陸 Phase 1: デバッグ伸縮ボタンを設置
+            // ★ムー大陸 Phase 1: デバッグ伸縮ボタンを設置（非表示・温存）
             this._initMuDebugButton();
 
             this.hideLoader();
@@ -927,8 +989,8 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        // ★排他制御: 電信モーダル表示中（isMuEventModalOpen）もタップを確実に破棄
-        if (this.isPaused || (this.eventManager && this.eventManager.isEventActive) || 
+        // ★排他制御: 電信モーダル表示中（isMuEventModalOpen）や花火演出中もタップを確実に破棄
+        if (this.isPaused || this.isMuCelebrating || (this.eventManager && this.eventManager.isEventActive) || 
             (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen()))) return;
 
         const tapX = event.clientX;
@@ -1094,7 +1156,8 @@ export class GameManager {
         );
         this.rivalManager.update(delta, this.competitionManager);
         
-        if (this.eventManager) {
+        // 花火演出中（isMuCelebrating）は突発イベントの更新を一時停止
+        if (this.eventManager && !this.isMuCelebrating) {
             this.eventManager.update(delta);
         }
 

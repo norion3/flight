@@ -13,6 +13,10 @@
  * 6. 【改善】大型機・超大型機（large/super）保有時は長距離（dist >= 1.8）路線を開拓しやすくなるよう優遇重み付けを導入。
  * 7. 【Step 4追加】AI思考タイマーおよび撤退猶予カウンターの抽出（getRivalState）と復元（restoreRivalState）を実装。
  * 8. 【5大対策仕様】方角ペナルティに上限キャップ（+30）と近距離（dist < 1.4）50%減衰を導入し、オセアニア・アフリカAIの開拓停止を解消。
+ * 
+ * 【ムー大陸ライバル接続完全除外（改善反映）】
+ * 9. 【MU候補完全除外】路線開拓（_expandRoute）時の候補先判定、および拠点選定（availableAirports）から
+ *    ムー中央古代空港（MU）を完全除外。ライバルAIがムー大陸へ進出する挙動を根本から100%遮断。
  */
 
 import { CONFIG } from './Config.js';
@@ -245,8 +249,9 @@ export class RivalManager {
             }
         }
 
-        // 路線開拓（自社の空きスロットのある空港のみを抽出）
+        // 路線開拓（自社の空きスロットのある空港のみを抽出 ＆ MU空港は完全除外）
         const availableAirports = connectedAirports.filter(id => {
+            if (id === 'MU') return false; // ★MU空港除外
             const node = this.airportManager.getAirportById(id);
             if (!node) return false;
             const maxConn = this.networkManager.MAX_CONNECTIONS[node.type] || 5;
@@ -290,7 +295,9 @@ export class RivalManager {
             ? this.airportManager.activeAirports
             : this.airportManager.allAirports;
 
+        // ★復活候補からもMU空港を完全除外
         const availableHubs = allAirports.filter(node => {
+            if (node.id === 'MU') return false;
             const maxConn = this.networkManager.MAX_CONNECTIONS[node.type] || 5;
             const currentConn = this.networkManager.getConnectionCount(node.id, companyId);
             return currentConn === 0 && this.networkManager.getConnectionCount(node.id, 'player') < maxConn;
@@ -354,6 +361,7 @@ export class RivalManager {
 
         const validCandidates = candidates.filter(destNode => {
             if (originNode.id === destNode.id) return false;
+            if (destNode.id === 'MU') return false; // ★ライバルAIの候補からMU空港を完全除外
             if (this.networkManager.isConnected(originNode.id, destNode.id, companyId)) return false;
             
             const posDest = Utils.latLonToVector3(destNode.lat, destNode.lon, CONFIG.GLOBE_RADIUS);

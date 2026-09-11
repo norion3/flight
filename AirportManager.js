@@ -12,6 +12,11 @@
  * 5. 【Phase 4: ムー中央古代空港ノード解放（unlockMuAirport）】
  *    空路開通時に、北島タワー直下に主要空港と同等（type: 'major', 最大8路線）の「ムー中央古代空港 (MU)」
  *    マーカーを動的生成・配置し、タップ判定（markers）へ正式登録。
+ * 
+ * 【タワー直下精密位置同期（改善反映）】
+ * 6. 【位置ズレ完全解消】ムー大陸中心（南緯-22.5, 西経-112.5）と北島メガリスタワーローカル座標（X: +0.02, Y: +0.82）から
+ *    球面上の正確なタワー直下座標（南緯 -13.1度, 西経 -112.3度）を精密逆算してMU座標に設定。
+ *    タワーの足元にエメラルドリングが鎮座し、他の主要空港と寸分違わず一致する就航・着陸ビジュアルを実現。
  */
 
 import { CONFIG } from './Config.js';
@@ -32,15 +37,15 @@ export class AirportManager {
         this.allAirports = this._compileAllAirports();
         this.activeAirports = []; // ★画面上に実在・表示されている空港のリスト
 
-        // ★Phase 4: ムー中央古代空港の定義と開通管理
+        // ★Phase 4 & 改善: ムー中央古代空港の定義（北島メガリスタワー直下の精密座標に合致）
         this.isMuUnlocked = false;
         this.muAirportData = {
             id: 'MU',
             name: 'ムー中央古代空港',
             country: '太平洋古代文明',
             type: 'major',
-            lat: -18.0,
-            lon: -112.5
+            lat: -13.1, // ★北島タワー直下の精密緯度
+            lon: -112.3  // ★北島タワー直下の精密経度
         };
     }
 

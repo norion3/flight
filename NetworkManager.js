@@ -14,6 +14,11 @@
  * 8. 【主要空港同等接続数】ムー中央古代空港（MU）を主要空港（'major': 8路線）と同一の最大接続数として扱う判定を実装。
  * 9. 【日本直行・描画破綻防止の距離制限（getMaxAllowedDistance）】ムー大陸が関与する空路は、通常の大圏距離制限（1.25R）を
  *    日本（羽田・成田）から直行可能な 1.72R（約118度）に拡大。地球の真裏（対蹠点）のSlerp特異点破綻・地球コア貫通を物理的に100%未然防止。
+ * 
+ * 【自社空路最前面表示 ＆ ムー大陸ライバル接続禁止（改善反映）】
+ * 10. 【自社空路の最上位描画】プレイヤー航路の高度オフセット（0.0020）およびrenderOrder（リボン: 5, 芯ライン: 6）を最前面化。
+ * 11. 【ムー大陸ライバル接続禁止】canConnectにおいて、MU空港が関与する空路はプレイヤー（companyId === 'player'）のみ許可し、
+ *     ライバル各社の接続を物理的に100%遮断（自社専用メガハブの保護）。
  */
 
 import { CONFIG } from './Config.js';
@@ -177,6 +182,10 @@ export class NetworkManager {
     canConnect(fromData, toData, companyId = 'player') {
         if (!fromData || !toData) return false;
         if (fromData.id === toData.id) return false;
+
+        // ★改善反映: ムー中央古代空港（MU）への接続はプレイヤー（自社）のみ許可（ライバルAI接続禁止）
+        const isMuRoute = (fromData.id === 'MU' || toData.id === 'MU');
+        if (isMuRoute && companyId !== 'player') return false;
 
         const fromCount = this.getConnectionCount(fromData.id, companyId);
         const toCount = this.getConnectionCount(toData.id, companyId);
