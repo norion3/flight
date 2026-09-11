@@ -15,6 +15,10 @@
  * 【ムー大陸 創世・航路開拓プロジェクト Phase 4 & Phase 5: 初到着検知 ＆ セーブ同期連動】
  * 8. プレイヤー機がムー中央古代空港（MU）へ初着陸した瞬間を検知し、初回のみ `onFirstMuLanding` コールバックを発火。
  * 9. セーブデータロード時に `hasLandedMu` を同期し、セレモニーの二重発火を完全に防止。
+ * 
+ * 【3D飛行機サイズ改定: 視認性向上 ＆ 超大型機新サイズ策定】
+ * 10. 地球儀上を飛行する航空機のサイズをワンランク繰り上げ（small: 0.09➔0.11, medium: 0.11➔0.13, large: 0.13➔0.15）。
+ * 11. 超大型機（super）に拡大ステップ比（+0.02）に準拠した新サイズ（scale: 0.17）を新規策定。UI表示には影響を与えず地球儀上のみ適用。
  */
 
 import { CONFIG } from './Config.js';
@@ -258,12 +262,13 @@ export class PlaneManager {
             }
         }
 
-        let scale = 0.11;
+        // ★改定: 地球儀上の3D機体サイズをワンランク繰り上げ ＆ 新超大型機サイズ（+0.02ステップ比準拠）
+        let scale = 0.13;
         let speed = 0.20; 
-        if (sizeType === 'small') { scale = 0.09; speed = 0.20; }
-        else if (sizeType === 'medium') { scale = 0.11; speed = 0.18; }
-        else if (sizeType === 'large') { scale = 0.13; speed = 0.16; }
-        else if (sizeType === 'super') { scale = 0.15; speed = 0.14; }
+        if (sizeType === 'small') { scale = 0.11; speed = 0.20; }       // 旧 medium サイズ
+        else if (sizeType === 'medium') { scale = 0.13; speed = 0.18; }  // 旧 large サイズ
+        else if (sizeType === 'large') { scale = 0.15; speed = 0.16; }   // 旧 super サイズ
+        else if (sizeType === 'super') { scale = 0.17; speed = 0.14; }   // ★新設超大型機サイズ（ステップ比+0.02準拠）
 
         const compIndex = CONFIG.COMPANIES.findIndex(c => c.id === companyId);
         const comp = CONFIG.COMPANIES[compIndex];
