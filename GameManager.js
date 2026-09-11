@@ -354,7 +354,7 @@ export class GameManager {
             }
         };
 
-        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Phase 5 Step 1 & 2: v8 ムー完全復元対応 ＆ インデックス順序厳密制御）
+        // ★QRセーブ・ロード: セーブデータ読込ハンドラ（Phase 5 Step 1 & 2: v8 ムー完全復元対応 ＆ インデックス順序厳密制御 ＆ 自社路線最前面復元）
         this.uiManager.onLoadSaveRequested = async (file) => {
             try {
                 const data = await this.saveManager.readQRFromFile(file);
@@ -403,10 +403,7 @@ export class GameManager {
                     // 5. 空港データ配列の取得（MU ノード配置完了後に取得することで、セーブ時と 100% 同一のインデックス順序を保証）
                     const airportsData = this.airportManager.markers.map(m => m.userData.airportData);
 
-                    // 6. 全5社の空路ネットワーク復元（★正確なインデックスで全社路線を再構築！）
-                    if (data.routes !== undefined && this.networkManager.restoreRoutes) {
-                        this.networkManager.restoreRoutes(data.routes, 'player', airportsData);
-                    }
+                    // 6. 全5社の空路ネットワーク復元（★提案A対応: 自社路線を1番上に表示するため、ライバルAI各社を先に復元し、プレイヤーを最後に上書き構築）
                     if (data.rivals && this.networkManager.restoreRoutes) {
                         CONFIG.COMPANIES.forEach(comp => {
                             if (comp.id !== 'player' && data.rivals[comp.id] && data.rivals[comp.id].routes !== undefined) {
@@ -414,17 +411,20 @@ export class GameManager {
                             }
                         });
                     }
+                    if (data.routes !== undefined && this.networkManager.restoreRoutes) {
+                        this.networkManager.restoreRoutes(data.routes, 'player', airportsData);
+                    }
 
                     // 7. 全5社の機体再配属（★正しい路線構築完了後に実行）
-                    if (data.planes && this.planeManager.restorePlanes) {
-                        this.planeManager.restorePlanes(data.planes, 'player');
-                    }
                     if (data.rivals && this.planeManager.restorePlanes) {
                         CONFIG.COMPANIES.forEach(comp => {
                             if (comp.id !== 'player' && data.rivals[comp.id] && data.rivals[comp.id].planes) {
                                 this.planeManager.restorePlanes(data.rivals[comp.id].planes, comp.id);
                             }
                         });
+                    }
+                    if (data.planes && this.planeManager.restorePlanes) {
+                        this.planeManager.restorePlanes(data.planes, 'player');
                     }
 
                     // ★Phase 5追加: 主要空港開発（全80箇所）の3Dタワー・自社エメラルドマテリアルを一括完全復元
@@ -669,9 +669,7 @@ export class GameManager {
                     this.pendingMuTimeout = setTimeout(() => {
                         this.pendingMuTimeout = null;
                         // もし決算モーダル等が開いている場合は保留を維持
-                        if (this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen()) {
-                            return;
-                        }
+                        if (this.uiManager.isSettlementModalOpen && this.uiManager.isSettlementModalOpen()) return;
                         this.triggerMuModal(stageData);
                     }, delayMs);
                 } else {

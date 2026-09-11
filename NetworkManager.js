@@ -214,7 +214,9 @@ export class NetworkManager {
         const comp = compIndex >= 0 ? CONFIG.COMPANIES[compIndex] : null;
         const routeColor = comp ? comp.routeColor : 0x0ea5e9;
         
-        const offset = Math.max(0, compIndex) * 0.0003;
+        // ★自社空路の最上位表示: プレイヤーは常に最上空（0.0020）、AI各社はインデックス順
+        const isPlayer = (companyId === 'player');
+        const offset = isPlayer ? 0.0020 : (Math.max(0, compIndex) * 0.0003);
 
         const posA = Utils.latLonToVector3(fromData.lat, fromData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
         const posB = Utils.latLonToVector3(toData.lat, toData.lon, CONFIG.GLOBE_RADIUS + 0.02 + offset);
@@ -297,7 +299,8 @@ export class NetworkManager {
         });
         
         const ribbonMesh = new THREE.Mesh(ribbonGeometry, ribbonMaterial);
-        ribbonMesh.renderOrder = 1;
+        // ★自社空路の描画優先: プレイヤーは最前面（リボン: 5, AI: 1）
+        ribbonMesh.renderOrder = isPlayer ? 5 : 1;
         ribbonMesh.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(ribbonMesh);
 
@@ -309,7 +312,8 @@ export class NetworkManager {
             depthWrite: false
         });
         const coreLine = new THREE.Line(lineGeometry, lineMaterial);
-        coreLine.renderOrder = 2;
+        // ★自社空路の描画優先: プレイヤーは最前面（芯ライン: 6, AI: 2）
+        coreLine.renderOrder = isPlayer ? 6 : 2;
         coreLine.userData = { fromId: fromData.id, toId: toData.id, companyId: companyId };
         this.routeGroup.add(coreLine);
 

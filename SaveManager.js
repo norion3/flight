@@ -27,12 +27,12 @@ export class SaveManager {
                 // URLセーフな形式で極小圧縮
                 const compressed = window.LZString.compressToEncodedURIComponent(jsonStr);
                 
-                // ★大面積・高精細化（400x400px）: ドット潰れを根絶
-                const qrSize = 400;
+                // ★大面積・高精細化（640x640px）＆ 誤り訂正level: 'L'（ドット粗大化・認識率劇的向上）
+                const qrSize = 640;
                 const qr = new window.QRious({
                     value: compressed,
                     size: qrSize,
-                    level: 'M'
+                    level: 'L'
                 });
 
                 // メタ情報がない場合は純粋なQR画像を出力
@@ -45,9 +45,9 @@ export class SaveManager {
                     }
                 }
 
-                // ★極限シンプル・高精細カード（480x540px）
-                const cardWidth = 480;
-                const cardHeight = 540;
+                // ★極限シンプル・超高精細カード（720x800px）
+                const cardWidth = 720;
+                const cardHeight = 800;
 
                 const canvas = document.createElement('canvas');
                 canvas.width = cardWidth;
@@ -60,14 +60,14 @@ export class SaveManager {
 
                 // 2. 上部: 小型・控えめな見出し（QR認識を阻害しないサイズ）
                 ctx.fillStyle = '#334155'; // 控えめな濃紺
-                ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(metaInfo.yearTitle || '【 セーブデータ 】', cardWidth / 2, 35);
+                ctx.fillText(metaInfo.yearTitle || '【 セーブデータ 】', cardWidth / 2, 45);
 
                 // 3. 中央: 高精細QRコードの描画（四方に広大な白余白クワイエットゾーンを確保）
-                const qrX = (cardWidth - qrSize) / 2; // (480 - 400) / 2 = 40px
-                const qrY = 65;
+                const qrX = (cardWidth - qrSize) / 2; // (720 - 640) / 2 = 40px
+                const qrY = 90;
                 ctx.drawImage(qr.canvas, qrX, qrY, qrSize, qrSize);
 
                 // 4. 下部ステータス表示は完全削除（白余白として開放し、jsQRの境界誤検出を100%防止）
@@ -114,7 +114,22 @@ export class SaveManager {
                         ctx.drawImage(img, 0, 0);
 
                         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const code = window.jsQR(imageData.data, imageData.width, imageData.height);
+                        
+                        // 1回目：標準画像解析
+                        let code = window.jsQR(imageData.data, imageData.width, imageData.height);
+
+                        // ★二重コントラスト（二値化前処理）: 認識失敗時に白黒二値化ハイコントラスト処理を実施して再試行
+                        if (!code || !code.data) {
+                            const d = imageData.data;
+                            for (let i = 0; i < d.length; i += 4) {
+                                const gray = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+                                const bin = gray > 128 ? 255 : 0;
+                                d[i] = bin;
+                                d[i + 1] = bin;
+                                d[i + 2] = bin;
+                            }
+                            code = window.jsQR(d, imageData.width, imageData.height);
+                        }
 
                         if (!code || !code.data) {
                             return reject(new Error('画像からQRコードが見つかりません'));
