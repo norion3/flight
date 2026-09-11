@@ -57,7 +57,7 @@
         let lastTouchEnd = 0;
         document.addEventListener('touchend', function(event) {
             const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
+            if (now - lastTouchEnd <= 380) {
                 event.preventDefault();
                 const targetBtn = event.target.closest('button, .cc-link-btn, .buy-plane-btn, .sell-plane-btn, .upgrade-action-btn, .rival-accordion-btn, .graph-tab-btn, .event-option-btn');
                 
@@ -66,6 +66,10 @@
                 }
             }
             lastTouchEnd = now;
+        }, { passive: false });
+
+        window.addEventListener('dblclick', function(e) {
+            e.preventDefault();
         }, { passive: false });
     </script>
 
@@ -436,6 +440,15 @@
                 </div>
 
                 <div>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ 主要空港の開発と解体</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>世界各地の主要空港は資金を投じて最大Lv 3まで施設を開発できます</div>
+                        <div>自社カラーのエメラルドタワーが建設され、世界に誇るメガハブへ成長します</div>
+                        <div>不要になった施設はいつでも解体でき、直前建設費の50%が即時返金されます</div>
+                    </div>
+                </div>
+
+                <div>
                     <h3 class="font-bold text-cyan-400 mb-1">◆ 機体の購入と売却</h3>
                     <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
                         <div>右下の緑のボタンから小型機〜超大型機を購入し</div>
@@ -472,6 +485,15 @@
                     <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
                         <div>経営中に発生するニュースや要請に対し適切な決断を下し</div>
                         <div>一時的な収益ボーナスや満足度アップを獲得しましょう</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-cyan-400 mb-1">◆ QRセーブとデータ復元</h3>
+                    <div class="pl-3 text-slate-300 leading-relaxed space-y-0.5">
+                        <div>右下のセーブボタンから、全経営データを高精細QR画像として発行できます</div>
+                        <div>表示された画像を長押しして写真アルバムに保存してください</div>
+                        <div>「セーブデータ読込」から画像を選択することで、いつでも続きから再開できます</div>
                     </div>
                 </div>
             </div>

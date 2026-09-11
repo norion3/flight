@@ -43,6 +43,10 @@
  * 【ゲームバランス改善 Phase 4: 多段花火 ＆ Web Audio音響同期】
  * 21. `planeManager.onFirstMuLanding` において、花火打ち上げ開始および時間差スターマインに合わせて
  *     `soundManager.playFireworkSound()` をリアルタイムに完全同期再生。
+ * 
+ * 【QRセーブメタデータ整流化（サムネイル高視認性対応）】
+ * 22. QRセーブ発行時（onIssueSaveRequested）のメタ情報において、実日時（fullTimeStr）を
+ *     タイトル「SimAirline」と調和するクリーンな日時表記に整流化し、SaveManager側の新ヘッダー印字へ正確に受け渡し。
  */
 
 import { CONFIG } from './Config.js';
@@ -386,7 +390,7 @@ export class GameManager {
                 const metaInfo = {
                     yearTitle: `【 ${gameInfoStr} 】`,
                     statusText: `💰 資金: ${fundsDisplay}   ✈️ 機体: ${playerPlanes.length}機`,
-                    timeText: `🕒 発行: ${fullTimeStr}`
+                    timeText: fullTimeStr
                 };
 
                 const dataUrl = await this.saveManager.generateQR(saveData, metaInfo);
