@@ -35,6 +35,14 @@
  * 17. 【花火5.0秒間の完全静粛・排他制御】初便タッチダウン時に `isMuCelebrating = true` を設定。
  *     花火が打ち上がる5.0秒間は決算・ランダムイベント・トーストを完全保留し、5.2秒後に満を持して祝賀電信を着信。
  * 18. 【MU空港解体リクエスト遮断】`onDowngradeAirportRequested` に `airportData.id === 'MU'` のガードを追加。
+ * 
+ * 【ゲームバランス改善 Phase 3: 動的インフレ連動 ＆ 世界情勢ニュース通知】
+ * 19. 秒収 $5M/s および $20M/s 初回突破時の世界情勢ニュース通知（インフレ改定）を導入。
+ * 20. 機体購入処理（onBuyPlane）において、成長ステージ連動型価格（economyManager.getPlaneCost）を適用。
+ * 
+ * 【ゲームバランス改善 Phase 4: 多段花火 ＆ Web Audio音響同期】
+ * 21. `planeManager.onFirstMuLanding` において、花火打ち上げ開始および時間差スターマインに合わせて
+ *     `soundManager.playFireworkSound()` をリアルタイムに完全同期再生。
  */
 
 import { CONFIG } from './Config.js';
@@ -78,6 +86,10 @@ export class GameManager {
         this.hasReachedStage21 = false; // 第21段階到達フラグ
         this.isMuCelebrated = false; // 初到着セレモニー完了フラグ
 
+        // ★Phase 3新設: 成長ステージ連動型世界情勢通知フラグ
+        this.hasTriggeredInflation5M = false;
+        this.hasTriggeredInflation20M = false;
+
         this.initThree();
         this.globe = new Globe(this.scene);
         this.mapData = new MapData();
@@ -90,15 +102,24 @@ export class GameManager {
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
         this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
 
-        // ★Phase 4新設 ＆ 改善反映: 自社機のムー中央古代空港（MU）への初到着コールバック登録（花火5.0秒完全排他制御）
+        // ★Phase 4新設 ＆ 改善反映 ＆ Phase 4音響連動: 自社機のムー中央古代空港（MU）への初到着コールバック登録
         this.planeManager.onFirstMuLanding = () => {
             if (this.isMuCelebrated) return;
             this.isMuCelebrated = true;
             this.isMuCelebrating = true; // ★花火演出中の完全静粛モード開始
 
-            // 1. 3Dサイバー粒子花火の打ち上げ（5.0秒間の優美な残光）
+            // 1. 3Dサイバー粒子花火の打ち上げ（多段スターマイン）
             if (this.muManager && this.muManager.triggerCelebrationFireworks) {
                 this.muManager.triggerCelebrationFireworks();
+            }
+
+            // ★Phase 4音響連動: メイン大花火音の同期再生
+            if (this.uiManager && this.uiManager.soundManager && this.uiManager.soundManager.playFireworkSound) {
+                this.uiManager.soundManager.playFireworkSound(true);
+                // サブスターマインの時間差（0.35秒、0.70秒、1.10秒）に合わせた連射音響
+                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 350);
+                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 700);
+                setTimeout(() => this.uiManager.soundManager.playFireworkSound(true), 1100);
             }
 
             // 2. 花火が消え去った黄金比率の5.2秒後に、満を持して最終祝賀電信を着信表示
@@ -575,8 +596,8 @@ export class GameManager {
         };
 
         this.uiManager.onBuyPlane = (type) => {
-            const planeConf = CONFIG.ECONOMY.PLANES[type];
-            const cost = planeConf ? planeConf.cost : 10000000;
+            // ★Phase 3: インフレ連動型価格を適用
+            const cost = this.economyManager.getPlaneCost ? this.economyManager.getPlaneCost(type) : (CONFIG.ECONOMY.PLANES[type]?.cost || 10000000);
             
             if (!this.economyManager.canAfford(cost)) {
                 this.uiManager.showToast(window.APP_LANG.toastNoFunds);
@@ -1159,6 +1180,18 @@ export class GameManager {
         // 花火演出中（isMuCelebrating）は突発イベントの更新を一時停止
         if (this.eventManager && !this.isMuCelebrating) {
             this.eventManager.update(delta);
+        }
+
+        // ★Phase 3新設: 秒収突破時の世界情勢ニュース（動的インフレ改定）着信通知
+        if (this.economyManager && !this.isMuCelebrating) {
+            const secIncome = this.economyManager.lastSecondIncome;
+            if (!this.hasTriggeredInflation5M && secIncome >= 5000000) {
+                this.hasTriggeredInflation5M = true;
+                this.uiManager.showToast('【世界情勢】航空需要の拡大に伴い、空港使用料・機体価格が改定されました！', 'info');
+            } else if (!this.hasTriggeredInflation20M && secIncome >= 20000000) {
+                this.hasTriggeredInflation20M = true;
+                this.uiManager.showToast('【世界情勢】国際航空協定の更新に伴い、更なる価格改定が実施されました！', 'info');
+            }
         }
 
         this.uiManager.checkRouteConfirmButton(this.economyManager.funds);

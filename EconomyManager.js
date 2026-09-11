@@ -10,6 +10,14 @@
  * 7. 【5大対策仕様】飛行速度（flight_speed）アップグレードの回転率向上ボーナス（speedIncomeBonus / speedPassengerBonus）を収益・客数計算に適用。
  * 8. 【v3 収益バランス改善】Lv 0〜3（満足度500以下）の挙動を100%完全維持し、Lv 4以降の満足度超過分に平方根ソフトキャップおよび運賃・速度の加算整理を適用。
  * 9. 【AI満足度ソフトキャップ適正化】AIの満足度超過分（500超）に係数0.008のソフトキャップ（上限約3.85倍）を導入し、プレイヤー（最大約5.0倍）を下回る適正倍率を収益・客数の両方に適用。
+ * 
+ * 【ゲームバランス改善 Phase 2: 実績グラフ客数の年間客数化】
+ * 10. `_recordMonthlyHistory` において、グラフ記録する客数指標を単調増加する累計客数（`totalPassengers`）から、
+ *     当期の経営成績指標である年間客数（`yearlyPassengers` / AIは `aiYearlyPassengers`）へ切り替え。
+ * 
+ * 【ゲームバランス改善 Phase 3: 終盤収益200M/s収束 ＆ 動的インフレ・スケーリング】
+ * 11. 秒収 $100M/s 超過時に限界収益逓減カーブ（Asymptotic Saturation）を適用し、理論上最大到達点で約 $200M/s に自然収束。
+ * 12. 企業の成長ステージ（秒収 $5M/s, $20M/s 突破）に連動したマイルドな動的インフレ倍率（getInflationMultiplier）を導入し、路線開設費および機体購入費に適用。
  */
 
 import { CONFIG } from './Config.js';
@@ -95,6 +103,30 @@ export class EconomyManager {
         return { incomeRate: 0, passengersRate: 0 };
     }
 
+    /**
+     * ★Phase 3新設: 企業の成長ステージ（秒収水準）に連動したマイルドな動的インフレ倍率
+     * 秒収 < $5M/s: 等倍 (1.0)
+     * 秒収 $5M〜$20M: 1.0 〜 1.5倍
+     * 秒収 $20M以上: 1.5 〜 2.0倍
+     */
+    getInflationMultiplier() {
+        const income = Math.max(0, this.lastSecondIncome);
+        if (income < 5000000) return 1.0;
+        if (income < 20000000) {
+            return 1.0 + ((income - 5000000) / 15000000) * 0.5;
+        }
+        return 1.5 + Math.min(0.5, ((income - 20000000) / 80000000) * 0.5);
+    }
+
+    /**
+     * ★Phase 3新設: インフレ倍率を反映した機体購入費用を取得
+     */
+    getPlaneCost(type) {
+        const conf = CONFIG.ECONOMY.PLANES[type];
+        if (!conf) return 10000000;
+        return Math.round(conf.cost * this.getInflationMultiplier());
+    }
+
     update(delta, planes, networkManager, upgradeManager, competitionManager, eventManager = null) {
         const bonuses = upgradeManager ? upgradeManager.getBonuses() : { incomeRate: 1.0, satisfaction: 100, speedMultiplier: 1.0 };
         const eventBuffs = eventManager ? eventManager.getBuffs() : { incomeRate: 0, passengersRate: 0 };
@@ -176,8 +208,14 @@ export class EconomyManager {
         this._updateAiEconomy(delta, planes, networkManager, competitionManager, eventManager);
 
         if (this.incomeTimer >= 1.0) {
-            const netIncome = this.grossIncomeBuffer - this.upkeepBuffer;
+            let netIncome = this.grossIncomeBuffer - this.upkeepBuffer;
             
+            // ★Phase 3: 終盤収益の限界逓減カーブ（$100M/s超過分に漸近飽和カーブを適用し最大約$200M/sに収束）
+            if (netIncome > 100000000) {
+                const excess = netIncome - 100000000;
+                netIncome = 100000000 + (100000000 * excess) / (excess + 100000000);
+            }
+
             this.funds += netIncome;
             this.lastSecondIncome = netIncome;
             this.displayIncome = Math.round(netIncome);
@@ -281,7 +319,7 @@ export class EconomyManager {
             monthLabel: monthLabel,
             funds: this.funds,
             income: this.lastSecondIncome,
-            passengers: this.totalPassengers,
+            passengers: this.yearlyPassengers,
             planes: playerPlaneCount,
             satisfaction: rawSat,
             share: rawWorldShare
@@ -301,7 +339,7 @@ export class EconomyManager {
                     monthLabel: monthLabel,
                     funds: this.aiFunds[comp.id],
                     income: this.aiLastIncome[comp.id],
-                    passengers: this.aiTotalPassengers[comp.id],
+                    passengers: this.aiYearlyPassengers[comp.id],
                     planes: rivalPlaneCount,
                     satisfaction: rivalSat,
                     share: rivalWorldShare
@@ -335,7 +373,9 @@ export class EconomyManager {
         const rankWeights = { 'major': 1.5, 'local': 1.0, 'fictional': 0.7 };
         const rankMultiplier = (rankWeights[originNode.type] || 1.0) * (rankWeights[destNode.type] || 1.0);
 
-        return Math.round(baseCost * rankMultiplier);
+        // ★Phase 3: 動的インフレ倍率を路線開設費に乗算適用
+        const inflationMult = this.getInflationMultiplier();
+        return Math.round(baseCost * rankMultiplier * inflationMult);
     }
 
     canAfford(amount) {

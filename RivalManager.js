@@ -17,6 +17,10 @@
  * 【ムー大陸ライバル接続完全除外（改善反映）】
  * 9. 【MU候補完全除外】路線開拓（_expandRoute）時の候補先判定、および拠点選定（availableAirports）から
  *    ムー中央古代空港（MU）を完全除外。ライバルAIがムー大陸へ進出する挙動を根本から100%遮断。
+ * 
+ * 【ゲームバランス改善 Phase 2: ライバルAI機体数上限の適正化】
+ * 10. プレイヤー最大200機基準化に伴い、ライバル各社の機体保有上限キャップを最大60機から40機へ調整。
+ *     世界全体で約350機が快適かつ軽快に飛び交う適正バランスを実現。
  */
 
 import { CONFIG } from './Config.js';
@@ -104,9 +108,9 @@ export class RivalManager {
         }
         totalRoutes = Math.floor(totalRoutes / 2);
 
-        // 機体保有数の動的解放（初期6機、毎年+4機、最大60機キャップ）
+        // 機体保有数の動的解放（初期6機、毎年+4機、最大40機キャップ）
         const currentYear = this.economyManager ? this.economyManager.year : 1;
-        const maxAllowedPlanes = Math.min(60, 6 + (currentYear - 1) * 4);
+        const maxAllowedPlanes = Math.min(40, 6 + (currentYear - 1) * 4);
 
         // ★撤退シェア基準 35% 未満 ＆ 1サイクル（約22秒）猶予カウンター
         if (competitionManager) {

@@ -19,6 +19,10 @@
  * 【花火演出時間の黄金比率最適化（改善反映）】
  * 8. 【残光寿命5.0秒への延長】花火粒子の最大寿命（maxLife）を4.2秒から5.0秒へ延長。
  *    十分な余韻と達成感をプレイヤーへ届けた後に、静粛かつ自然に最終祝賀電信へ接続。
+ * 
+ * 【ゲームバランス改善 Phase 4: 多段・時間差連射スターマイン花火システム】
+ * 9. メイン大花火（北島タワー頂点・南島大ピラミッド）の飛翔高度1.5倍・粒子数倍増（1基あたり180粒子）に超巨大化。
+ * 10. 中・小ピラミッドおよび東西沿岸部から時間差（0.3〜1.2秒）で打ち上がる多段連射スターマイン（サブ花火群）シーケンスを実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -62,6 +66,7 @@ export class MuContinentManager {
         this.fireworksGroup = new THREE.Group();
         this.muGroup.add(this.fireworksGroup);
         this.activeFireworks = [];
+        this.fireworkSequenceTimers = [];
 
         this._buildContinentGeometry();
         this._buildMonuments();
@@ -763,69 +768,53 @@ export class MuContinentManager {
     }
 
     /**
-     * ★Phase 4新設 ＆ 改善反映: 初便着陸記念 3Dサイバー粒子花火（フォトン・パイロテクニクス）
-     * 黄金比率の5.0秒間、地球上に降り注ぐ優美な祝賀花火を展開
+     * 単一クラスターの花火パーティクルを射出する内部ヘルパー
      */
-    triggerCelebrationFireworks() {
-        if (!this.landMesh) return;
-
-        // 発射原点（北島タワー頂点、および南島3連ピラミッド頂点）
-        const launchOrigins = [
-            new THREE.Vector3(0.02, 0.82, 0.012 + 0.72), // タワー頂点
-            new THREE.Vector3(0.02 - 0.02, -0.74 + 0.22, 0.012 + 0.40), // 大ピラミッド頂点
-            new THREE.Vector3(0.02 - 0.14, -0.74 - 0.24, 0.012 + 0.28), // 中ピラミッド頂点
-            new THREE.Vector3(0.02 - 0.22, -0.74 - 0.57, 0.012 + 0.18)  // 小ピラミッド頂点
-        ];
-
-        const particleCountPerOrigin = 90;
-        const totalParticles = launchOrigins.length * particleCountPerOrigin;
-
-        const positions = new Float32Array(totalParticles * 3);
-        const colors = new Float32Array(totalParticles * 3);
+    _spawnFireworkCluster(origin, particleCount = 100, isMajor = false) {
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
         const velocities = [];
 
-        // 祝賀カラーパレット: 自社エメラルド、ソーラーゴールド、サイバーサファイア、ピュアホワイト
         const palette = [
-            new THREE.Color(0x34d399),
-            new THREE.Color(0xfbbf24),
-            new THREE.Color(0x38bdf8),
-            new THREE.Color(0xffffff)
+            new THREE.Color(0x34d399), // サイバーエメラルド
+            new THREE.Color(0xfbbf24), // ソーラーゴールド
+            new THREE.Color(0x38bdf8), // サイバーサファイア
+            new THREE.Color(0xf43f5e), // ネオンローズ
+            new THREE.Color(0xffffff)  // ピュアホワイト
         ];
 
-        let pIdx = 0;
-        launchOrigins.forEach((origin) => {
-            for (let i = 0; i < particleCountPerOrigin; i++) {
-                const idx3 = pIdx * 3;
-                positions[idx3] = origin.x;
-                positions[idx3 + 1] = origin.y;
-                positions[idx3 + 2] = origin.z;
+        const speedMin = isMajor ? 0.22 : 0.14;
+        const speedRange = isMajor ? 0.32 : 0.22;
+        const zBonus = isMajor ? 1.75 : 1.25;
 
-                // 放射状の初速（半球・上空へ向かう花火展開ベクトル）
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.random() * (Math.PI * 0.42); // 上向き中心
-                const speed = 0.16 + (Math.random() * 0.26);
+        for (let i = 0; i < particleCount; i++) {
+            const idx3 = i * 3;
+            positions[idx3] = origin.x;
+            positions[idx3 + 1] = origin.y;
+            positions[idx3 + 2] = origin.z;
 
-                const vx = Math.sin(phi) * Math.cos(theta) * speed;
-                const vy = Math.sin(phi) * Math.sin(theta) * speed;
-                const vz = Math.cos(phi) * speed * 1.35; // Z+（法線方向へ高く飛翔）
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * (Math.PI * 0.45);
+            const speed = speedMin + (Math.random() * speedRange);
 
-                velocities.push(new THREE.Vector3(vx, vy, vz));
+            const vx = Math.sin(phi) * Math.cos(theta) * speed;
+            const vy = Math.sin(phi) * Math.sin(theta) * speed;
+            const vz = Math.cos(phi) * speed * zBonus;
 
-                const col = palette[Math.floor(Math.random() * palette.length)];
-                colors[idx3] = col.r;
-                colors[idx3 + 1] = col.g;
-                colors[idx3 + 2] = col.b;
+            velocities.push(new THREE.Vector3(vx, vy, vz));
 
-                pIdx++;
-            }
-        });
+            const col = palette[Math.floor(Math.random() * palette.length)];
+            colors[idx3] = col.r;
+            colors[idx3 + 1] = col.g;
+            colors[idx3 + 2] = col.b;
+        }
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         const material = new THREE.PointsMaterial({
-            size: 0.045,
+            size: isMajor ? 0.055 : 0.038,
             vertexColors: true,
             transparent: true,
             opacity: 1.0,
@@ -842,8 +831,53 @@ export class MuContinentManager {
             material: material,
             velocities: velocities,
             life: 0,
-            maxLife: 5.0 // ★黄金比率の5.0秒間に延長
+            maxLife: isMajor ? 5.0 : 4.4
         });
+    }
+
+    /**
+     * ★Phase 4新設 ＆ 改訂: 初便着陸記念 3Dサイバー粒子花火（多段・連射型スターマイン）
+     * メイン特大花火2基 ＋ 時間差サブスターマイン群による豪華演出
+     */
+    triggerCelebrationFireworks() {
+        if (!this.landMesh) return;
+
+        // 既存シーケンスタイマーをクリア
+        this.fireworkSequenceTimers.forEach(t => clearTimeout(t));
+        this.fireworkSequenceTimers = [];
+
+        // 1. メイン大花火（0秒：北島タワー頂点 ＆ 南島大ピラミッド）
+        const towerTop = new THREE.Vector3(0.02, 0.82, 0.012 + 0.72);
+        const mainPyramidTop = new THREE.Vector3(0.02 - 0.02, -0.74 + 0.22, 0.012 + 0.40);
+        this._spawnFireworkCluster(towerTop, 180, true);
+        this._spawnFireworkCluster(mainPyramidTop, 160, true);
+
+        // 2. 時間差サブスターマイン（0.35秒：中ピラミッド ＆ 西岸岬）
+        const t1 = setTimeout(() => {
+            const midPyramidTop = new THREE.Vector3(0.02 - 0.14, -0.74 - 0.24, 0.012 + 0.28);
+            const westCoast = new THREE.Vector3(-0.35, -0.15, 0.015);
+            this._spawnFireworkCluster(midPyramidTop, 110, false);
+            this._spawnFireworkCluster(westCoast, 90, false);
+        }, 350);
+        this.fireworkSequenceTimers.push(t1);
+
+        // 3. 時間差サブスターマイン（0.70秒：小ピラミッド ＆ 東岸湾頭）
+        const t2 = setTimeout(() => {
+            const smallPyramidTop = new THREE.Vector3(0.02 - 0.22, -0.74 - 0.57, 0.012 + 0.18);
+            const eastCoast = new THREE.Vector3(0.40, -0.40, 0.015);
+            this._spawnFireworkCluster(smallPyramidTop, 90, false);
+            this._spawnFireworkCluster(eastCoast, 95, false);
+        }, 700);
+        this.fireworkSequenceTimers.push(t2);
+
+        // 4. クライマックス連射（1.10秒：北島海峡部 ＆ 南島南端）
+        const t3 = setTimeout(() => {
+            const northStrait = new THREE.Vector3(0.02, 0.15, 0.018);
+            const southCape = new THREE.Vector3(0.02, -1.25, 0.015);
+            this._spawnFireworkCluster(northStrait, 120, false);
+            this._spawnFireworkCluster(southCape, 100, false);
+        }, 1100);
+        this.fireworkSequenceTimers.push(t3);
     }
 
     /**

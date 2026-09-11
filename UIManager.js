@@ -20,6 +20,9 @@
  *     「解体不可」として完全グレーアウト・disabled固定化し、開発側も「太古メガハブ稼働中 (Lv 3)」として固定非活性化。
  * 13. 【電信メッセージ分母・フェーズ別バッジ対応】showMuEventModal において、ステージ1〜21は `STAGE X/21`、
  *     開通電信は `SPECIAL MISSION`、初着陸祝賀電信は `MISSION COMPLETE` としてバッジを正しく切り替え表示。
+ * 
+ * 【ゲームバランス改善 Phase 1: 実績グラフタイトルの年間化準備】
+ * 14. `updateOverviewPanel` 内の客数タブ見出しタイトルを「累計客数」から「年間客数推移」へ更新。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -843,7 +846,7 @@ export class UIManager {
         }
 
         if (this.settlementBackdrop) {
-            this.settlementBackdrop.classList.add('show');
+            this.settlementBackdrop.classList.remove('show');
             this._isSettlementModalOpen = true;
             this._toggleMainButtons(false);
         }
@@ -1702,7 +1705,7 @@ export class UIManager {
         switch(this.currentGraphTab) {
             case 'funds': titleStr = '当期資金推移'; break;
             case 'income': titleStr = '月間収益推移'; break;
-            case 'passengers': titleStr = '累計客数'; break;
+            case 'passengers': titleStr = '年間客数推移'; break;
             case 'planes': titleStr = '稼働機体推移'; break;
             case 'satisfaction': titleStr = '顧客満足度推移'; break;
             case 'share': titleStr = '業界シェア推移'; break;
