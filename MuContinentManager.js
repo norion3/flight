@@ -23,6 +23,11 @@
  * 【ゲームバランス改善 Phase 4: 多段・時間差連射スターマイン花火システム】
  * 9. メイン大花火（北島タワー頂点・南島大ピラミッド）の飛翔高度1.5倍・粒子数倍増（1基あたり180粒子）に超巨大化。
  * 10. 中・小ピラミッドおよび東西沿岸部から時間差（0.3〜1.2秒）で打ち上がる多段連射スターマイン（サブ花火群）シーケンスを実装。
+ * 
+ * 【花火演出の超リアル化・劇的深化: 3幕多段スターマイン ＆ 伝統花火配色 ＆ 物理明滅シミュレーション】
+ * 11. 打ち上げを3幕構成（0.0s先導玉 ➔ 1.5s/2.3s東西・南島スターマイン ➔ 4.2s北島天頂大玉菊花火）に拡張し、演出時間を約8.5秒へ延長。
+ * 12. 建物覚醒色（緑・金・白）と同化しない伝統花火色（紅牡丹ルビー、紫陽花パープル、橙火薬アンバー、浅葱色シアン、錦冠菊ゴールド）を採用。
+ * 13. Fibonacci Sphere展開による真球状拡散、爆発直後の空気抵抗急減速、および星のチカチカ明滅物理（トゥインクル）を実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -768,24 +773,28 @@ export class MuContinentManager {
     }
 
     /**
-     * 単一クラスターの花火パーティクルを射出する内部ヘルパー
+     * ★改訂: 単一クラスターの花火パーティクルを真球状拡散・明滅物理で射出する内部ヘルパー
      */
-    _spawnFireworkCluster(origin, particleCount = 100, isMajor = false) {
+    _spawnFireworkCluster(origin, particleCount = 120, paletteType = 'ruby', isFinale = false) {
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
         const velocities = [];
+        const twinklePhases = [];
 
-        const palette = [
-            new THREE.Color(0x34d399), // サイバーエメラルド
-            new THREE.Color(0xfbbf24), // ソーラーゴールド
-            new THREE.Color(0x38bdf8), // サイバーサファイア
-            new THREE.Color(0xf43f5e), // ネオンローズ
-            new THREE.Color(0xffffff)  // ピュアホワイト
-        ];
+        // 伝統花火配色パレット（建物覚醒色 0x34d399 / 0xfbbf24 / 0xffffff を排除し夜空に鮮烈に映える配色）
+        const PALETTES = {
+            ruby: [new THREE.Color(0xff1744), new THREE.Color(0xd946ef), new THREE.Color(0xf43f5e)], // 紅牡丹・紫陽花
+            amber: [new THREE.Color(0xf97316), new THREE.Color(0x06b6d4), new THREE.Color(0xfb923c)], // 橙火薬・浅葱
+            cyan: [new THREE.Color(0x06b6d4), new THREE.Color(0x818cf8), new THREE.Color(0x38bdf8)],  // 浅葱・藍
+            chrysanthemum: [new THREE.Color(0xff1744), new THREE.Color(0xfde047), new THREE.Color(0xd946ef), new THREE.Color(0xf97316)] // 錦冠菊・百花繚乱
+        };
 
-        const speedMin = isMajor ? 0.22 : 0.14;
-        const speedRange = isMajor ? 0.32 : 0.22;
-        const zBonus = isMajor ? 1.75 : 1.25;
+        const currentPalette = PALETTES[paletteType] || PALETTES.ruby;
+        const baseSpeed = isFinale ? 0.38 : (paletteType === 'cyan' ? 0.22 : 0.28);
+        const maxLife = isFinale ? 5.2 : 3.8;
+
+        // Fibonacci Sphere アルゴリズムによる真球状の均等爆発展開
+        const phi = Math.PI * (3 - Math.sqrt(5)); // 黄金角
 
         for (let i = 0; i < particleCount; i++) {
             const idx3 = i * 3;
@@ -793,20 +802,24 @@ export class MuContinentManager {
             positions[idx3 + 1] = origin.y;
             positions[idx3 + 2] = origin.z;
 
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.random() * (Math.PI * 0.45);
-            const speed = speedMin + (Math.random() * speedRange);
+            const y = 1 - (i / (particleCount - 1)) * 2; // -1 to 1
+            const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
+            const theta = phi * i;
 
-            const vx = Math.sin(phi) * Math.cos(theta) * speed;
-            const vy = Math.sin(phi) * Math.sin(theta) * speed;
-            const vz = Math.cos(phi) * speed * zBonus;
+            const dirX = Math.cos(theta) * radiusAtY;
+            const dirY = Math.sin(theta) * radiusAtY;
+            const dirZ = Math.max(0.1, y + 0.35); // 法線Z+（上空）方向へバイアスを持たせる
 
-            velocities.push(new THREE.Vector3(vx, vy, vz));
+            // 速度の自然な揺らぎ（同心球にわずかな厚みを持たせる）
+            const spd = baseSpeed * (0.85 + Math.random() * 0.30);
+            velocities.push(new THREE.Vector3(dirX * spd, dirY * spd, dirZ * spd));
 
-            const col = palette[Math.floor(Math.random() * palette.length)];
+            const col = currentPalette[i % currentPalette.length];
             colors[idx3] = col.r;
             colors[idx3 + 1] = col.g;
             colors[idx3 + 2] = col.b;
+
+            twinklePhases.push(Math.random() * Math.PI * 2);
         }
 
         const geometry = new THREE.BufferGeometry();
@@ -814,7 +827,7 @@ export class MuContinentManager {
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         const material = new THREE.PointsMaterial({
-            size: isMajor ? 0.055 : 0.038,
+            size: isFinale ? 0.055 : 0.038,
             vertexColors: true,
             transparent: true,
             opacity: 1.0,
@@ -830,14 +843,19 @@ export class MuContinentManager {
             geometry: geometry,
             material: material,
             velocities: velocities,
+            twinklePhases: twinklePhases,
             life: 0,
-            maxLife: isMajor ? 5.0 : 4.4
+            maxLife: maxLife,
+            isFinale: isFinale
         });
     }
 
     /**
-     * ★Phase 4新設 ＆ 改訂: 初便着陸記念 3Dサイバー粒子花火（多段・連射型スターマイン）
-     * メイン特大花火2基 ＋ 時間差サブスターマイン群による豪華演出
+     * ★Phase 4改訂: 初便着陸記念 3幕多段スターマイン花火システム（約8.5秒のドラマチック演出）
+     * 1. 0.0秒: 【第1幕 先導玉】南島・小ピラミッドから可憐な浅葱色中玉が先陣
+     * 2. 1.5秒: 【第2幕 東西スターマイン】西岸岬・東岸湾頭から紅牡丹＆橙火薬の連射
+     * 3. 2.3秒: 【第2幕 追い打ち】中ピラミッド＆大ピラミッドから紫陽花2連星
+     * 4. 4.2秒: 【第3幕 フィナーレ大玉菊花火】北島タワー頂点から天頂を埋め尽くす錦冠菊特大玉
      */
     triggerCelebrationFireworks() {
         if (!this.landMesh) return;
@@ -846,42 +864,38 @@ export class MuContinentManager {
         this.fireworkSequenceTimers.forEach(t => clearTimeout(t));
         this.fireworkSequenceTimers = [];
 
-        // 1. メイン大花火（0秒：北島タワー頂点 ＆ 南島大ピラミッド）
-        const towerTop = new THREE.Vector3(0.02, 0.82, 0.012 + 0.72);
-        const mainPyramidTop = new THREE.Vector3(0.02 - 0.02, -0.74 + 0.22, 0.012 + 0.40);
-        this._spawnFireworkCluster(towerTop, 180, true);
-        this._spawnFireworkCluster(mainPyramidTop, 160, true);
+        // 0.0秒: 【第1幕 先導玉】小ピラミッド頂点（浅葱シアン）
+        const smallPyramidTop = new THREE.Vector3(0.02 - 0.22, -0.74 - 0.57, 0.012 + 0.18);
+        this._spawnFireworkCluster(smallPyramidTop, 100, 'cyan', false);
 
-        // 2. 時間差サブスターマイン（0.35秒：中ピラミッド ＆ 西岸岬）
+        // 1.5秒: 【第2幕 東西スターマイン】西岸岬（紅牡丹） ＆ 東岸湾頭（橙火薬）
         const t1 = setTimeout(() => {
-            const midPyramidTop = new THREE.Vector3(0.02 - 0.14, -0.74 - 0.24, 0.012 + 0.28);
             const westCoast = new THREE.Vector3(-0.35, -0.15, 0.015);
-            this._spawnFireworkCluster(midPyramidTop, 110, false);
-            this._spawnFireworkCluster(westCoast, 90, false);
-        }, 350);
+            const eastCoast = new THREE.Vector3(0.40, -0.40, 0.015);
+            this._spawnFireworkCluster(westCoast, 120, 'ruby', false);
+            this._spawnFireworkCluster(eastCoast, 120, 'amber', false);
+        }, 1500);
         this.fireworkSequenceTimers.push(t1);
 
-        // 3. 時間差サブスターマイン（0.70秒：小ピラミッド ＆ 東岸湾頭）
+        // 2.3秒: 【第2幕 追い打ち連星】中ピラミッド ＆ 大ピラミッド（紫陽花・紅牡丹）
         const t2 = setTimeout(() => {
-            const smallPyramidTop = new THREE.Vector3(0.02 - 0.22, -0.74 - 0.57, 0.012 + 0.18);
-            const eastCoast = new THREE.Vector3(0.40, -0.40, 0.015);
-            this._spawnFireworkCluster(smallPyramidTop, 90, false);
-            this._spawnFireworkCluster(eastCoast, 95, false);
-        }, 700);
+            const midPyramidTop = new THREE.Vector3(0.02 - 0.14, -0.74 - 0.24, 0.012 + 0.28);
+            const mainPyramidTop = new THREE.Vector3(0.02 - 0.02, -0.74 + 0.22, 0.012 + 0.40);
+            this._spawnFireworkCluster(midPyramidTop, 130, 'ruby', false);
+            this._spawnFireworkCluster(mainPyramidTop, 140, 'amber', false);
+        }, 2300);
         this.fireworkSequenceTimers.push(t2);
 
-        // 4. クライマックス連射（1.10秒：北島海峡部 ＆ 南島南端）
+        // 4.2秒: 【第3幕 クライマックス特大菊花火】北島タワー頂点（錦冠菊・天頂百花繚乱）
         const t3 = setTimeout(() => {
-            const northStrait = new THREE.Vector3(0.02, 0.15, 0.018);
-            const southCape = new THREE.Vector3(0.02, -1.25, 0.015);
-            this._spawnFireworkCluster(northStrait, 120, false);
-            this._spawnFireworkCluster(southCape, 100, false);
-        }, 1100);
+            const towerTop = new THREE.Vector3(0.02, 0.82, 0.012 + 0.72);
+            this._spawnFireworkCluster(towerTop, 240, 'chrysanthemum', true);
+        }, 4200);
         this.fireworkSequenceTimers.push(t3);
     }
 
     /**
-     * ★Phase 4新設: 毎フレームの花火物理シミュレーション更新（放射 ➔ 重力沈降 ➔ フェードアウト）
+     * ★Phase 4改訂: 毎フレームの花火物理シミュレーション（空気抵抗急減速 ➔ 重力沈降 ➔ 星のチカチカ明滅）
      */
     updateFireworks(delta) {
         if (this.activeFireworks.length === 0) return;
@@ -899,20 +913,28 @@ export class MuContinentManager {
                 continue;
             }
 
-            // フェードアウト（後半にかけてゆっくり減光）
-            const fade = Math.max(0, 1.0 - Math.pow(progress, 1.6));
-            fw.material.opacity = fade;
+            // ベースの減光カーブ（後半にかけて滑らかにディゾルブ）
+            let baseAlpha = Math.max(0, 1.0 - Math.pow(progress, 1.8));
+
+            // ★トゥインクル効果: 燃焼中の星がチカチカと自然に明滅する揺らぎ
+            const twinkle = 0.82 + Math.sin(fw.life * 28.0) * 0.18;
+            fw.material.opacity = Math.min(1.0, baseAlpha * twinkle);
 
             const posAttr = fw.geometry.attributes.position;
             const count = posAttr.count;
 
+            // 爆発初期（0.35秒以内）は超高速展開、以降は空気抵抗で急ブレーキ（ドラッグ効果）
+            const dragFactor = fw.life < 0.35 ? 0.98 : (fw.isFinale ? 0.93 : 0.91);
+            const effectiveDrag = Math.pow(dragFactor, delta * 60);
+
+            // 重力加速（大玉フィナーレは優雅に枝垂れ落ちる）
+            const gravity = fw.isFinale ? 0.085 : 0.065;
+
             for (let i = 0; i < count; i++) {
                 const vel = fw.velocities[i];
 
-                // 重力によるZ減速＆沈降（擬似重力 -0.12）
-                vel.z -= 0.12 * delta;
-                // 空気抵抗
-                vel.multiplyScalar(Math.pow(0.92, delta * 60));
+                vel.z -= gravity * delta;
+                vel.multiplyScalar(effectiveDrag);
 
                 const x = posAttr.getX(i) + (vel.x * delta);
                 const y = posAttr.getY(i) + (vel.y * delta);

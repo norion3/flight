@@ -9,6 +9,12 @@
  * 【ゲームバランス改善 Phase 4: Web Audio API 合成花火音響エンジン新設】
  * 5. 外部mp3ファイル不要の内蔵シンセシスによる `playFireworkSound()` を新設。
  *    打上笛音（ヒュルルル…）➔ 重低音衝撃波（ドォォォン！）➔ 光球破裂ノイズ（パラパラ…）を完全動的合成。
+ * 
+ * 【花火音響の自然化・リアル大気反響エンジン刷新】
+ * 6. 打ち上げ気流音（サイン波昇り笛から、バンドパスノイズによるリアルな空気摩擦昇り気流音「シュルルル…」へ刷新）。
+ * 7. 炸裂音（鋭い衝撃波パルス＋地響きのような超低周波大気反響ランブル音「ズゥゥン…」を動的合成）。
+ * 8. 破裂後の星屑パチパチ爆ぜ音（インパルスノイズによる乾いた「パラパラ…」音）を多重合成。
+ * 9. 小玉・中玉・特大玉の規模別音響差別化（引数 isMajor に応じた音圧・周波数・余韻制御）。
  */
 
 export class SoundManager {
@@ -140,10 +146,10 @@ export class SoundManager {
     }
 
     /**
-     * 🎆 ★Phase 4新設: Web Audio API 合成花火音響エンジン
-     * 1. 打ち上げ上昇笛音（400Hz ➔ 1400Hz）
-     * 2. 重低音爆発衝撃波（低周波バースト 80Hz ➔ 30Hz ＋ ピンクノイズ）
-     * 3. 時間差クラックル破裂音（パラパラ…）
+     * 🎆 ★刷新: Web Audio API 自然花火音響エンジン
+     * 1. 昇り気流音: ホワイトノイズ＋バンドパスフィルターによる空気摩擦音「シュルルル…」
+     * 2. 炸裂＆大気反響: 耳元を突く衝撃波アタック ＋ 超低周波大気反響ランブル「ズゥゥン…」
+     * 3. 星屑爆ぜ音: 微小インパルスノイズによるリアルな乾いた音「パラパラパラ…」
      */
     playFireworkSound(isMajor = true) {
         if (this.isMuted) return;
@@ -152,79 +158,119 @@ export class SoundManager {
 
         const now = this.ctx.currentTime;
 
-        // 1. 打ち上げ笛音（ヒュルルル…）
+        // 1. 昇空気流摩擦音（電子音ではなく、風切りホワイトノイズの周波数スイープ）
         try {
-            const whistleOsc = this.ctx.createOscillator();
-            const whistleGain = this.ctx.createGain();
-            whistleOsc.type = 'sine';
-            whistleOsc.frequency.setValueAtTime(420, now);
-            whistleOsc.frequency.exponentialRampToValueAtTime(1300, now + 0.35);
+            const bufferDuration = 0.40;
+            const bufferSize = Math.floor(this.ctx.sampleRate * bufferDuration);
+            const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const out = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                out[i] = Math.random() * 2 - 1;
+            }
 
-            whistleGain.gain.setValueAtTime(0.01, now);
-            whistleGain.gain.linearRampToValueAtTime(isMajor ? 0.15 : 0.08, now + 0.20);
-            whistleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+            const noiseSource = this.ctx.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
 
-            whistleOsc.connect(whistleGain);
-            whistleGain.connect(this.ctx.destination);
-            whistleOsc.start(now);
-            whistleOsc.stop(now + 0.40);
+            const bandpass = this.ctx.createBiquadFilter();
+            bandpass.type = 'bandpass';
+            bandpass.Q.setValueAtTime(4.0, now);
+            bandpass.frequency.setValueAtTime(380, now);
+            bandpass.frequency.exponentialRampToValueAtTime(1600, now + 0.35);
+
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.01, now);
+            gain.gain.linearRampToValueAtTime(isMajor ? 0.14 : 0.08, now + 0.22);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+            noiseSource.connect(bandpass);
+            bandpass.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            noiseSource.start(now);
+            noiseSource.stop(now + 0.40);
         } catch (e) {}
 
-        // 2. 破裂・重低音衝撃波（ドォォォン！）
+        // 2. 炸裂＆大気反響ランブル（ズゥゥン…ゴォォォ）
         const boomTime = now + 0.32;
         try {
-            // 重低音サブベース
+            // ① 超低周波サブベース・大気反響（65Hz ➔ 22Hz）
             const subOsc = this.ctx.createOscillator();
             const subGain = this.ctx.createGain();
             subOsc.type = 'triangle';
-            subOsc.frequency.setValueAtTime(isMajor ? 95 : 120, boomTime);
-            subOsc.frequency.exponentialRampToValueAtTime(28, boomTime + (isMajor ? 0.9 : 0.6));
+            subOsc.frequency.setValueAtTime(isMajor ? 75 : 95, boomTime);
+            subOsc.frequency.exponentialRampToValueAtTime(22, boomTime + (isMajor ? 1.2 : 0.7));
 
-            subGain.gain.setValueAtTime(isMajor ? 0.35 : 0.22, boomTime);
-            subGain.gain.exponentialRampToValueAtTime(0.001, boomTime + (isMajor ? 1.1 : 0.7));
+            subGain.gain.setValueAtTime(isMajor ? 0.42 : 0.25, boomTime);
+            subGain.gain.exponentialRampToValueAtTime(0.001, boomTime + (isMajor ? 1.4 : 0.8));
 
             subOsc.connect(subGain);
             subGain.connect(this.ctx.destination);
             subOsc.start(boomTime);
-            subOsc.stop(boomTime + (isMajor ? 1.15 : 0.75));
+            subOsc.stop(boomTime + (isMajor ? 1.45 : 0.85));
 
-            // ノイズ破裂音（バースト）
-            const bufferSize = Math.floor(this.ctx.sampleRate * (isMajor ? 0.8 : 0.5));
-            const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-            const output = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.15));
+            // ② 鋭い衝撃波ノイズ破裂音
+            const noiseDuration = isMajor ? 1.0 : 0.6;
+            const burstSize = Math.floor(this.ctx.sampleRate * noiseDuration);
+            const burstBuffer = this.ctx.createBuffer(1, burstSize, this.ctx.sampleRate);
+            const bOut = burstBuffer.getChannelData(0);
+            for (let i = 0; i < burstSize; i++) {
+                // 指数減衰させたインパルスノイズ
+                bOut[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.18));
             }
 
-            const whiteNoise = this.ctx.createBufferSource();
-            whiteNoise.buffer = noiseBuffer;
+            const burstSource = this.ctx.createBufferSource();
+            burstSource.buffer = burstBuffer;
 
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(800, boomTime);
-            filter.frequency.exponentialRampToValueAtTime(100, boomTime + 0.6);
+            const lowpass = this.ctx.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            lowpass.frequency.setValueAtTime(550, boomTime);
+            lowpass.frequency.exponentialRampToValueAtTime(80, boomTime + (isMajor ? 0.9 : 0.5));
 
-            const noiseGain = this.ctx.createGain();
-            noiseGain.gain.setValueAtTime(isMajor ? 0.30 : 0.18, boomTime);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, boomTime + (isMajor ? 0.8 : 0.5));
+            const burstGain = this.ctx.createGain();
+            burstGain.gain.setValueAtTime(isMajor ? 0.38 : 0.22, boomTime);
+            burstGain.gain.exponentialRampToValueAtTime(0.001, boomTime + noiseDuration);
 
-            whiteNoise.connect(filter);
-            filter.connect(noiseGain);
-            noiseGain.connect(this.ctx.destination);
+            burstSource.connect(lowpass);
+            lowpass.connect(burstGain);
+            burstGain.connect(this.ctx.destination);
 
-            whiteNoise.start(boomTime);
-            whiteNoise.stop(boomTime + (isMajor ? 0.85 : 0.55));
+            burstSource.start(boomTime);
+            burstSource.stop(boomTime + noiseDuration);
         } catch (e) {}
 
-        // 3. 余韻の光球パチパチ音（パラパラ…）
-        if (isMajor) {
-            for (let k = 0; k < 4; k++) {
-                const crackleDelay = 0.55 + Math.random() * 0.45;
-                setTimeout(() => {
-                    if (this.isMuted || !this.ctx) return;
-                    this._playTone(1600 + Math.random() * 600, 'sine', 0.005, 0.04, 0.05, 400);
-                }, crackleDelay * 1000);
-            }
+        // 3. 星屑のパチパチ爆ぜ音（リアルな乾いた火薬クラックルノイズ）
+        const crackleCount = isMajor ? 6 : 3;
+        for (let k = 0; k < crackleCount; k++) {
+            const crackleDelay = 0.50 + Math.random() * (isMajor ? 0.70 : 0.45);
+            setTimeout(() => {
+                if (this.isMuted || !this.ctx) return;
+                try {
+                    const cNow = this.ctx.currentTime;
+                    const cLen = Math.floor(this.ctx.sampleRate * 0.03);
+                    const cBuf = this.ctx.createBuffer(1, cLen, this.ctx.sampleRate);
+                    const cData = cBuf.getChannelData(0);
+                    for (let j = 0; j < cLen; j++) {
+                        cData[j] = (Math.random() * 2 - 1) * Math.exp(-j / (this.ctx.sampleRate * 0.006));
+                    }
+                    const cSource = this.ctx.createBufferSource();
+                    cSource.buffer = cBuf;
+
+                    const cFilter = this.ctx.createBiquadFilter();
+                    cFilter.type = 'highpass';
+                    cFilter.frequency.setValueAtTime(1400 + Math.random() * 600, cNow);
+
+                    const cGain = this.ctx.createGain();
+                    cGain.gain.setValueAtTime(isMajor ? 0.08 : 0.04, cNow);
+                    cGain.gain.exponentialRampToValueAtTime(0.001, cNow + 0.03);
+
+                    cSource.connect(cFilter);
+                    cFilter.connect(cGain);
+                    cGain.connect(this.ctx.destination);
+
+                    cSource.start(cNow);
+                    cSource.stop(cNow + 0.035);
+                } catch (err) {}
+            }, crackleDelay * 1000);
         }
     }
 

@@ -47,6 +47,10 @@
  * 【QRセーブメタデータ整流化（サムネイル高視認性対応）】
  * 22. QRセーブ発行時（onIssueSaveRequested）のメタ情報において、実日時（fullTimeStr）を
  *     タイトル「SimAirline」と調和するクリーンな日時表記に整流化し、SaveManager側の新ヘッダー印字へ正確に受け渡し。
+ * 
+ * 【花火演出深化・音響同期スケジュール更新】
+ * 23. `planeManager.onFirstMuLanding` において、3幕構成スターマインの打ち上げスケジュール（0.0s, 1.5s, 2.3s, 4.2s）に合わせた自然な花火音響の同期再生を実装。
+ * 24. 花火全体の演出時間延長に伴い、完全静粛時間を 8.8秒（祝賀電信着信を 9.0秒後）へ最適化。
  */
 
 import { CONFIG } from './Config.js';
@@ -106,27 +110,33 @@ export class GameManager {
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
         this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
 
-        // ★Phase 4新設 ＆ 改善反映 ＆ Phase 4音響連動: 自社機のムー中央古代空港（MU）への初到着コールバック登録
+        // ★Phase 4新設 ＆ 改善反映 ＆ 自然音響連動: 自社機のムー中央古代空港（MU）への初到着コールバック登録
         this.planeManager.onFirstMuLanding = () => {
             if (this.isMuCelebrated) return;
             this.isMuCelebrated = true;
             this.isMuCelebrating = true; // ★花火演出中の完全静粛モード開始
 
-            // 1. 3Dサイバー粒子花火の打ち上げ（多段スターマイン）
+            // 1. 3Dサイバー粒子花火の打ち上げ（3幕多段スターマイン演出）
             if (this.muManager && this.muManager.triggerCelebrationFireworks) {
                 this.muManager.triggerCelebrationFireworks();
             }
 
-            // ★Phase 4音響連動: メイン大花火音の同期再生
+            // ★自然花火音響連動: 各幕の打ち上げタイミングに精密同期
             if (this.uiManager && this.uiManager.soundManager && this.uiManager.soundManager.playFireworkSound) {
-                this.uiManager.soundManager.playFireworkSound(true);
-                // サブスターマインの時間差（0.35秒、0.70秒、1.10秒）に合わせた連射音響
-                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 350);
-                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 700);
-                setTimeout(() => this.uiManager.soundManager.playFireworkSound(true), 1100);
+                // 0.0秒: 第1幕 先導小玉
+                this.uiManager.soundManager.playFireworkSound(false);
+
+                // 1.5秒: 第2幕 東西スターマイン
+                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 1500);
+
+                // 2.3秒: 第2幕 追い打ち連星
+                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 2300);
+
+                // 4.2秒: 第3幕 クライマックス特大菊花火（重低音＆大気反響ランブル）
+                setTimeout(() => this.uiManager.soundManager.playFireworkSound(true), 4200);
             }
 
-            // 2. 花火が消え去った黄金比率の5.2秒後に、満を持して最終祝賀電信を着信表示
+            // 2. 花火の余韻が夜空へ美しく溶け去った9.0秒後に、満を持して最終祝賀電信を着信表示
             const celebrationEventData = {
                 stage: 21,
                 title: "祝・ムー中央古代空港 初便到着！",
@@ -138,7 +148,7 @@ export class GameManager {
             setTimeout(() => {
                 this.isMuCelebrating = false; // 花火演出モード解除
                 this.triggerMuModal(celebrationEventData);
-            }, 5200);
+            }, 9000);
         };
 
         this.economyManager = new EconomyManager(this.uiManager);
