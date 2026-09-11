@@ -7,6 +7,9 @@
  * 2. カード縦幅を 720x920px に拡張し、写真一覧サムネイルでも即座に識別できるよう
  *    上部ヘッダーにタイトル「✈️ SimAirline」、実年月日・時刻、ゲーム期数を高コントラスト印字。
  * 3. 下部フッターに所持資金・保有机体数を明瞭に配置。
+ * 
+ * 【品質安定化 Step 1: QRコード上部クワイエットゾーンの均等40px白余白確保】
+ * 4. ヘッダー案内文とQRコード上端との間隔を再調整し、上下左右すべてに40px以上の純白クワイエットゾーンを均等確保。
  */
 
 export class SaveManager {
@@ -67,39 +70,39 @@ export class SaveManager {
                 // 2. 上部ヘッダー（写真サムネイル対応高コントラスト印字）
                 // アイキャッチ帯
                 ctx.fillStyle = '#0f172a'; // 濃紺
-                ctx.fillRect(0, 0, cardWidth, 58);
+                ctx.fillRect(0, 0, cardWidth, 52);
 
                 ctx.fillStyle = '#38bdf8'; // シアン
                 ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText('✈️ SimAirline', cardWidth / 2, 29);
+                ctx.fillText('✈️ SimAirline', cardWidth / 2, 26);
 
                 // 発行実日時 ＆ ゲーム期数（サムネイルで即座に読めるサイズ）
                 ctx.fillStyle = '#1e293b';
                 ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 const headerInfo = (metaInfo.timeText || '') + '   ' + (metaInfo.yearTitle || '');
-                ctx.fillText(headerInfo.trim() || '【 OFFICIAL FLIGHT SAVE 】', cardWidth / 2, 98);
+                ctx.fillText(headerInfo.trim() || '【 OFFICIAL FLIGHT SAVE 】', cardWidth / 2, 85);
 
                 ctx.fillStyle = '#64748b';
-                ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.fillText('QRコードの周囲に十分な余白を確保して保存されています', cardWidth / 2, 128);
+                ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText('QRコードの周囲に十分な余白を確保して保存されています', cardWidth / 2, 114);
 
                 // 3. 中央: 高精細QRコードの描画（四方に広大な白余白クワイエットゾーンを確保）
                 const qrX = (cardWidth - qrSize) / 2; // (720 - 640) / 2 = 40px
-                const qrY = 155;
+                const qrY = 165; // ★165pxに設定し、案内テキスト下端(121px)との間に44pxの純白余白を確保
                 ctx.drawImage(qr.canvas, qrX, qrY, qrSize, qrSize);
 
                 // 4. 下部フッター: 資産状況表示
                 if (metaInfo.statusText) {
                     ctx.fillStyle = '#0f172a';
                     ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                    ctx.fillText(metaInfo.statusText, cardWidth / 2, 835);
+                    ctx.fillText(metaInfo.statusText, cardWidth / 2, 855); // ★QR下端(805px)との間に50pxの純白余白を確保
                 }
 
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.fillText('※写真アプリからこの画像を読み込むことで、いつでも続きから再開できます', cardWidth / 2, 875);
+                ctx.fillText('※写真アプリからこの画像を読み込むことで、いつでも続きから再開できます', cardWidth / 2, 890);
 
                 const finalDataUrl = canvas.toDataURL('image/png');
                 if (finalDataUrl) {

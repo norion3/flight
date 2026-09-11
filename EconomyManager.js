@@ -18,6 +18,10 @@
  * 【ゲームバランス改善 Phase 3: 終盤収益200M/s収束 ＆ 動的インフレ・スケーリング】
  * 11. 秒収 $100M/s 超過時に限界収益逓減カーブ（Asymptotic Saturation）を適用し、理論上最大到達点で約 $200M/s に自然収束。
  * 12. 企業の成長ステージ（秒収 $5M/s, $20M/s 突破）に連動したマイルドな動的インフレ倍率（getInflationMultiplier）を導入し、路線開設費および機体購入費に適用。
+ * 
+ * 【品質安定化 Step 1: 4月決算時における実績グラフ記録順序の適正化】
+ * 13. 4月到達時、リセット前の年間客数を月次グラフ（_recordMonthlyHistory）に先行記録してから、
+ *     _finalizeAnnualStats() を呼び出すよう処理順序を整流化（実績0人急落バグを完全解消）。
  */
 
 import { CONFIG } from './Config.js';
@@ -155,11 +159,14 @@ export class EconomyManager {
             if (this.month > 12) {
                 this.month = 1;
             }
+            // ★品質安定化 Step 1: 先に月次グラフに確定年間客数を記録してから、新年度の決算・客数リセットを実行
             if (this.month === 4) {
+                this._recordMonthlyHistory(competitionManager, planes);
                 this.year++;
                 this._finalizeAnnualStats();
+            } else {
+                this._recordMonthlyHistory(competitionManager, planes);
             }
-            this._recordMonthlyHistory(competitionManager, planes);
         }
 
         const playerPlanes = planes.filter(p => p.companyId === 'player');

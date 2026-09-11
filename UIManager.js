@@ -23,6 +23,12 @@
  * 
  * 【ゲームバランス改善 Phase 1: 実績グラフタイトルの年間化準備】
  * 14. `updateOverviewPanel` 内の客数タブ見出しタイトルを「累計客数」から「年間客数推移」へ更新。
+ * 
+ * 【品質安定化 Step 2: 期末決算モーダル表示フリーズ解消 ＆ 突発イベント資金不足ガード】
+ * 15. 【期末進行不能解消】`showSettlementModal` において、背景要素のクラス操作を `remove('show')` から `add('show')` へ修正し、
+ *     4月期末の決算報告モーダルが確実にポップアップして「次期へ進む」で進行再開できるよう修正（ソフトロック解消）。
+ * 16. 【突発イベント資金不足ガード】`showEventModal` において、所持金を超える費用が必要な選択肢を `disabled` かつ
+ *     グレーアウト（非活性化）し、選択後の強制 `$0` 没収バグを未然防止。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -752,6 +758,8 @@ export class UIManager {
 
         if (optionsEl) {
             let optionsHtml = '';
+            const currentFunds = context && context.funds !== undefined ? context.funds : 0;
+
             eventData.options.forEach((opt, idx) => {
                 const cost = opt.getCost(context);
                 let costStr = '出費なし';
@@ -764,10 +772,18 @@ export class UIManager {
                     costClass = 'text-emerald-300 font-mono font-bold';
                 }
 
+                // ★品質安定化 Step 2: 手持ち資金不足時は disabled かつ非活性スタイルにして誤操作・強制0円化を完全防止
+                const canAfford = (cost <= 0) || (currentFunds >= cost);
+                const btnClass = canAfford
+                    ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border-slate-700 active:scale-[0.98] cursor-pointer'
+                    : 'bg-slate-800/50 border-slate-800/80 opacity-40 cursor-not-allowed';
+                const textClass = canAfford ? 'text-slate-100' : 'text-slate-400';
+                const finalCostClass = canAfford ? costClass : 'text-slate-500 font-mono font-bold';
+
                 optionsHtml += `
-                <button class="event-option-btn w-full p-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-between text-left transition-all active:scale-[0.98]" data-idx="${idx}">
-                    <span class="text-xs font-bold text-slate-100 flex-1 pr-2">${opt.text}</span>
-                    <span class="text-[11px] ${costClass} shrink-0">${costStr}</span>
+                <button class="event-option-btn w-full p-3 ${btnClass} border rounded-xl flex items-center justify-between text-left transition-all" data-idx="${idx}" ${canAfford ? '' : 'disabled'}>
+                    <span class="text-xs font-bold ${textClass} flex-1 pr-2">${opt.text}</span>
+                    <span class="text-[11px] ${finalCostClass} shrink-0">${costStr}</span>
                 </button>`;
             });
 
@@ -775,6 +791,7 @@ export class UIManager {
 
             optionsEl.querySelectorAll('.event-option-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
+                    if (e.currentTarget.disabled) return;
                     this.soundManager.playSuccessSound();
                     const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
                     this.hideEventModal();
@@ -846,7 +863,8 @@ export class UIManager {
         }
 
         if (this.settlementBackdrop) {
-            this.settlementBackdrop.classList.remove('show');
+            // ★品質安定化 Step 2: remove('show') を add('show') に修正し、期末のソフトロック（非表示フリーズ）を完全根絶！
+            this.settlementBackdrop.classList.add('show');
             this._isSettlementModalOpen = true;
             this._toggleMainButtons(false);
         }
