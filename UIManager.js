@@ -34,6 +34,13 @@
  * 17. `checkBuyPlaneButtons` において、静的価格ではなく動的インフレ連動型価格関数（`getPlaneCostFn`）を受け取れるように拡張。
  *     インフレ後の最新機体価格をボタン上にリアルタイム印字・更新し、購入可否判定の価格参照も完全同期。
  *     ボタンが緑色で押せるのに資金不足で弾かれる操作矛盾バグを根絶。
+ * 
+ * 【ゲームバランス改善 提案1 ＆ 提案2 対応: 機体売却額インフレ連動 ＆ シネマティック演出時UI完全退避・復帰】
+ * 18. 【提案1: 機体売却額インフレ連動】`updateFleetPanel` および `checkBuyPlaneButtons` において、動的インフレ連動型価格関数（`getPlaneCostFn`）を受け取り、
+ *     売却（下取り）ボタンの返金表示（+$2.5M〜等）を最新インフレ価格（cost * sellRate）にリアルタイム更新。
+ * 19. 【提案2: シネマティック演出時UI完全退避・復帰】`setCinematicMode(active)` を新設。
+ *     初着陸のパン・ズームから花火終了までの間、上部HUD（-100%退避）、下部FAB・ボタン類（scale: 0）を完全非表示化し、全画面での映画的没入感を演出。
+ *     終了後に通常状態へスムーズに復帰。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -127,6 +134,10 @@ export class UIManager {
         this._isSettlementModalOpen = false;
         this._isSaveLoadOpen = false;
         
+        // ★提案2新設: シネマティック演出中フラグ
+        this._isCinematicActive = false;
+        this._wasHudVisibleBeforeCinematic = false;
+
         this.currentGraphTab = 'funds';
         this._openedRivalId = null; 
 
@@ -741,6 +752,9 @@ export class UIManager {
     }
 
     _toggleMainButtons(show) {
+        // ★提案2対応: シネマティック演出中（_isCinematicActive）は全ボタン非表示を強制維持
+        if (this._isCinematicActive && show) return;
+
         const scale = show ? '1' : '0';
         this.fabBuy.style.transform = `scale(${scale})`;
         if (this.fabSaveLoad) this.fabSaveLoad.style.transform = `scale(${scale})`;
@@ -748,6 +762,37 @@ export class UIManager {
         if (this.btnHelp) this.btnHelp.style.transform = `scale(${scale})`;
         if (this.btnSound) this.btnSound.style.transform = `scale(${scale})`;
         if (this.btnMainMenu) this.btnMainMenu.style.transform = `translate(-50%, 0) scale(${scale})`;
+    }
+
+    /**
+     * ★提案2新設: 初着陸シネマティックカメラ〜花火終了までの全UI完全隠蔽・復帰メソッド
+     * @param {boolean} active - シネマティックモードの有効/無効
+     */
+    setCinematicMode(active) {
+        this._isCinematicActive = active;
+
+        if (active) {
+            // 1. 開いているパネルやカードを即座に全クローズ
+            this.hideAll();
+
+            // 2. 上部HUDの現在表示状態を記憶し、画面上外へ完全退避
+            if (this.topStatusHud) {
+                this._wasHudVisibleBeforeCinematic = !this.topStatusHud.style.transform.includes('-100%');
+                this.topStatusHud.style.transform = 'translateY(-100%)';
+            }
+
+            // 3. 下部全ボタン・FABをスケール0で完全非表示化
+            this._toggleMainButtons(false);
+        } else {
+            // 演出終了時のUI復帰
+            // 1. 上部HUDを演出前の状態へ復帰
+            if (this.topStatusHud && this._wasHudVisibleBeforeCinematic) {
+                this.topStatusHud.style.transform = 'translateY(0)';
+            }
+
+            // 2. 下部ボタン群を通常表示へ復帰
+            this._toggleMainButtons(true);
+        }
     }
 
     showEventModal(eventData, context, callback) {
@@ -911,23 +956,33 @@ export class UIManager {
         }
     }
 
-    updateFleetPanel(counts) {
+    // ★提案1改訂: 機体売却ボタンの返金表示を動的インフレ価格関数とリアルタイム同期
+    updateFleetPanel(counts, getPlaneCostFn = null) {
         ['small', 'medium', 'large', 'super'].forEach(type => {
             const countEl = document.getElementById(`count-${type}`);
             if (countEl) countEl.innerText = counts[type] || 0;
             
             const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
             if (sellBtn) {
+                const planeConf = CONFIG.ECONOMY.PLANES[type];
+                const baseCost = getPlaneCostFn ? getPlaneCostFn(type) : (planeConf ? planeConf.cost : 10000000);
+                const sellRate = planeConf ? planeConf.sellRate : 0.5;
+                const sellCostStr = this._formatMoneyShort(baseCost * sellRate);
+
+                // 売却ボタンの返金額表示を最新インフレ価格に更新
+                const priceSpan = sellBtn.querySelector('span:nth-child(2)');
+                if (priceSpan && priceSpan.innerText !== sellCostStr) {
+                    priceSpan.innerText = sellCostStr;
+                }
+
                 const canSell = (counts[type] > 0);
                 sellBtn.disabled = !canSell;
                 
                 if (canSell) {
                     sellBtn.className = `sell-plane-btn bg-rose-600 active:bg-rose-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
-                    const priceSpan = sellBtn.querySelector('span:nth-child(2)');
                     if (priceSpan) priceSpan.className = 'font-mono text-rose-300';
                 } else {
                     sellBtn.className = `sell-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
-                    const priceSpan = sellBtn.querySelector('span:nth-child(2)');
                     if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
                 }
             }
@@ -1349,7 +1404,7 @@ export class UIManager {
         }
     }
 
-    // ★改訂: 機体購入ボタンのインフレ連動型価格リアルタイム更新＆判定同期
+    // ★改訂 & 提案1対応: 機体購入および売却（下取り）ボタンのインフレ連動型価格リアルタイム更新＆判定同期
     checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes, getPlaneCostFn = null) {
         if (!this._isBuyMenuOpen) return;
         
@@ -1364,41 +1419,52 @@ export class UIManager {
             const costStr = this._formatMoneyShort(actualCost);
             
             const btn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
-            if (!btn) return;
-
-            // ボタン内の価格表記を現在のインフレ後価格にリアルタイム更新
-            const priceSpan = btn.querySelector('span:nth-child(2)');
-            if (priceSpan && priceSpan.innerText !== costStr) {
-                priceSpan.innerText = costStr;
-            }
-            
-            const canAfford = currentFunds >= actualCost;
-            const canBuy = canAfford && !isFull;
-            
-            if (canBuy !== !btn.disabled) {
-                if (canBuy) {
-                    btn.disabled = false;
-                    btn.className = `buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
-                    const textSpan = btn.querySelector('span:nth-child(1)');
-                    if (textSpan) textSpan.innerText = '購入';
-                    if (priceSpan) priceSpan.className = 'font-mono text-emerald-200';
-                } else {
-                    btn.disabled = true;
-                    btn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
-                    
-                    const textSpan = btn.querySelector('span:nth-child(1)');
-                    if (textSpan) textSpan.innerText = isFull ? '上限到達' : '購入';
-                    if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
+            if (btn) {
+                // ボタン内の価格表記を現在のインフレ後価格にリアルタイム更新
+                const priceSpan = btn.querySelector('span:nth-child(2)');
+                if (priceSpan && priceSpan.innerText !== costStr) {
+                    priceSpan.innerText = costStr;
                 }
-            } else {
-                if (!canBuy) {
-                    const textSpan = btn.querySelector('span:nth-child(1)');
-                    if (textSpan) {
-                        const expectedText = isFull ? '上限到達' : '購入';
-                        if (textSpan.innerText !== expectedText) {
-                            textSpan.innerText = expectedText;
+                
+                const canAfford = currentFunds >= actualCost;
+                const canBuy = canAfford && !isFull;
+                
+                if (canBuy !== !btn.disabled) {
+                    if (canBuy) {
+                        btn.disabled = false;
+                        btn.className = `buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
+                        const textSpan = btn.querySelector('span:nth-child(1)');
+                        if (textSpan) textSpan.innerText = '購入';
+                        if (priceSpan) priceSpan.className = 'font-mono text-emerald-200';
+                    } else {
+                        btn.disabled = true;
+                        btn.className = `buy-plane-btn bg-slate-700 text-slate-400 opacity-70 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex justify-center gap-1 disabled:pointer-events-none`;
+                        
+                        const textSpan = btn.querySelector('span:nth-child(1)');
+                        if (textSpan) textSpan.innerText = isFull ? '上限到達' : '購入';
+                        if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
+                    }
+                } else {
+                    if (!canBuy) {
+                        const textSpan = btn.querySelector('span:nth-child(1)');
+                        if (textSpan) {
+                            const expectedText = isFull ? '上限到達' : '購入';
+                            if (textSpan.innerText !== expectedText) {
+                                textSpan.innerText = expectedText;
+                            }
                         }
                     }
+                }
+            }
+
+            // ★提案1対応: 売却ボタン内の下取り返金価格も現在のインフレ後価格（cost * sellRate）にリアルタイム更新
+            const sellBtn = document.querySelector(`.sell-plane-btn[data-type="${type}"]`);
+            if (sellBtn) {
+                const refundAmount = actualCost * planeConf.sellRate;
+                const refundStr = this._formatMoneyShort(refundAmount);
+                const sellPriceSpan = sellBtn.querySelector('span:nth-child(2)');
+                if (sellPriceSpan && sellPriceSpan.innerText !== refundStr) {
+                    sellPriceSpan.innerText = refundStr;
                 }
             }
         });

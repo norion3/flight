@@ -59,6 +59,13 @@
  * 【ゲームバランス改善 提案B対応: 初便着陸時のシネマティックカメラ誘導 ＆ パン・ズーム完了後花火シーケンス】
  * 26. `planeManager.onFirstMuLanding` において、着陸即時発火ではなく、まずムー大陸の絶景（タワー＆ピラミッド）を見下ろすアングルへ
  *     滑らかにパン・ズーム（約2.6秒の球面補間）を実行。カメラ移動が完了して大地がピタッと静止した瞬間に多段花火と自然音響を発火させる映画的シーケンスを実装。
+ * 
+ * 【ゲームバランス改善 提案1 ＆ 提案2 対応: 機体売却額の動的インフレ連動 ＆ シネマティック〜花火終了完全操作ロック・全UI隠蔽復帰】
+ * 27. 【提案1: 機体売却額インフレ連動】`onSellPlane` において、返金額を固定基本価格ではなく `economyManager.getPlaneCost(type) * planeConf.sellRate` で計算し、
+ *     `updateFleetPanel` にもインフレ価格関数を渡して下取り返金額表示と完全同期。
+ * 28. 【提案2: 演出中の全UI隠蔽 ＆ スワイプ操作完全ロック】初便着陸のパン・ズーム開始時に `uiManager.setCinematicMode(true)` を発火し、
+ *     `controls.enabled = false` を設定。パン・ズーム完了後も花火終了（9.0秒後）まで操作無効およびUI退避を強制維持し、
+ *     演出完了後に `controls.enabled = true` および `uiManager.setCinematicMode(false)` で通常状態へ一括復帰。
  */
 
 import { CONFIG } from './Config.js';
@@ -128,11 +135,19 @@ export class GameManager {
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
         this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
 
-        // ★Phase 4新設 ＆ 提案B対応: 自社機のムー中央古代空港（MU）初到着 ➔ シネマティックカメラ誘導 ➔ 完了後花火シーケンス
+        // ★Phase 4新設 ＆ 提案B ＆ 提案2対応: 自社機のムー中央古代空港（MU）初到着 ➔ 全UI退避＆全操作ロック ➔ シネマティックカメラ ➔ 花火完了後一括復帰
         this.planeManager.onFirstMuLanding = () => {
             if (this.isMuCelebrated) return;
             this.isMuCelebrated = true;
             this.isMuCelebrating = true; // ★花火演出中の完全静粛モード開始
+
+            // ★提案2対応: パン・ズーム開始から花火終了まで全UIを完全退避＆スワイプ等の操作を完全ロック
+            if (this.uiManager && this.uiManager.setCinematicMode) {
+                this.uiManager.setCinematicMode(true);
+            }
+            if (this.controls) {
+                this.controls.enabled = false;
+            }
 
             // ★提案B: ムー大陸の絶景（タワー＆ピラミッド）を斜め上空から一望するベストアングル（南緯-14.0度, 西経-112.5度, 距離12.0）
             const muViewLat = -14.0;
@@ -142,7 +157,7 @@ export class GameManager {
 
             // 1. カメラを滑らかにパン・ズーム移動（約2.6秒）
             this.startCinematicCamera(targetPos, 2.6, () => {
-                // ★パン・ズーム完了後に花火打ち上げ＆音響開始！
+                // ★パン・ズーム完了後に花火打ち上げ＆音響開始！（※操作ロックとUI非表示は花火終了まで継続維持）
                 // 3Dサイバー粒子花火の打ち上げ（3幕多段スターマイン演出）
                 if (this.muManager && this.muManager.triggerCelebrationFireworks) {
                     this.muManager.triggerCelebrationFireworks();
@@ -163,7 +178,7 @@ export class GameManager {
                     setTimeout(() => this.uiManager.soundManager.playFireworkSound(true), 4200);
                 }
 
-                // 花火の余韻が夜空へ美しく溶け去った9.0秒後に、満を持して最終祝賀電信を着信表示
+                // 花火の余韻が夜空へ美しく溶け去った9.0秒後に、満を持して操作・UIを復帰し祝賀電信を着信表示
                 const celebrationEventData = {
                     stage: 21,
                     title: "祝・ムー中央古代空港 初便到着！",
@@ -174,6 +189,15 @@ export class GameManager {
 
                 setTimeout(() => {
                     this.isMuCelebrating = false; // 花火演出モード解除
+
+                    // ★提案2対応: 花火が完全に終了したタイミングで操作と全UIを通常状態へ復帰
+                    if (this.controls) {
+                        this.controls.enabled = true;
+                    }
+                    if (this.uiManager && this.uiManager.setCinematicMode) {
+                        this.uiManager.setCinematicMode(false);
+                    }
+
                     this.triggerMuModal(celebrationEventData);
                 }, 9000);
             });
@@ -552,9 +576,9 @@ export class GameManager {
                         shareStr
                     );
 
-                    // パネル表示の即時同期
+                    // パネル表示の即時同期（★提案1連動: インフレ価格関数を渡して下取り価格も更新）
                     const counts = this.planeManager.getPlaneCounts('player');
-                    this.uiManager.updateFleetPanel(counts);
+                    this.uiManager.updateFleetPanel(counts, (type) => this.economyManager.getPlaneCost(type));
                     if (this.uiManager.isUpgradePanelOpen && this.uiManager.isUpgradePanelOpen()) {
                         this.uiManager.updateUpgradePanel(this.upgradeManager, this.economyManager.funds);
                     }
@@ -632,9 +656,10 @@ export class GameManager {
             }
         };
 
+        // ★提案1連動: フリートメニューオープン時に最新インフレ価格関数を渡して下取り返金額を更新
         this.uiManager.onFleetMenuOpen = () => {
             const counts = this.planeManager.getPlaneCounts('player');
-            this.uiManager.updateFleetPanel(counts);
+            this.uiManager.updateFleetPanel(counts, (type) => this.economyManager.getPlaneCost(type));
         };
 
         this.uiManager.onBuyPlane = (type) => {
@@ -660,19 +685,22 @@ export class GameManager {
             } else {
                 this.economyManager.deductFunds(cost);
                 const newCounts = this.planeManager.getPlaneCounts('player');
-                this.uiManager.updateFleetPanel(newCounts);
+                this.uiManager.updateFleetPanel(newCounts, (t) => this.economyManager.getPlaneCost(t));
             }
         };
 
+        // ★提案1対応: 機体売却額を最新インフレ価格に連動（下取り価格の適正化）
         this.uiManager.onSellPlane = (type) => {
             const success = this.planeManager.sellPlane(type);
             if (success) {
                 const planeConf = CONFIG.ECONOMY.PLANES[type];
-                const refund = planeConf ? (planeConf.cost * planeConf.sellRate) : 5000000;
+                const baseCost = this.economyManager.getPlaneCost ? this.economyManager.getPlaneCost(type) : (planeConf ? planeConf.cost : 10000000);
+                const sellRate = planeConf ? planeConf.sellRate : 0.5;
+                const refund = Math.floor(baseCost * sellRate);
                 this.economyManager.addFunds(refund);
 
                 const counts = this.planeManager.getPlaneCounts('player');
-                this.uiManager.updateFleetPanel(counts);
+                this.uiManager.updateFleetPanel(counts, (t) => this.economyManager.getPlaneCost(t));
             }
         };
 
@@ -719,14 +747,14 @@ export class GameManager {
     }
 
     /**
-     * ★提案B新設: 初着陸時のシネマティックカメラ補間開始
+     * ★提案B新設 ＆ 提案2対応: 初着陸時のシネマティックカメラ補間開始
      * @param {THREE.Vector3} targetPos - 視界の目標ワールド座標
      * @param {number} duration - 補間時間（秒）
      * @param {function} onComplete - パン・ズーム完了後のコールバック
      */
     startCinematicCamera(targetPos, duration = 2.6, onComplete = null) {
         this.targetDistance = null; // 手動ズーム目標のクリア
-        if (this.controls) this.controls.enabled = false; // 移動中のユーザー手動操作を一時保護
+        if (this.controls) this.controls.enabled = false; // 移動中のユーザー手動操作を完全ロック
 
         this.cinematicCamera.active = true;
         this.cinematicCamera.startPos.copy(this.camera.position);
@@ -1201,8 +1229,8 @@ export class GameManager {
 
             if (t >= 1.0) {
                 this.cinematicCamera.active = false;
+                // ★提案2対応: パン・ズーム完了後も花火が終了するまで controls.enabled = false を継続維持
                 if (this.controls) {
-                    this.controls.enabled = true;
                     this.controls.target.set(0, 0, 0);
                 }
                 if (this.cinematicCamera.onComplete) {
