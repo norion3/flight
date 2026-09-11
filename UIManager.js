@@ -29,6 +29,11 @@
  *     4月期末の決算報告モーダルが確実にポップアップして「次期へ進む」で進行再開できるよう修正（ソフトロック解消）。
  * 16. 【突発イベント資金不足ガード】`showEventModal` において、所持金を超える費用が必要な選択肢を `disabled` かつ
  *     グレーアウト（非活性化）し、選択後の強制 `$0` 没収バグを未然防止。
+ * 
+ * 【ゲームバランス改善 提案A対応: 機体購入パネルの動的インフレ価格リアルタイム連動】
+ * 17. `checkBuyPlaneButtons` において、静的価格ではなく動的インフレ連動型価格関数（`getPlaneCostFn`）を受け取れるように拡張。
+ *     インフレ後の最新機体価格をボタン上にリアルタイム印字・更新し、購入可否判定の価格参照も完全同期。
+ *     ボタンが緑色で押せるのに資金不足で弾かれる操作矛盾バグを根絶。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -863,7 +868,7 @@ export class UIManager {
         }
 
         if (this.settlementBackdrop) {
-            // ★品質安定化 Step 2: remove('show') を add('show') に修正し、期末のソフトロック（非表示フリーズ）を完全根絶！
+            // ★品質安定化 Step 2: remove('show') を add('show') に修正し、期末のソフトロック（非表示フリーズ）を完全根実！
             this.settlementBackdrop.classList.add('show');
             this._isSettlementModalOpen = true;
             this._toggleMainButtons(false);
@@ -1344,7 +1349,8 @@ export class UIManager {
         }
     }
 
-    checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes) {
+    // ★改訂: 機体購入ボタンのインフレ連動型価格リアルタイム更新＆判定同期
+    checkBuyPlaneButtons(currentFunds, currentPlanes, maxPlanes, getPlaneCostFn = null) {
         if (!this._isBuyMenuOpen) return;
         
         const isFull = currentPlanes >= maxPlanes;
@@ -1352,11 +1358,21 @@ export class UIManager {
         ['small', 'medium', 'large', 'super'].forEach(type => {
             const planeConf = CONFIG.ECONOMY.PLANES[type];
             if (!planeConf) return;
+
+            // ★動的インフレ価格関数があれば優先適用、なければ基本価格
+            const actualCost = getPlaneCostFn ? getPlaneCostFn(type) : planeConf.cost;
+            const costStr = this._formatMoneyShort(actualCost);
             
             const btn = document.querySelector(`.buy-plane-btn[data-type="${type}"]`);
             if (!btn) return;
+
+            // ボタン内の価格表記を現在のインフレ後価格にリアルタイム更新
+            const priceSpan = btn.querySelector('span:nth-child(2)');
+            if (priceSpan && priceSpan.innerText !== costStr) {
+                priceSpan.innerText = costStr;
+            }
             
-            const canAfford = currentFunds >= planeConf.cost;
+            const canAfford = currentFunds >= actualCost;
             const canBuy = canAfford && !isFull;
             
             if (canBuy !== !btn.disabled) {
@@ -1365,7 +1381,6 @@ export class UIManager {
                     btn.className = `buy-plane-btn bg-emerald-600 active:bg-emerald-500 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors flex justify-center gap-1`;
                     const textSpan = btn.querySelector('span:nth-child(1)');
                     if (textSpan) textSpan.innerText = '購入';
-                    const priceSpan = btn.querySelector('span:nth-child(2)');
                     if (priceSpan) priceSpan.className = 'font-mono text-emerald-200';
                 } else {
                     btn.disabled = true;
@@ -1373,8 +1388,6 @@ export class UIManager {
                     
                     const textSpan = btn.querySelector('span:nth-child(1)');
                     if (textSpan) textSpan.innerText = isFull ? '上限到達' : '購入';
-                    
-                    const priceSpan = btn.querySelector('span:nth-child(2)');
                     if (priceSpan) priceSpan.className = 'font-mono text-slate-400';
                 }
             } else {

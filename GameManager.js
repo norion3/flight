@@ -51,6 +51,14 @@
  * 【花火演出深化・音響同期スケジュール更新】
  * 23. `planeManager.onFirstMuLanding` において、3幕構成スターマインの打ち上げスケジュール（0.0s, 1.5s, 2.3s, 4.2s）に合わせた自然な花火音響の同期再生を実装。
  * 24. 花火全体の演出時間延長に伴い、完全静粛時間を 8.8秒（祝賀電信着信を 9.0秒後）へ最適化。
+ * 
+ * 【ゲームバランス改善 提案A対応: 機体購入パネルの動的インフレ価格リアルタイム連動】
+ * 25. `animate` 内の `checkBuyPlaneButtons` において、`economyManager.getPlaneCost` を第4引数として伝達し、
+ *     最新インフレ価格とボタン活性判定を完全同期。
+ * 
+ * 【ゲームバランス改善 提案B対応: 初便着陸時のシネマティックカメラ誘導 ＆ パン・ズーム完了後花火シーケンス】
+ * 26. `planeManager.onFirstMuLanding` において、着陸即時発火ではなく、まずムー大陸の絶景（タワー＆ピラミッド）を見下ろすアングルへ
+ *     滑らかにパン・ズーム（約2.6秒の球面補間）を実行。カメラ移動が完了して大地がピタッと静止した瞬間に多段花火と自然音響を発火させる映画的シーケンスを実装。
  */
 
 import { CONFIG } from './Config.js';
@@ -94,6 +102,16 @@ export class GameManager {
         this.hasReachedStage21 = false; // 第21段階到達フラグ
         this.isMuCelebrated = false; // 初到着セレモニー完了フラグ
 
+        // ★提案B新設: 初着陸シネマティックカメラ補間管理オブジェクト
+        this.cinematicCamera = {
+            active: false,
+            startPos: new THREE.Vector3(),
+            endPos: new THREE.Vector3(),
+            elapsed: 0,
+            duration: 2.6,
+            onComplete: null
+        };
+
         // ★Phase 3新設: 成長ステージ連動型世界情勢通知フラグ
         this.hasTriggeredInflation5M = false;
         this.hasTriggeredInflation20M = false;
@@ -110,45 +128,55 @@ export class GameManager {
         this.muManager = new MuContinentManager(this.scene, this.globe.group);
         this.lastMuStage = 0; // ★Phase 3: 電信通知済みの最大浮上段階
 
-        // ★Phase 4新設 ＆ 改善反映 ＆ 自然音響連動: 自社機のムー中央古代空港（MU）への初到着コールバック登録
+        // ★Phase 4新設 ＆ 提案B対応: 自社機のムー中央古代空港（MU）初到着 ➔ シネマティックカメラ誘導 ➔ 完了後花火シーケンス
         this.planeManager.onFirstMuLanding = () => {
             if (this.isMuCelebrated) return;
             this.isMuCelebrated = true;
             this.isMuCelebrating = true; // ★花火演出中の完全静粛モード開始
 
-            // 1. 3Dサイバー粒子花火の打ち上げ（3幕多段スターマイン演出）
-            if (this.muManager && this.muManager.triggerCelebrationFireworks) {
-                this.muManager.triggerCelebrationFireworks();
-            }
+            // ★提案B: ムー大陸の絶景（タワー＆ピラミッド）を斜め上空から一望するベストアングル（南緯-14.0度, 西経-112.5度, 距離12.0）
+            const muViewLat = -14.0;
+            const muViewLon = -112.5;
+            const viewDistance = 12.0;
+            const targetPos = Utils.latLonToVector3(muViewLat, muViewLon, viewDistance);
 
-            // ★自然花火音響連動: 各幕の打ち上げタイミングに精密同期
-            if (this.uiManager && this.uiManager.soundManager && this.uiManager.soundManager.playFireworkSound) {
-                // 0.0秒: 第1幕 先導小玉
-                this.uiManager.soundManager.playFireworkSound(false);
+            // 1. カメラを滑らかにパン・ズーム移動（約2.6秒）
+            this.startCinematicCamera(targetPos, 2.6, () => {
+                // ★パン・ズーム完了後に花火打ち上げ＆音響開始！
+                // 3Dサイバー粒子花火の打ち上げ（3幕多段スターマイン演出）
+                if (this.muManager && this.muManager.triggerCelebrationFireworks) {
+                    this.muManager.triggerCelebrationFireworks();
+                }
 
-                // 1.5秒: 第2幕 東西スターマイン
-                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 1500);
+                // 自然花火音響連動: 各幕の打ち上げタイミングに精密同期
+                if (this.uiManager && this.uiManager.soundManager && this.uiManager.soundManager.playFireworkSound) {
+                    // 0.0秒: 第1幕 先導小玉
+                    this.uiManager.soundManager.playFireworkSound(false);
 
-                // 2.3秒: 第2幕 追い打ち連星
-                setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 2300);
+                    // 1.5秒: 第2幕 東西スターマイン
+                    setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 1500);
 
-                // 4.2秒: 第3幕 クライマックス特大菊花火（重低音＆大気反響ランブル）
-                setTimeout(() => this.uiManager.soundManager.playFireworkSound(true), 4200);
-            }
+                    // 2.3秒: 第2幕 追い打ち連星
+                    setTimeout(() => this.uiManager.soundManager.playFireworkSound(false), 2300);
 
-            // 2. 花火の余韻が夜空へ美しく溶け去った9.0秒後に、満を持して最終祝賀電信を着信表示
-            const celebrationEventData = {
-                stage: 21,
-                title: "祝・ムー中央古代空港 初便到着！",
-                sender: "世界航空連盟 ＆ 太古の碑文",
-                body: "太平洋の彼方に眠りし「伝承のムー大陸」へ、貴社の航空機が歴史的第1便として見事にタッチダウンを果たしました！\n\n中央メガリスタワーと3連ピラミッドから祝賀のフォトン花火が天空へ放たれています。\nこれより、ムー大陸は世界屈指の超長距離メガハブとして恒久的に稼働します！",
-                isFinalCelebration: true // ★バッジを MISSION COMPLETE に切り替えるフラグ
-            };
+                    // 4.2秒: 第3幕 クライマックス特大菊花火（重低音＆大気反響ランブル）
+                    setTimeout(() => this.uiManager.soundManager.playFireworkSound(true), 4200);
+                }
 
-            setTimeout(() => {
-                this.isMuCelebrating = false; // 花火演出モード解除
-                this.triggerMuModal(celebrationEventData);
-            }, 9000);
+                // 花火の余韻が夜空へ美しく溶け去った9.0秒後に、満を持して最終祝賀電信を着信表示
+                const celebrationEventData = {
+                    stage: 21,
+                    title: "祝・ムー中央古代空港 初便到着！",
+                    sender: "世界航空連盟 ＆ 太古の碑文",
+                    body: "太平洋の彼方に眠りし「伝承のムー大陸」へ、貴社の航空機が歴史的第1便として見事にタッチダウンを果たしました！\n\n中央メガリスタワーと3連ピラミッドから祝賀のフォトン花火が天空へ放たれています。\nこれより、ムー大陸は世界屈指の超長距離メガハブとして恒久的に稼働します！",
+                    isFinalCelebration: true // ★バッジを MISSION COMPLETE に切り替えるフラグ
+                };
+
+                setTimeout(() => {
+                    this.isMuCelebrating = false; // 花火演出モード解除
+                    this.triggerMuModal(celebrationEventData);
+                }, 9000);
+            });
         };
 
         this.economyManager = new EconomyManager(this.uiManager);
@@ -691,6 +719,24 @@ export class GameManager {
     }
 
     /**
+     * ★提案B新設: 初着陸時のシネマティックカメラ補間開始
+     * @param {THREE.Vector3} targetPos - 視界の目標ワールド座標
+     * @param {number} duration - 補間時間（秒）
+     * @param {function} onComplete - パン・ズーム完了後のコールバック
+     */
+    startCinematicCamera(targetPos, duration = 2.6, onComplete = null) {
+        this.targetDistance = null; // 手動ズーム目標のクリア
+        if (this.controls) this.controls.enabled = false; // 移動中のユーザー手動操作を一時保護
+
+        this.cinematicCamera.active = true;
+        this.cinematicCamera.startPos.copy(this.camera.position);
+        this.cinematicCamera.endPos.copy(targetPos);
+        this.cinematicCamera.elapsed = 0;
+        this.cinematicCamera.duration = duration;
+        this.cinematicCamera.onComplete = onComplete;
+    }
+
+    /**
      * ★Phase 3 & 改善反映: 全主要空港の累計開発レベルに応じてムー大陸の浮上段階を同期（未読FIFOキューイング対応）
      * @param {boolean} triggerModal - 新しい段階に達した際に観測ニュース電信モーダルを表示するか
      * @param {number} delayMs - 電信モーダル着信までの遅延ミリ秒
@@ -1136,7 +1182,36 @@ export class GameManager {
         const rawDelta = this.clock.getDelta();
         const delta = this.isPaused ? 0 : rawDelta;
 
-        if (this.targetDistance !== null) {
+        // ★提案B対応: シネマティックカメラの滑らかな球面補間アニメーション
+        if (this.cinematicCamera && this.cinematicCamera.active) {
+            this.cinematicCamera.elapsed += rawDelta;
+            const t = Math.min(1.0, this.cinematicCamera.elapsed / this.cinematicCamera.duration);
+            // 滑らかなeaseInOutCubicイージングカーブ
+            const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+            const startDir = this.cinematicCamera.startPos.clone().normalize();
+            const endDir = this.cinematicCamera.endPos.clone().normalize();
+            const startDist = this.cinematicCamera.startPos.length();
+            const endDist = this.cinematicCamera.endPos.length();
+
+            const curDir = new THREE.Vector3().lerpVectors(startDir, endDir, ease).normalize();
+            const curDist = THREE.MathUtils.lerp(startDist, endDist, ease);
+            this.camera.position.copy(curDir.multiplyScalar(curDist));
+            this.camera.lookAt(0, 0, 0);
+
+            if (t >= 1.0) {
+                this.cinematicCamera.active = false;
+                if (this.controls) {
+                    this.controls.enabled = true;
+                    this.controls.target.set(0, 0, 0);
+                }
+                if (this.cinematicCamera.onComplete) {
+                    const cb = this.cinematicCamera.onComplete;
+                    this.cinematicCamera.onComplete = null;
+                    cb(); // ★パン・ズーム完了通知（花火＆音響打ち上げ開始）
+                }
+            }
+        } else if (this.targetDistance !== null) {
             const currentDist = this.camera.position.distanceTo(this.controls.target);
             const diff = this.targetDistance - currentDist;
             
@@ -1150,7 +1225,7 @@ export class GameManager {
             }
         }
 
-        if (this.controls && this.controls.target && this.camera) {
+        if (this.controls && this.controls.target && this.camera && (!this.cinematicCamera || !this.cinematicCamera.active)) {
             const currentDistForRotate = this.camera.position.distanceTo(this.controls.target);
             let minDesc = this.controls.minDistance;
             let maxDesc = this.controls.maxDistance;
@@ -1209,6 +1284,15 @@ export class GameManager {
         }
 
         this.uiManager.checkRouteConfirmButton(this.economyManager.funds);
+        // ★提案A対応: 機体購入ボタンの点灯・消灯および価格印字を最新インフレ価格関数とリアルタイム同期
+        const playerPlanesCount = this.planeManager.planes.filter(p => p.companyId === 'player').length;
+        this.uiManager.checkBuyPlaneButtons(
+            this.economyManager.funds,
+            playerPlanesCount,
+            this.economyManager.maxPlanes,
+            (type) => this.economyManager.getPlaneCost(type)
+        );
+
         // ★Phase 4: 毎秒の資金変動に合わせて空港開発ボタンの点灯・消灯をリアルタイム同期
         this.uiManager.checkAirportDevelopButton(this.economyManager.funds);
 
@@ -1223,7 +1307,9 @@ export class GameManager {
             }
         }
 
-        this.controls.update(); 
+        if (!this.cinematicCamera || !this.cinematicCamera.active) {
+            this.controls.update(); 
+        }
         this.renderer.render(this.scene, this.camera);
     }
 
