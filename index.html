@@ -5,6 +5,9 @@
  * 2. `--hud-top-pad` を新設し、GRAVITY環境下では上部余白を8pxに自動圧縮して二重余白を解消。
  * 3. 通常ブラウザではノッチ保護余白（44px）を維持し、表示バランスを完全保持。
  * 4. HUDが上方に適正配置されることで、トースト通知（top-48）との重なり・衝突を完全根絶。
+ * 
+ * 【トースト改修: HUD直下動的追従連動】
+ * 5. トースト要素（#toast-notification）から固定座標クラス（top-48）を除去し、HUD直下追従配置（style="top: 192px;"初期フォールバック付き）へ更新。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -232,8 +235,8 @@
         <p class="text-xs text-slate-500 mt-2">高精度マップデータを読み込んでいます</p>
     </div>
 
-    <!-- トースト通知（初期クラスをUIManagerの基本設定と完全同期） -->
-    <div id="toast-notification" class="fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug text-sm px-4 py-2">
+    <!-- トースト通知（初期クラスをUIManagerの基本設定と完全同期・HUD直下動的追従） -->
+    <div id="toast-notification" class="fixed left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug text-sm px-4 py-2" style="top: 192px;">
         Message
     </div>
 

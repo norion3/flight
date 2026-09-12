@@ -41,6 +41,12 @@
  * 19. 【提案2: シネマティック演出時UI完全退避・復帰】`setCinematicMode(active)` を新設。
  *     初着陸のパン・ズームから花火終了までの間、上部HUD（-100%退避）、下部FAB・ボタン類（scale: 0）を完全非表示化し、全画面での映画的没入感を演出。
  *     終了後に通常状態へスムーズに復帰。
+ * 
+ * 【トースト改修: HUD直下動的追従連動】
+ * 20. 【トースト被り完全解消】固定座標クラス（top-48: 192px）を廃止し、HUDの描画矩形底辺（rect.bottom + 14px）に
+ *     リアルタイム連動追従する `_updateToastPosition` を新設。`showToast`、`showWithdrawToast`、`showReviveToast` の
+ *     baseClasses から `top-48` を除外して位置を同期。GRAVITY等のアプリ内WebViewでHUDが押し下げられた環境でも、
+ *     通常ブラウザでも、常にHUDの直下に一定の隙間を保って表示され、3段目（客数表示）との衝突・重なりを100%完全根絶。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -994,7 +1000,25 @@ export class UIManager {
         if (this.btnZoomOut) this.btnZoomOut.disabled = !canZoomOut;
     }
 
+    /**
+     * ★トースト改修: HUD下端（rect.bottom + 14px）にリアルタイム連動追従する縦位置更新メソッド
+     */
+    _updateToastPosition() {
+        if (!this.toast) return;
+        const hud = this.topStatusHud || document.getElementById('top-status-hud');
+        if (hud) {
+            const rect = hud.getBoundingClientRect();
+            if (rect.bottom > 0) {
+                this.toast.style.top = `${Math.round(rect.bottom + 14)}px`;
+            } else {
+                this.toast.style.top = '48px';
+            }
+        }
+    }
+
     showToast(message, type = 'error') {
+        this._updateToastPosition();
+
         let charLen = 0;
         for (let i = 0; i < message.length; i++) {
             charLen += message.charCodeAt(i) > 255 ? 1 : 0.55;
@@ -1005,7 +1029,7 @@ export class UIManager {
             sizeClasses = "text-[13px] px-3.5 py-1.5"; 
         }
 
-        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        const baseClasses = `fixed left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         if (type === 'error') {
             this.soundManager.playWarningSound();
@@ -1036,6 +1060,7 @@ export class UIManager {
     }
 
     showWithdrawToast(message, rivalId) {
+        this._updateToastPosition();
         this.soundManager.playEventSound();
         
         let charLen = 0;
@@ -1048,7 +1073,7 @@ export class UIManager {
             sizeClasses = "text-[13px] px-3.5 py-1.5";
         }
 
-        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        const baseClasses = `fixed left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#3b82f6';
@@ -1072,6 +1097,7 @@ export class UIManager {
     }
 
     showReviveToast(message, rivalId) {
+        this._updateToastPosition();
         this.soundManager.playSuccessSound();
         
         let charLen = 0;
@@ -1084,7 +1110,7 @@ export class UIManager {
             sizeClasses = "text-[13px] px-3.5 py-1.5";
         }
 
-        const baseClasses = `fixed top-48 left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
+        const baseClasses = `fixed left-1/2 transform -translate-x-1/2 -translate-y-4 font-bold rounded-xl shadow-lg opacity-0 pointer-events-none transition-[opacity,transform] duration-200 z-50 text-center whitespace-nowrap leading-snug ${sizeClasses}`;
         
         const comp = CONFIG.COMPANIES.find(c => c.id === rivalId);
         const hexColor = comp ? '#' + comp.routeColor.toString(16).padStart(6, '0') : '#10b981';
