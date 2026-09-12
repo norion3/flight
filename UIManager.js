@@ -63,6 +63,11 @@
  * 28. `_updateToastPosition` において、HUD非表示時（rect.bottom <= 0）のフォールバック座標を
  *     従来の 48px（ボタン群の真裏に被る位置）から 80px へ引き下げ。HUDを非表示にしている状態でも、
  *     GRAVITY等の上部操作ボタン群（高さ約55〜65px）を潜り抜けて地球儀上空の安全領域にトーストを表示。
+ * 
+ * 【トースト非表示時位置改修 第2弾: GRAVITY丸ボタン群（〜110px）の完全潜り抜けクリアランス確保】
+ * 29. `_updateToastPosition` において、HUD非表示時（rect.bottom <= 0）のフォールバック座標を
+ *     80px（丸ボタン群の中心線直撃位置）から 126px へ引き下げ。白い丸ボタン群の下端（約110px）を
+ *     完全に潜り抜け、約16pxのマージンを確保して地球儀北極上空の安全領域へ確実にトーストを表示。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -1199,6 +1204,7 @@ export class UIManager {
 
     /**
      * ★トースト改修: HUD下端（rect.bottom + 14px）にリアルタイム連動追従する縦位置更新メソッド
+     * ★第2弾改修: HUD非表示時フォールバックを 80px から 126px へ引き下げ、丸ボタン群下端（約110px）の完全潜り抜けを実現
      */
     _updateToastPosition() {
         if (!this.toast) return;
@@ -1208,7 +1214,7 @@ export class UIManager {
             if (rect.bottom > 0) {
                 this.toast.style.top = `${Math.round(rect.bottom + 14)}px`;
             } else {
-                this.toast.style.top = '80px';
+                this.toast.style.top = '126px';
             }
         }
     }
