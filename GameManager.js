@@ -70,6 +70,11 @@
  * 【Phase 2: 地球儀の最大ズームアウト限界拡張（3Dカメラ調整）】
  * 29. `initThree()` 内のカメラ最大引き距離（`controls.maxDistance`）および `animate()` 内のフォールバック値を `25.0` から `28.0` へ拡張。
  *     縦長画面のGRAVITY環境（ブラウザバー非表示による縦長アスペクト比）でも、地球儀全体を十分に小さく引いて広々とした宇宙空間を見渡せるよう最適化。
+ * 
+ * 【Phase 1: 花火静粛保護（ライバルAI一時停止）＆ 主要空港開発費用・解体返金適正化（500M/800M/2.0B）】
+ * 30. `onDevelopAirportRequested` 内の開発費用配列を正規価格 `[500000000, 800000000, 2000000000]`（500M / 800M / 2.0B）に改定。
+ * 31. `onDowngradeAirportRequested` 内の返金配列を正規価格の50% `[0, 250000000, 400000000, 1000000000]`（250M / 400M / 1.0B）に改定。
+ * 32. `animate()` 内で、花火演出フラグ（`isMuCelebrating`）が有効な間は `rivalManager.update(delta, this.competitionManager)` の実行を一時停止し、花火中のライバル撤退・復活トーストの割り込みを完全防止。
  */
 
 import { CONFIG } from './Config.js';
@@ -302,8 +307,8 @@ export class GameManager {
             if (airportData.id === 'MU') return; // ★MU空港は開発不要・完成固定
             if (currentDevLevel >= 3) return;
 
-            const costs = [500000, 1500000, 3500000]; // デバッグ価格（Lv 0->1: $500K / Lv 1->2: $1.5M / Lv 2->3: $3.5M）
-            const cost = costs[currentDevLevel] || 500000;
+            const costs = [500000000, 800000000, 2000000000]; // 正規開発費用（Lv 0->1: $500M / Lv 1->2: $800M / Lv 2->3: $2.0B）
+            const cost = costs[currentDevLevel] || 500000000;
 
             if (!this.economyManager.canAfford(cost)) {
                 this.uiManager.showToast(window.APP_LANG.toastNoFunds);
@@ -359,7 +364,7 @@ export class GameManager {
             if (airportData.id === 'MU') return; // ★ムー中央古代空港は解体絶対禁止
             if (currentDevLevel <= 0) return;
 
-            const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
+            const refunds = [0, 250000000, 400000000, 1000000000]; // 正規返金額（Lv 1➔0: $250M / Lv 2➔1: $400M / Lv 3➔2: $1.0B）
             const refund = refunds[currentDevLevel] || 0;
 
             // 資金返還加算
@@ -1296,7 +1301,10 @@ export class GameManager {
             this.competitionManager,
             this.eventManager
         );
-        this.rivalManager.update(delta, this.competitionManager);
+        // 花火演出中（isMuCelebrating）はライバル思考サイクルを一時停止（撤退・復活の割り込み防止）
+        if (this.rivalManager && !this.isMuCelebrating) {
+            this.rivalManager.update(delta, this.competitionManager);
+        }
         
         // 花火演出中（isMuCelebrating）は突発イベントの更新を一時停止
         if (this.eventManager && !this.isMuCelebrating) {

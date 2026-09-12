@@ -47,6 +47,11 @@
  *     リアルタイム連動追従する `_updateToastPosition` を新設。`showToast`、`showWithdrawToast`、`showReviveToast` の
  *     baseClasses から `top-48` を除外して位置を同期。GRAVITY等のアプリ内WebViewでHUDが押し下げられた環境でも、
  *     通常ブラウザでも、常にHUDの直下に一定の隙間を保って表示され、3段目（客数表示）との衝突・重なりを100%完全根絶。
+ * 
+ * 【Phase 2: 花火演出中トースト完全遮断 ＆ 主要空港開発費用・解体返金適正化（500M/800M/2.0B）】
+ * 21. `setCinematicMode(true)` 発火時に残存トーストタイマーをクリアし、即座に `toast-show` クラスを剥がして画面から消滅。
+ * 22. `showToast`、`showWithdrawToast`、`showReviveToast` の先頭に `if (this._isCinematicActive) return;` ガードを配置し、花火演出中のトースト割り込みを完全遮断。
+ * 23. `updateAirportDevelopButton` 内の開発費用配列を `[500000000, 800000000, 2000000000]`、解体返金額配列を `[0, 250000000, 400000000, 1000000000]` に更新。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -778,6 +783,15 @@ export class UIManager {
         this._isCinematicActive = active;
 
         if (active) {
+            // ★対策A: 残存トーストタイマーをクリアし、即座にトーストを画面から消滅
+            if (this.toastTimeout) {
+                clearTimeout(this.toastTimeout);
+                this.toastTimeout = null;
+            }
+            if (this.toast) {
+                this.toast.classList.remove('toast-show');
+            }
+
             // 1. 開いているパネルやカードを即座に全クローズ
             this.hideAll();
 
@@ -1017,6 +1031,7 @@ export class UIManager {
     }
 
     showToast(message, type = 'error') {
+        if (this._isCinematicActive) return; // ★対策B: シネマティック演出中は完全遮断
         this._updateToastPosition();
 
         let charLen = 0;
@@ -1060,6 +1075,7 @@ export class UIManager {
     }
 
     showWithdrawToast(message, rivalId) {
+        if (this._isCinematicActive) return; // ★対策B: シネマティック演出中は完全遮断
         this._updateToastPosition();
         this.soundManager.playEventSound();
         
@@ -1097,6 +1113,7 @@ export class UIManager {
     }
 
     showReviveToast(message, rivalId) {
+        if (this._isCinematicActive) return; // ★対策B: シネマティック演出中は完全遮断
         this._updateToastPosition();
         this.soundManager.playSuccessSound();
         
@@ -1212,13 +1229,13 @@ export class UIManager {
             return;
         }
 
-        const costs = [500000, 1500000, 3500000]; // 建設費用（Lv 1: $500K / Lv 2: $1.5M / Lv 3: $3.5M）
-        const refunds = [0, 250000, 750000, 1750000]; // 返金額（Lv 1➔0: $250K / Lv 2➔1: $750K / Lv 3➔2: $1.75M）
+        const costs = [500000000, 800000000, 2000000000]; // 正規開発費用（Lv 1: $500M / Lv 2: $800M / Lv 3: $2.0B）
+        const refunds = [0, 250000000, 400000000, 1000000000]; // 正規返金額（Lv 1➔0: $250M / Lv 2➔1: $400M / Lv 3➔2: $1.0B）
 
         // 1. 解体ボタンの制御（常時固定表示：Lv 0は無効化、Lv 1以上は活性化）
         if (this.btnDowngradeAirport) {
             this.btnDowngradeAirport.classList.remove('hidden');
-            const refundAmount = refunds[devLevel] || 250000;
+            const refundAmount = refunds[devLevel] || 250000000;
             const textSpan = this.btnDowngradeAirport.querySelector('span:nth-child(2)');
             if (textSpan) textSpan.innerText = '解体';
             if (refundEl) refundEl.innerText = `+${this._formatMoneyShort(refundAmount)}`;
@@ -1249,7 +1266,7 @@ export class UIManager {
         }
 
         const nextLevel = devLevel + 1;
-        const cost = costs[devLevel] || 500000;
+        const cost = costs[devLevel] || 500000000;
         const costStr = `-${this._formatMoneyShort(cost)}`;
 
         if (devLevel === 0) {
