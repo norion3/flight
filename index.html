@@ -1,3 +1,11 @@
+<!--
+ * AI可読性・先祖返り防止コメント:
+ * 【GRAVITY / アプリ内WebViewと通常ブラウザの上部ステータスHUD余白動的調整】
+ * 1. GRAVITY等のアプリ内ブラウザ（専用ヘッダー常駐環境）と通常ブラウザ（Safari等）を自動判定。
+ * 2. `--hud-top-pad` を新設し、GRAVITY環境下では上部余白を8pxに自動圧縮して二重余白を解消。
+ * 3. 通常ブラウザではノッチ保護余白（44px）を維持し、表示バランスを完全保持。
+ * 4. HUDが上方に適正配置されることで、トースト通知（top-48）との重なり・衝突を完全根絶。
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -40,6 +48,16 @@
                 margin = '8px'; 
             }
             document.documentElement.style.setProperty('--ui-bottom', margin);
+
+            // ★GRAVITY等のアプリ内WebView判定と上部HUD余白（--hud-top-pad）の動的調整
+            const isAppWebView = !isStandalone && (/iPhone|iPad|iPod/.test(navigator.userAgent) && !/Version\/.*Safari/.test(navigator.userAgent));
+            let topPad = '44px';
+            if (isAppWebView) {
+                topPad = '8px'; // GRAVITY上部バー直下にフィットさせ二重余白を解消
+            } else if (isStandalone) {
+                topPad = 'calc(env(safe-area-inset-top) + 8px)';
+            }
+            document.documentElement.style.setProperty('--hud-top-pad', topPad);
         }
         window.addEventListener('resize', updateUIBottomMargin);
         window.addEventListener('DOMContentLoaded', updateUIBottomMargin);
@@ -107,6 +125,7 @@
     <style>
         :root {
             --ui-bottom: 30px;
+            --hud-top-pad: 44px;
         }
         
         * {
@@ -154,6 +173,10 @@
         #fab-buy-plane { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #fab-save-load { bottom: var(--ui-bottom) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #zoom-controls { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        #top-status-hud {
+            padding-top: var(--hud-top-pad) !important;
+        }
 
         /* イベントモーダル専用スタイル */
         #event-modal-backdrop {
