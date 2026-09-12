@@ -12,6 +12,10 @@
  * 【Phase 1: GRAVITY上部操作不可エリアとの二重余白解消】
  * 6. #top-status-hud 要素から Tailwind の固定クラス pt-11（44px固定）を除去し、--hud-top-pad の動的制御に完全一本化。
  * 7. updateUIBottomMargin 内で、GRAVITY等のアプリ内WebView環境における --hud-top-pad を 8px から 4px へ最適化し、アプリ上部バー直下の不要な黒いデッドスペースを完全解消。
+ * 
+ * 【上部余白最適化: Safari・GRAVITY双方の余分な空白一括撤廃・8px統一】
+ * 8. Safari・GRAVITY双方で生じていた約44〜50pxの無駄なデッドスペースを一括削除。
+ * 9. `--hud-top-pad` の基準値を 44px から 8px へ統一し、複雑なブラウザ判別ロジックを不要化してHUD位置をスマートに引き上げ。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -56,14 +60,8 @@
             }
             document.documentElement.style.setProperty('--ui-bottom', margin);
 
-            // ★GRAVITY等のアプリ内WebView判定と上部HUD余白（--hud-top-pad）の動的調整
-            const isAppWebView = !isStandalone && (/iPhone|iPad|iPod/.test(navigator.userAgent) && !/Version\/.*Safari/.test(navigator.userAgent));
-            let topPad = '44px';
-            if (isAppWebView) {
-                topPad = '4px'; // GRAVITY上部バー直下にフィットさせ二重余白を解消
-            } else if (isStandalone) {
-                topPad = 'calc(env(safe-area-inset-top) + 8px)';
-            }
+            // ★Safari・GRAVITY双方の余分な上部余白を一括撤廃し8pxに統一
+            let topPad = '8px';
             document.documentElement.style.setProperty('--hud-top-pad', topPad);
         }
         window.addEventListener('resize', updateUIBottomMargin);
@@ -132,7 +130,7 @@
     <style>
         :root {
             --ui-bottom: 30px;
-            --hud-top-pad: 44px;
+            --hud-top-pad: 8px;
         }
         
         * {
