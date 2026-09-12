@@ -6,6 +6,12 @@
  * 2. AIの基礎顧客満足度初期値を 70 ➔ 100 に引き上げ、創業時の老舗ライバルとしての実力を適正化。
  * 3. プレイヤー満足度の400キャップ撤廃、AI満足度年度成長式（毎年+35）、世界シェア計算等は100%完全保持。
  * 4. 【追加】就航アクティブ制に基づき、実際に飛行機が飛んだ実績のある路線（isOperational）、または開拓後45秒以内の路線（猶予バッファ）を接続数としてカウント。
+ * 
+ * 【Phase 1: 国際航空カルテル（五国同盟）ステートマシン ＆ AI満足度バフ】
+ * 5. 自社の世界シェアが30%（0.30）を突破した瞬間にカルテル発動フラグ（isCartelActive = true, hasTriggeredCartel = true）をセット。
+ * 6. 不可逆ラッチ（Latch Flag）により、シェアが30%を下回ってもカルテルは継続しチャタリングを完全防止。
+ * 7. 自社世界シェアが50%（0.50）を突破した瞬間にカルテルが瓦解・完全崩壊（isCartelActive = false, isCartelBroken = true）。
+ * 8. カルテル発動中、ライバル各社の顧客満足度に +50 の共同運航コードシェアバフを付与。
  */
 
 import { CONFIG } from './Config.js';
@@ -23,11 +29,36 @@ export class CompetitionManager {
         this.currentYear = 1;
         
         this.aiBaseOffsets = {};
+
+        // ★Phase 1新設: 国際航空カルテル（五国同盟）管理フラグ
+        this.isCartelActive = false;
+        this.hasTriggeredCartel = false;
+        this.isCartelBroken = false;
     }
 
     update(delta, year = 1) {
         this.currentYear = year;
         this._calculateShares();
+        this._updateCartelState();
+    }
+
+    /**
+     * ★Phase 1新設: 世界シェア30%突破によるカルテル発動 ＆ 50%突破によるカルテル瓦解ステートマシン
+     */
+    _updateCartelState() {
+        const playerWorldShare = this.getWorldShare('player');
+
+        // カルテル未発火時：自社世界シェア30%突破でカルテル発動（ラッチ固定）
+        if (!this.hasTriggeredCartel && !this.isCartelBroken && playerWorldShare >= 0.30) {
+            this.hasTriggeredCartel = true;
+            this.isCartelActive = true;
+        }
+
+        // カルテル発動中：自社世界シェア50%突破でカルテル完全瓦解
+        if (this.isCartelActive && playerWorldShare >= 0.50) {
+            this.isCartelActive = false;
+            this.isCartelBroken = true;
+        }
     }
 
     _calculateShares() {
@@ -134,13 +165,14 @@ export class CompetitionManager {
         return Math.min(1.0, connectedPoints / totalWorldPoints);
     }
     
-    // ★AI満足度: 初期値100付近、毎年+35成長、上限2500キャップ
+    // ★AI満足度: 初期値100付近、毎年+35成長、上限2500キャップ（カルテル中は+50の協定バフ適用）
     getAiSatisfaction(companyId) {
         if (!this.aiBaseOffsets[companyId]) {
             this.aiBaseOffsets[companyId] = this.baseAiSatisfaction + (Math.random() * 10 - 5);
         }
         const year = this.currentYear || 1;
         const growth = (year - 1) * 35;
-        return Math.min(2500, Math.round(this.aiBaseOffsets[companyId] + growth));
+        const cartelBuff = this.isCartelActive ? 50 : 0;
+        return Math.min(2500, Math.round(this.aiBaseOffsets[companyId] + growth + cartelBuff));
     }
 }

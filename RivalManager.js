@@ -21,6 +21,12 @@
  * 【ゲームバランス改善 Phase 2: ライバルAI機体数上限の適正化】
  * 10. プレイヤー最大200機基準化に伴い、ライバル各社の機体保有上限キャップを最大60機から40機へ調整。
  *     世界全体で約350機が快適かつ軽快に飛び交う適正バランスを実現。
+ * 
+ * 【Phase 1: カルテル包囲網 AI相互不侵犯 ＆ プレイヤー空港集中攻撃ルーチン】
+ * 11. 【ライバル間カニバリズム停止】カルテル期間中（isCartelActive）、ライバル同士が同じ空港にいても撤退判定を行わず、
+ *     プレイヤー（'player'）の就航路線が存在する場合のみ撤退カウンターを加算。
+ * 12. 【プレイヤー空港への集中攻撃】カルテル期間中、路線開拓の候補先選定（_expandRoute）において、
+ *     プレイヤーが就航している空港に -3.0 の強力な優先ボーナスを付与し、包囲網として集中就航。
  */
 
 import { CONFIG } from './Config.js';
@@ -112,6 +118,9 @@ export class RivalManager {
         const currentYear = this.economyManager ? this.economyManager.year : 1;
         const maxAllowedPlanes = Math.min(40, 6 + (currentYear - 1) * 4);
 
+        // ★Phase 1改訂: カルテル発動状態の取得
+        const isCartel = competitionManager && competitionManager.isCartelActive;
+
         // ★撤退シェア基準 35% 未満 ＆ 1サイクル（約22秒）猶予カウンター
         if (competitionManager) {
             for (const originId in net) {
@@ -120,14 +129,21 @@ export class RivalManager {
                 
                 const originShare = competitionManager.getShare(originId, companyId);
 
-                // ★5大対策仕様: 「瞬間空を飛んでいるか」を廃止し、その空港を発着する競合他社（プレイヤーまたは他社AI）の就航路線（isOperational === true）が存在するか判定
+                // ★Phase 1: カルテル中は「自社（プレイヤー）」の就航路線がある場合のみ撤退判定。他社AI同士の共食い・撤退は完全停止！
                 let hasCompetitorRoute = false;
-                for (const otherComp of CONFIG.COMPANIES) {
-                    if (otherComp.id !== companyId && this.networkManager.network[otherComp.id]) {
-                        const routesFromAirport = this.networkManager.network[otherComp.id][originId];
-                        if (routesFromAirport && routesFromAirport.some(r => r.isOperational)) {
-                            hasCompetitorRoute = true;
-                            break;
+                if (isCartel) {
+                    const playerNet = this.networkManager.network['player'];
+                    if (playerNet && playerNet[originId] && playerNet[originId].some(r => r.isOperational)) {
+                        hasCompetitorRoute = true;
+                    }
+                } else {
+                    for (const otherComp of CONFIG.COMPANIES) {
+                        if (otherComp.id !== companyId && this.networkManager.network[otherComp.id]) {
+                            const routesFromAirport = this.networkManager.network[otherComp.id][originId];
+                            if (routesFromAirport && routesFromAirport.some(r => r.isOperational)) {
+                                hasCompetitorRoute = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -281,7 +297,7 @@ export class RivalManager {
 
             const targetNode = this.airportManager.getAirportById(targetAirportId);
             if (targetNode) {
-                this._expandRoute(companyId, targetNode);
+                this._expandRoute(companyId, targetNode, false, isCartel);
             }
         }
     }
@@ -345,7 +361,7 @@ export class RivalManager {
         }
     }
 
-    _expandRoute(companyId, originNode, isFree = false) {
+    _expandRoute(companyId, originNode, isFree = false, isCartel = false) {
         const candidates = (this.airportManager.activeAirports && this.airportManager.activeAirports.length > 0)
             ? this.airportManager.activeAirports
             : this.airportManager.allAirports;
@@ -381,6 +397,9 @@ export class RivalManager {
         // ★大型機・超大型機保有判定（長距離路線優遇用）
         const compPlanes = this.planeManager.planes.filter(p => p.companyId === companyId);
         const hasWidebody = compPlanes.some(p => p.sizeType === 'super' || p.sizeType === 'large');
+
+        // ★Phase 1: プレイヤーの就航空港ネットワーク参照
+        const playerNet = this.networkManager.network['player'];
 
         validCandidates.sort((a, b) => {
             const posA = Utils.latLonToVector3(a.lat, a.lon, CONFIG.GLOBE_RADIUS);
@@ -418,8 +437,16 @@ export class RivalManager {
             const bonusA = (hasWidebody && distA >= 1.8) ? -1.5 : 0;
             const bonusB = (hasWidebody && distB >= 1.8) ? -1.5 : 0;
 
-            const scoreA = distA + penaltyA + bonusA;
-            const scoreB = distB + penaltyB + bonusB;
+            // ★Phase 1新設: カルテル期間中は「プレイヤーがいる空港」への就航を最優先（スコア-3.0の強力ボーナス）
+            let cartelBonusA = 0;
+            let cartelBonusB = 0;
+            if (isCartel && playerNet) {
+                if (playerNet[a.id] && playerNet[a.id].length > 0) cartelBonusA = -3.0;
+                if (playerNet[b.id] && playerNet[b.id].length > 0) cartelBonusB = -3.0;
+            }
+
+            const scoreA = distA + penaltyA + bonusA + cartelBonusA;
+            const scoreB = distB + penaltyB + bonusB + cartelBonusB;
 
             return scoreA - scoreB;
         });

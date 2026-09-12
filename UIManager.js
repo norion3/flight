@@ -52,6 +52,12 @@
  * 21. `setCinematicMode(true)` 発火時に残存トーストタイマーをクリアし、即座に `toast-show` クラスを剥がして画面から消滅。
  * 22. `showToast`、`showWithdrawToast`、`showReviveToast` の先頭に `if (this._isCinematicActive) return;` ガードを配置し、花火演出中のトースト割り込みを完全遮断。
  * 23. `updateAirportDevelopButton` 内の開発費用配列を `[500000000, 800000000, 2000000000]`、解体返金額配列を `[0, 250000000, 400000000, 1000000000]` に更新。
+ * 
+ * 【Phase 2: 国際航空カルテル（五国同盟）特報電信モーダル ＆ 排他統合】
+ * 24. `_initCartelModal`、`showCartelModal`、`hideCartelModal`、`isCartelModalOpen` を新設。
+ * 25. 結成時（ALERT・ローズ/アンバー配色）と瓦解時（VICTORY・ゴールド/エメラルド配色）の特報電信モーダルを表示。
+ * 26. 表示中の時間停止および非表示時の `display = 'none'` によるGPU負荷ゼロ化を徹底。
+ * 27. `hideAll` において、カルテルモーダル表示中はパネル一括クローズによる誤消去を防止。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -79,6 +85,12 @@ export class UIManager {
         this._isMuEventModalOpen = false;
         this._currentMuOkCallback = null;
         this._initMuEventModal();
+
+        // ★Phase 2新設: 国際航空カルテル特報モーダル初期化
+        this.cartelEventBackdrop = null;
+        this._isCartelModalOpen = false;
+        this._currentCartelOkCallback = null;
+        this._initCartelModal();
 
         // ★新設: 空港開発・解体ボタンコンテナおよび各ボタン要素
         this.airportDevContainer = document.getElementById('airport-dev-container');
@@ -675,6 +687,172 @@ export class UIManager {
                 }
             });
         }
+    }
+
+    /**
+     * ★Phase 2新設: 国際航空カルテル（五国同盟）特報モーダルのDOM要素初期化
+     */
+    _initCartelModal() {
+        if (document.getElementById('cartel-modal-backdrop')) {
+            this.cartelEventBackdrop = document.getElementById('cartel-modal-backdrop');
+            return;
+        }
+
+        const backdrop = document.createElement('div');
+        backdrop.id = 'cartel-modal-backdrop';
+        backdrop.className = 'fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300 opacity-0 pointer-events-none hidden';
+        backdrop.style.display = 'none';
+        backdrop.innerHTML = `
+            <div id="cartel-modal-card" class="interactive-ui relative w-full max-w-sm bg-slate-900/95 border border-rose-500/60 rounded-2xl p-5 shadow-2xl shadow-rose-950/70 overflow-hidden flex flex-col gap-3">
+                <div id="cartel-modal-glow" class="absolute -top-12 -right-12 w-32 h-32 bg-rose-500/15 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span id="cartel-modal-icon" class="text-base">⚠️</span>
+                        <span id="cartel-modal-category" class="text-xs font-black tracking-widest text-rose-400 font-mono uppercase">GLOBAL ALLIANCE</span>
+                    </div>
+                    <span id="cartel-modal-badge" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300">CARTEL ALERT</span>
+                </div>
+                <div class="flex flex-col gap-1.5 mt-1">
+                    <div class="text-[11px] font-bold text-slate-400 font-mono tracking-wider flex items-center gap-1.5">
+                        <span id="cartel-modal-pulse" class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
+                        <span id="cartel-modal-sender">【世界航空連盟（IATA）緊急特報】</span>
+                    </div>
+                    <h3 id="cartel-modal-title" class="text-base font-black text-slate-100 tracking-wide">国際航空カルテル条約の締結</h3>
+                    <p id="cartel-modal-body" class="text-xs text-slate-300 leading-relaxed whitespace-pre-line mt-1 bg-slate-950/60 border border-slate-800 p-3 rounded-xl shadow-inner font-sans"></p>
+                </div>
+                <div class="mt-2">
+                    <button id="btn-cartel-modal-ok" class="w-full py-3 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 active:scale-[0.98] text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/50 transition-all tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer">
+                        <span id="btn-cartel-text">了解・受けて立つ</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(backdrop);
+        this.cartelEventBackdrop = backdrop;
+
+        const btnOk = backdrop.querySelector('#btn-cartel-modal-ok');
+        if (btnOk) {
+            btnOk.addEventListener('click', () => {
+                this.soundManager.playSuccessSound();
+                this.hideCartelModal();
+                if (this._currentCartelOkCallback) {
+                    const cb = this._currentCartelOkCallback;
+                    this._currentCartelOkCallback = null;
+                    cb();
+                }
+            });
+        }
+    }
+
+    /**
+     * ★Phase 2新設: 国際航空カルテル特報モーダルを表示
+     * @param {object} eventData - タイトル、本文、種別等
+     * @param {function} onOk - OKボタン押下時のコールバック
+     */
+    showCartelModal(eventData, onOk) {
+        if (!eventData) return;
+        this.soundManager.playNoticeSound();
+        this.hideAll();
+
+        // 残存トーストを確実に消滅
+        if (this.toastTimeout) {
+            clearTimeout(this.toastTimeout);
+            this.toastTimeout = null;
+        }
+        if (this.toast) {
+            this.toast.classList.remove('toast-show');
+        }
+
+        if (!this.cartelEventBackdrop) {
+            this._initCartelModal();
+        }
+
+        const isBroken = eventData.cartelType === 'broken';
+
+        const cardEl = document.getElementById('cartel-modal-card');
+        const glowEl = document.getElementById('cartel-modal-glow');
+        const iconEl = document.getElementById('cartel-modal-icon');
+        const catEl = document.getElementById('cartel-modal-category');
+        const badgeEl = document.getElementById('cartel-modal-badge');
+        const pulseEl = document.getElementById('cartel-modal-pulse');
+        const senderEl = document.getElementById('cartel-modal-sender');
+        const titleEl = document.getElementById('cartel-modal-title');
+        const bodyEl = document.getElementById('cartel-modal-body');
+        const btnOk = document.getElementById('btn-cartel-modal-ok');
+        const btnText = document.getElementById('btn-cartel-text');
+
+        if (isBroken) {
+            // 瓦解・覇権樹立（ゴールド/エメラルドスタイル）
+            if (cardEl) {
+                cardEl.className = 'interactive-ui relative w-full max-w-sm bg-slate-900/95 border border-yellow-500/70 rounded-2xl p-5 shadow-2xl shadow-yellow-950/70 overflow-hidden flex flex-col gap-3';
+            }
+            if (glowEl) glowEl.className = 'absolute -top-12 -right-12 w-32 h-32 bg-yellow-500/15 rounded-full blur-2xl pointer-events-none';
+            if (iconEl) iconEl.innerText = '👑';
+            if (catEl) {
+                catEl.innerText = 'SUPREMACY';
+                catEl.className = 'text-xs font-black tracking-widest text-yellow-400 font-mono uppercase';
+            }
+            if (badgeEl) {
+                badgeEl.innerText = eventData.badge || 'VICTORY';
+                badgeEl.className = 'text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-yellow-950/80 border border-yellow-500/40 text-yellow-300';
+            }
+            if (pulseEl) pulseEl.className = 'w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse';
+            if (btnOk) btnOk.className = 'w-full py-3 bg-gradient-to-r from-yellow-500 to-emerald-600 hover:from-yellow-400 hover:to-emerald-500 active:scale-[0.98] text-white font-black text-xs rounded-xl shadow-lg shadow-yellow-950/50 transition-all tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer';
+            if (btnText) btnText.innerText = '覇権樹立を確認';
+        } else {
+            // 結成・宣戦布告（ローズ/アンバースタイル）
+            if (cardEl) {
+                cardEl.className = 'interactive-ui relative w-full max-w-sm bg-slate-900/95 border border-rose-500/60 rounded-2xl p-5 shadow-2xl shadow-rose-950/70 overflow-hidden flex flex-col gap-3';
+            }
+            if (glowEl) glowEl.className = 'absolute -top-12 -right-12 w-32 h-32 bg-rose-500/15 rounded-full blur-2xl pointer-events-none';
+            if (iconEl) iconEl.innerText = '⚠️';
+            if (catEl) {
+                catEl.innerText = 'GLOBAL ALLIANCE';
+                catEl.className = 'text-xs font-black tracking-widest text-rose-400 font-mono uppercase';
+            }
+            if (badgeEl) {
+                badgeEl.innerText = eventData.badge || 'CARTEL ALERT';
+                badgeEl.className = 'text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300';
+            }
+            if (pulseEl) pulseEl.className = 'w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse';
+            if (btnOk) btnOk.className = 'w-full py-3 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 active:scale-[0.98] text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/50 transition-all tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer';
+            if (btnText) btnText.innerText = '了解・受けて立つ';
+        }
+
+        if (senderEl) senderEl.innerText = `【${eventData.sender || '世界航空連盟（IATA）特報'}】`;
+        if (titleEl) titleEl.innerText = eventData.title || '';
+        if (bodyEl) bodyEl.innerText = eventData.body || '';
+
+        this._currentCartelOkCallback = onOk;
+
+        if (this.cartelEventBackdrop) {
+            this.cartelEventBackdrop.classList.remove('hidden');
+            this.cartelEventBackdrop.style.display = 'flex';
+            this.cartelEventBackdrop.classList.add('show');
+            this.cartelEventBackdrop.style.opacity = '1';
+            this.cartelEventBackdrop.style.pointerEvents = 'auto';
+            this._isCartelModalOpen = true;
+            this._toggleMainButtons(false);
+        }
+    }
+
+    /**
+     * ★Phase 2新設: 国際航空カルテル特報モーダルを非表示化
+     */
+    hideCartelModal() {
+        if (this.cartelEventBackdrop) {
+            this.cartelEventBackdrop.classList.remove('show');
+            this.cartelEventBackdrop.style.opacity = '0';
+            this.cartelEventBackdrop.style.pointerEvents = 'none';
+            this.cartelEventBackdrop.classList.add('hidden');
+            this.cartelEventBackdrop.style.display = 'none';
+            this._isCartelModalOpen = false;
+            this._toggleMainButtons(true);
+        }
+    }
+
+    isCartelModalOpen() {
+        return this._isCartelModalOpen;
     }
 
     /**
@@ -1368,7 +1546,7 @@ export class UIManager {
     }
 
     hideAll() {
-        if (this._isEventModalOpen || this._isSettlementModalOpen || this._isMuEventModalOpen) return;
+        if (this._isEventModalOpen || this._isSettlementModalOpen || this._isMuEventModalOpen || this._isCartelModalOpen) return;
 
         this.infoCard.classList.remove('show');
         if (this.airportDevContainer) this.airportDevContainer.classList.add('hidden');

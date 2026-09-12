@@ -75,6 +75,12 @@
  * 30. `onDevelopAirportRequested` 内の開発費用配列を正規価格 `[500000000, 800000000, 2000000000]`（500M / 800M / 2.0B）に改定。
  * 31. `onDowngradeAirportRequested` 内の返金配列を正規価格の50% `[0, 250000000, 400000000, 1000000000]`（250M / 400M / 1.0B）に改定。
  * 32. `animate()` 内で、花火演出フラグ（`isMuCelebrating`）が有効な間は `rivalManager.update(delta, this.competitionManager)` の実行を一時停止し、花火中のライバル撤退・復活トーストの割り込みを完全防止。
+ * 
+ * 【Phase 2: 国際航空カルテル 特報発火制御 ＆ キューイング・時間停止排他統合】
+ * 33. `hasNotifiedCartelFormed`、`hasNotifiedCartelBroken` フラグを管理。
+ * 34. 世界シェア30%突破（結成）および50%突破（瓦解）を検知し、`muMessageQueue` へのキューイング統合とディレイ着信を実装。
+ * 35. `triggerCartelModal` を実装し、特報読込中の時間停止（`isPaused = true`）とOK受信後の安全再開、保留キュー自動消化を連携。
+ * 36. セーブデータロード時（onLoadSaveRequested）に復元シェア値からカルテル通知済みフラグを同期し、再発火を防止。
  */
 
 import { CONFIG } from './Config.js';
@@ -110,13 +116,17 @@ export class GameManager {
         // ★新設: 観測電信の遅延予約・保留管理タイマー ＆ FIFOキューイング
         this.pendingMuTimeout = null;
         this.pendingMuStageData = null;
-        this.muMessageQueue = []; // ★連続開発時の電信ストックキュー
+        this.muMessageQueue = []; // ★連続開発時・カルテル特報の電信ストックキュー
         this.isMuCelebrating = false; // ★花火セレモニー中の完全静粛・排他フラグ
 
         // ★Phase 4 & Phase 5: ムー大陸の進行フラグ統括
         this.isMuUnlocked = false; // 空路開通済みフラグ
         this.hasReachedStage21 = false; // 第21段階到達フラグ
         this.isMuCelebrated = false; // 初到着セレモニー完了フラグ
+
+        // ★Phase 2新設: カルテル特報通知済みフラグ
+        this.hasNotifiedCartelFormed = false;
+        this.hasNotifiedCartelBroken = false;
 
         // ★提案B新設: 初着陸シネマティックカメラ補間管理オブジェクト
         this.cinematicCamera = {
@@ -281,7 +291,11 @@ export class GameManager {
                         const stageData = this.pendingMuStageData;
                         this.pendingMuStageData = null;
                         setTimeout(() => {
-                            this.triggerMuModal(stageData);
+                            if (stageData.isCartel) {
+                                this.triggerCartelModal(stageData);
+                            } else {
+                                this.triggerMuModal(stageData);
+                            }
                         }, 500);
                     } else if (this.muMessageQueue.length > 0) {
                         setTimeout(() => {
@@ -556,6 +570,15 @@ export class GameManager {
                     // ★Phase 3: ロードした主要空港の開発レベル合計に合わせてムー大陸の浮上段階を即座に復元
                     this.syncMuContinentStage(false, 0);
 
+                    // ★Phase 2: ロード時の世界シェアからカルテル通知済み状態を自動復元（二重通知防止）
+                    const playerWorldShare = this.competitionManager ? this.competitionManager.getWorldShare('player') : 0;
+                    if (playerWorldShare >= 0.30) {
+                        this.hasNotifiedCartelFormed = true;
+                    }
+                    if (playerWorldShare >= 0.50) {
+                        this.hasNotifiedCartelBroken = true;
+                    }
+
                     // 8. 各種UI・パネル・ランキングの即時更新
                     const calendarStr = `${this.economyManager.year}年目-${this.economyManager.month}月`;
                     const fundsStr = this.economyManager._formatMoney(this.economyManager.funds);
@@ -819,9 +842,9 @@ export class GameManager {
     _processMuQueue(delayMs = 0) {
         if (this.muMessageQueue.length === 0) return;
         if (this.pendingMuTimeout) return;
-        // 排他条件: 決算中・電信表示中・花火セレモニー中は保留
+        // 排他条件: 決算中・電信表示中・カルテルモーダル表示中・花火セレモニー中は保留
         if (this.isMuCelebrating) return;
-        if (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen())) return;
+        if (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen() || (this.uiManager.isCartelModalOpen && this.uiManager.isCartelModalOpen()))) return;
 
         const nextEvent = this.muMessageQueue.shift();
         if (!nextEvent) return;
@@ -835,14 +858,22 @@ export class GameManager {
                     this.muMessageQueue.unshift(nextEvent);
                     return;
                 }
-                if (this.uiManager.isSettlementModalOpen()) {
+                if (this.uiManager.isSettlementModalOpen() || (this.uiManager.isCartelModalOpen && this.uiManager.isCartelModalOpen())) {
                     this.muMessageQueue.unshift(nextEvent);
                     return;
                 }
-                this.triggerMuModal(nextEvent);
+                if (nextEvent.isCartel) {
+                    this.triggerCartelModal(nextEvent);
+                } else {
+                    this.triggerMuModal(nextEvent);
+                }
             }, delayMs);
         } else {
-            this.triggerMuModal(nextEvent);
+            if (nextEvent.isCartel) {
+                this.triggerCartelModal(nextEvent);
+            } else {
+                this.triggerMuModal(nextEvent);
+            }
         }
     }
 
@@ -856,6 +887,26 @@ export class GameManager {
         this.isPaused = true; // ★電信読込中はゲーム内時間を一時停止（決算・イベントの裏重複を100%防止）
 
         this.uiManager.showMuEventModal(stageData, () => {
+            this.isPaused = false; // ★OK受信でゲーム内時間を安全に再開
+            // もしキューに未読メッセージが残っていれば、1.8秒の余韻後に順次次便を着信
+            if (this.muMessageQueue.length > 0) {
+                setTimeout(() => {
+                    this._processMuQueue(0);
+                }, 1800);
+            }
+        });
+    }
+
+    /**
+     * ★Phase 2新設: 国際航空カルテル特報モーダルを安全に時間停止状態で発火
+     * @param {object} eventData - 特報イベントデータ
+     */
+    triggerCartelModal(eventData) {
+        if (!eventData || !this.uiManager) return;
+        this.pendingMuStageData = null;
+        this.isPaused = true; // ★特報電信読込中はゲーム内時間を一時停止
+
+        this.uiManager.showCartelModal(eventData, () => {
             this.isPaused = false; // ★OK受信でゲーム内時間を安全に再開
             // もしキューに未読メッセージが残っていれば、1.8秒の余韻後に順次次便を着信
             if (this.muMessageQueue.length > 0) {
@@ -1107,9 +1158,9 @@ export class GameManager {
 
     handleTap(event) {
         if (event.target !== this.renderer.domElement) return;
-        // ★排他制御: 電信モーダル表示中（isMuEventModalOpen）や花火演出中もタップを確実に破棄
+        // ★排他制御: 電信モーダル表示中（isMuEventModalOpen/isCartelModalOpen）や花火演出中もタップを確実に破棄
         if (this.isPaused || this.isMuCelebrating || (this.eventManager && this.eventManager.isEventActive) || 
-            (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen()))) return;
+            (this.uiManager && (this.uiManager.isSettlementModalOpen() || this.uiManager.isMuEventModalOpen() || (this.uiManager.isCartelModalOpen && this.uiManager.isCartelModalOpen())))) return;
 
         const tapX = event.clientX;
         const tapY = event.clientY;
@@ -1320,6 +1371,35 @@ export class GameManager {
             } else if (!this.hasTriggeredInflation20M && secIncome >= 20000000) {
                 this.hasTriggeredInflation20M = true;
                 this.uiManager.showToast('【世界情勢】国際航空協定の更新に伴い、更なる価格改定が実施されました！', 'info');
+            }
+        }
+
+        // ★Phase 2新設: 国際航空カルテル（五国同盟）結成特報 ＆ 瓦解特報の検知・キューイング
+        if (this.competitionManager && !this.isMuCelebrating) {
+            if (this.competitionManager.isCartelActive && !this.hasNotifiedCartelFormed) {
+                this.hasNotifiedCartelFormed = true;
+                const formedEvent = {
+                    isCartel: true,
+                    cartelType: 'formed',
+                    title: "国際航空カルテル条約（五国同盟）の締結",
+                    sender: "世界航空連盟（IATA）緊急特報",
+                    badge: "CARTEL ALERT",
+                    body: "貴社の世界シェアが30%を突破し、世界の航空秩序は独占の危機に直面しています。\n\nこれを受け、欧州・アジア・米州・アフリカ・オセアニアのメガキャリア5社が歴史的停戦協定に合意。「世界航空カルテル」が結成されました！\n\nこれより他社間の敵対は停止され、全戦力が貴社路線網の包囲・奪還へと向けられます。\n貴社の真の経営力が試される時が来ました！"
+                };
+                this.muMessageQueue.push(formedEvent);
+                this._processMuQueue(1200);
+            } else if (this.competitionManager.isCartelBroken && !this.hasNotifiedCartelBroken) {
+                this.hasNotifiedCartelBroken = true;
+                const brokenEvent = {
+                    isCartel: true,
+                    cartelType: 'broken',
+                    title: "五国同盟の瓦解・世界航空覇権の樹立",
+                    sender: "世界航空連盟（IATA）特報",
+                    badge: "VICTORY",
+                    body: "貴社の世界シェアが50%（過半数）を突破し、国際航空カルテルは完全に崩壊しました！\n\n包囲網を敷いていたライバル5社は内部対立により足並みを乱し、歴史的敗北を認めて協定から離脱。\n\n世界の空の絶対王者として、貴社の名が航空史に永遠に刻まれました！"
+                };
+                this.muMessageQueue.push(brokenEvent);
+                this._processMuQueue(1200);
             }
         }
 
