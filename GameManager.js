@@ -66,6 +66,10 @@
  * 28. 【提案2: 演出中の全UI隠蔽 ＆ スワイプ操作完全ロック】初便着陸のパン・ズーム開始時に `uiManager.setCinematicMode(true)` を発火し、
  *     `controls.enabled = false` を設定。パン・ズーム完了後も花火終了（9.0秒後）まで操作無効およびUI退避を強制維持し、
  *     演出完了後に `controls.enabled = true` および `uiManager.setCinematicMode(false)` で通常状態へ一括復帰。
+ * 
+ * 【Phase 2: 地球儀の最大ズームアウト限界拡張（3Dカメラ調整）】
+ * 29. `initThree()` 内のカメラ最大引き距離（`controls.maxDistance`）および `animate()` 内のフォールバック値を `25.0` から `28.0` へ拡張。
+ *     縦長画面のGRAVITY環境（ブラウザバー非表示による縦長アスペクト比）でも、地球儀全体を十分に小さく引いて広々とした宇宙空間を見渡せるよう最適化。
  */
 
 import { CONFIG } from './Config.js';
@@ -1005,7 +1009,7 @@ export class GameManager {
         this.controls.rotateSpeed = 0.5;
         this.controls.zoomSpeed = 0.8;
         this.controls.minDistance = 7.5; 
-        this.controls.maxDistance = 25.0;
+        this.controls.maxDistance = 28.0; // ★Phase 2: 縦長画面(GRAVITY等)でも地球全体を小さく引けるよう 25.0 ➔ 28.0 へ拡張
         this.controls.minPolarAngle = 0.1;
         this.controls.maxPolarAngle = Math.PI - 0.1;
 
@@ -1258,7 +1262,7 @@ export class GameManager {
             let minDesc = this.controls.minDistance;
             let maxDesc = this.controls.maxDistance;
             if (minDesc === undefined || isNaN(minDesc)) minDesc = 7.5;
-            if (maxDesc === undefined || isNaN(maxDesc)) maxDesc = 25.0;
+            if (maxDesc === undefined || isNaN(maxDesc)) maxDesc = 28.0; // ★Phase 2: 25.0 ➔ 28.0 へ同期
 
             const denom = maxDesc - minDesc;
             if (denom > 0) {
