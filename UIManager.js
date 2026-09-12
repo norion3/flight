@@ -58,6 +58,11 @@
  * 25. 結成時（ALERT・ローズ/アンバー配色）と瓦解時（VICTORY・ゴールド/エメラルド配色）の特報電信モーダルを表示。
  * 26. 表示中の時間停止および非表示時の `display = 'none'` によるGPU負荷ゼロ化を徹底。
  * 27. `hideAll` において、カルテルモーダル表示中はパネル一括クローズによる誤消去を防止。
+ * 
+ * 【トースト非表示時位置改修: HUD非表示時のGRAVITY上部操作不可エリア被り解消】
+ * 28. `_updateToastPosition` において、HUD非表示時（rect.bottom <= 0）のフォールバック座標を
+ *     従来の 48px（ボタン群の真裏に被る位置）から 80px へ引き下げ。HUDを非表示にしている状態でも、
+ *     GRAVITY等の上部操作ボタン群（高さ約55〜65px）を潜り抜けて地球儀上空の安全領域にトーストを表示。
  */
 
 import { SoundManager } from './SoundManager.js';
@@ -1203,7 +1208,7 @@ export class UIManager {
             if (rect.bottom > 0) {
                 this.toast.style.top = `${Math.round(rect.bottom + 14)}px`;
             } else {
-                this.toast.style.top = '48px';
+                this.toast.style.top = '80px';
             }
         }
     }
