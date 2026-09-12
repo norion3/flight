@@ -15,6 +15,12 @@
  * 7. 炸裂音（鋭い衝撃波パルス＋地響きのような超低周波大気反響ランブル音「ズゥゥン…」を動的合成）。
  * 8. 破裂後の星屑パチパチ爆ぜ音（インパルスノイズによる乾いた「パラパラ…」音）を多重合成。
  * 9. 小玉・中玉・特大玉の規模別音響差別化（引数 isMajor に応じた音圧・周波数・余韻制御）。
+ * 
+ * 【音声エンジン復帰強化: 音量ON時・復帰操作時のAudioContext完全再初期化】
+ * 10. 別アプリから復帰した際にiOSシステム等でハードウェアルートが切断されてresumeが効かなくなる「死に体」状態を根本解消。
+ * 11. `_initContext(forceRecreate)` を拡張し、`forceRecreate = true` 時または既存Contextが正常稼働（running）していない場合に
+ *     古いインスタンスを安全に `close()` して破棄し、`new AudioContext()` を再生成してスピーカー接続を再確立。
+ * 12. `toggleMute()` でミュート解除（音量ON）する瞬間に正当なユーザージェスチャーの権限を活用して強制再初期化（`this._initContext(true)`）を実行。
  */
 
 export class SoundManager {
@@ -40,17 +46,33 @@ export class SoundManager {
         window.addEventListener('focus', resumeAudio);
 
         // 画面復帰後のユーザー操作コンテキストでの再開セーフガード
-        window.addEventListener('pointerdown', resumeAudio, { passive: true });
-        window.addEventListener('touchstart', resumeAudio, { passive: true });
+        const handleUserGesture = () => {
+            if (!this.isMuted) {
+                if (!this.ctx || this.ctx.state !== 'running') {
+                    this._initContext(true);
+                }
+            }
+        };
+
+        window.addEventListener('pointerdown', handleUserGesture, { passive: true });
+        window.addEventListener('touchstart', handleUserGesture, { passive: true });
     }
 
-    _initContext() {
+    _initContext(forceRecreate = false) {
+        if (this.ctx && (forceRecreate || this.ctx.state !== 'running')) {
+            try {
+                this.ctx.close().catch(() => {});
+            } catch (e) {}
+            this.ctx = null;
+        }
+
         if (!this.ctx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (AudioContext) {
                 this.ctx = new AudioContext();
             }
         }
+
         if (this.ctx && this.ctx.state !== 'running') {
             this.ctx.resume().catch(() => {});
         }
@@ -58,9 +80,11 @@ export class SoundManager {
 
     toggleMute() {
         this.isMuted = !this.isMuted;
-        this._initContext();
         if (!this.isMuted) {
+            this._initContext(true);
             this.playTapSound(); 
+        } else {
+            this._initContext(false);
         }
         return this.isMuted;
     }
